@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2018 GreenWaves Technologies
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wextra"
 #pragma GCC diagnostic ignored "-Wpointer-sign"
@@ -110,13 +126,13 @@ void KerParReduct_CC_NoScale_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(In[i*Feat + Feat-1], 7);
-	                Out[Feat-1] = Acc0;
+	                Out[i*Feat + Feat-1] = Acc0;
 	        }
 	}
 	gap_waitbarrier(0);
 }
 
-void KerParReduct_CC_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+void KerParReduct_CC_NoScale_ReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 {
 	int Feat = Arg->Feat;
@@ -133,20 +149,253 @@ void KerParReduct_CC_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c],   ScaleN[c  ]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = In[i*Feat + 2*c+0];
+	                int Acc1 = In[i*Feat + 2*c+1];
 
-	                Out[i*Feat + 2*c  ] = Acc0; 
-	                Out[i*Feat + 2*c+1] = Acc1;
+	                Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Max(0, Acc0), ActScale, ActScaleN), 7); 
+	                Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Max(0, Acc1), ActScale, ActScaleN), 7);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
-	                Out[Feat-1] = Acc0;
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Max(0, Acc0), ActScale, ActScaleN), 7);
 	        }
 	}
 	gap_waitbarrier(0);
 }
 
+void KerParReduct_CC_NoScale_ReLUN_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = In[i*Feat + 2*c+0];
+	                int Acc1 = In[i*Feat + 2*c+1];
+
+	                Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 7);
+	                Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc1, A0), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+
+}
+
+void KerParReduct_CC_NoScale_ReLUM_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = In[i*Feat + 2*c+0];
+	                int Acc1 = In[i*Feat + 2*c+1];
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Max(A0, Acc1), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+
+}
+
+void KerParReduct_CC_NoScale_ReLUMN_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = In[i*Feat + 2*c+0];
+	                int Acc1 = In[i*Feat + 2*c+1];
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc1)), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+
+}
+
+void KerParReduct_CC_NoScale_HSigmoid_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + 2*c+0] + B0, A0) * C0, ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + 2*c+1] + B0, A0) * C0, ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + Feat-1] + B0, A0) * C0, ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_HSwish_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + 2*c+0] + B0, A0) * C0 * In[i*Feat + 2*c+0], ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + 2*c+1] + B0, A0) * C0 * In[i*Feat + 2*c+1], ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(In[i*Feat + Feat-1] + B0, A0) * C0 * In[i*Feat + Feat-1], ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_LeakyReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = In[i*Feat + 2*c+0];
+	                int Acc1 = In[i*Feat + 2*c+1];
+
+
+			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
+			int Neg1 = gap_bitextractu(Acc1, 1, 31), Pos1 = !Neg1;
+			int Acc0N = AT_NORM(Acc0 * A0, 7);
+			int Acc1N = AT_NORM(Acc1 * A0, 7);
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE((Neg1*Acc1N+Pos1*Acc1), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = In[i*Feat + Feat-1];
+			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
+			int Acc0N = AT_NORM(Acc0 * A0, 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 7);
+		        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_Sigmoid_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE((Sigmoid(In[i*Feat + 2*c+0] << 8) >> 8), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE((Sigmoid(In[i*Feat + 2*c+1] << 8) >> 8), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE((Sigmoid(In[i*Feat + Feat-1] << 8) >> 8), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_Tanh_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE((Tanh(In[i*Feat + 2*c+0] << 8) >> 8), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE((Tanh(In[i*Feat + 2*c+1] << 8) >> 8), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE((Tanh(In[i*Feat + Feat-1] << 8) >> 8), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+}
 
 void KerParReduct_CC_ReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
@@ -165,15 +414,15 @@ void KerParReduct_CC_ReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c],   ScaleN[c  ]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c],   ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
 
-	                Out[i*Feat + 2*c  ] = Max(0, Acc0); 
-	                Out[i*Feat + 2*c+1] = Max(0, Acc1);
+	                Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Max(0, Acc0), ActScale, ActScaleN), 7); 
+	                Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Max(0, Acc1), ActScale, ActScaleN), 7);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
-	                Out[Feat-1] = Max(0, Acc0);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Max(0, Acc0), ActScale, ActScaleN), 7);
 	        }
 	}
 	gap_waitbarrier(0);
@@ -196,15 +445,79 @@ void KerParReduct_CC_ReLUN_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c],   ScaleN[c  ]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c],   ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
 
-	                Out[i*Feat + 2*c  ] = AT_CLIP_POS(Acc0, A0);
-	                Out[i*Feat + 2*c+1] = AT_CLIP_POS(Acc1, A0);
+	                Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 7);
+	                Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc1, A0), ActScale, ActScaleN), 7);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
-	                Out[Feat-1] = AT_CLIP_POS(Acc0, A0);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+
+}
+
+void KerParReduct_CC_ReLUM_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c],   ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Max(A0, Acc1), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+
+}
+
+void KerParReduct_CC_ReLUMN_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c],   ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc1)), ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 7);
 	        }
 	}
 	gap_waitbarrier(0);
@@ -228,15 +541,15 @@ void KerParReduct_CC_HSigmoid_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c], ScaleN[c]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c], ScaleN[2*c]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
 
 			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 7);
 			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0, ActScale, ActScaleN), 7);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
-	                Out[Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 7);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 7);
 	        }
 	}
 	gap_waitbarrier(0);
@@ -259,15 +572,15 @@ void KerParReduct_CC_HSwish_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c  ], ScaleN[c  ]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c  ], ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
 
 			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 7);
 			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0 * Acc1, ActScale, ActScaleN), 7);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
-	                Out[Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 7);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 7);
 	        }
 	}
 	gap_waitbarrier(0);
@@ -290,8 +603,8 @@ void KerParReduct_CC_LeakyReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[c  ], ScaleN[c  ]), 7);
-	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 7);
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c  ], ScaleN[2*c  ]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
 
 
 			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
@@ -305,8 +618,70 @@ void KerParReduct_CC_LeakyReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
 			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
 			int Acc0N = AT_NORM(Acc0 * A0, 7);
-			Out[Feat-1] = gap_clip(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 7);
+			Out[i*Feat + Feat-1] = gap_clip(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 7);
 		        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_Sigmoid_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c], ScaleN[2*c]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Sigmoid(Acc0 << 8) >> 8, ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Sigmoid(Acc1 << 8) >> 8, ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Sigmoid(Acc0 << 8) >> 8, ActScale, ActScaleN), 7);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_Tanh_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
+	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
+	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + 2*c+0], Scale[2*c], ScaleN[2*c]), 7);
+	                int Acc1 = gap_clip(AT_SCALE(In[i*Feat + 2*c+1], Scale[2*c+1], ScaleN[2*c+1]), 7);
+
+			Out[i*Feat + 2*c  ] = gap_clip(AT_SCALE(Tanh(Acc0 << 8) >> 8, ActScale, ActScaleN), 7);
+			Out[i*Feat + 2*c+1] = gap_clip(AT_SCALE(Tanh(Acc1 << 8) >> 8, ActScale, ActScaleN), 7);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clip(AT_SCALE(In[i*Feat + Feat-1], Scale[Feat-1], ScaleN[Feat-1]), 7);
+	                Out[i*Feat + Feat-1] = gap_clip(AT_SCALE(Tanh(Acc0 << 8) >> 8, ActScale, ActScaleN), 7);
+	        }
 	}
 	gap_waitbarrier(0);
 }
@@ -314,7 +689,7 @@ void KerParReduct_CC_LeakyReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 /*
  * Input Scaling and reduction to 8b then channel cnetric activation, Out location != In location. Features are evaluated in parallel
 */
-void KerParReduct_CC_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
+/*void KerParReduct_CC_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
 
 {
 	int Feat = Arg->Feat;
@@ -331,16 +706,16 @@ void KerParReduct_CC_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                Out[i*Feat + 2*c  ] = gap_clipu(In[i*Feat + 2*c+0], 8);
-	                Out[i*Feat + 2*c+1] = gap_clipu(In[i*Feat + 2*c+1], 8);
+	                Out[i*Feat + 2*c  ] = gap_clipu(AT_SCALE(In[i*Feat + 2*c+0], ActScale, ActScaleN), 8);
+	                Out[i*Feat + 2*c+1] = gap_clipu(AT_SCALE(In[i*Feat + 2*c+1], ActScale, ActScaleN), 8);
 	        }
 	        if (Feat&0x1) {
-	                Out[Feat-1] = gap_clipu(In[i*Feat + Feat-1], 8);
+	                Out[i*Feat + Feat-1] = gap_clipu(AT_SCALE(In[i*Feat + Feat-1], ActScale, ActScaleN), 8);
 	        }
 	}
 	gap_waitbarrier(0);
 }
-
+*/
 /*
  * Input Scaling and reduction to 8b then channel cnetric activation, Out location != In location. Features are evaluated in parallel
 */
@@ -363,13 +738,41 @@ void KerParReduct_CC_NoScale_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
 	                Out[i*Feat + 2*c+1] = gap_clipu(In[i*Feat + 2*c+1], 8);
 	        }
 	        if (Feat&0x1) {
-	                Out[Feat-1] = gap_clipu(In[i*Feat + Feat-1], 8);
+	                Out[i*Feat + Feat-1] = gap_clipu(In[i*Feat + Feat-1], 8);
 	        }
 	}
 	gap_waitbarrier(0);
 }
 
-void KerParReduct_CC_ReLUN_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
+void KerParReduct_CC_NoScale_ReLU_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Out = (unsigned char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			int Acc0 = gap_clipu(In[i*Feat + 2*c+0], 8);
+			int Acc1 = gap_clipu(In[i*Feat + 2*c+1], 8);
+	                Out[i*Feat + 2*c  ] = gap_clipu(AT_SCALE(Acc0, ActScale, ActScaleN), 8);
+	                Out[i*Feat + 2*c+1] = gap_clipu(AT_SCALE(Acc1, ActScale, ActScaleN), 8);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clipu(In[i*Feat + Feat-1], 8);
+	                Out[i*Feat + Feat-1] = gap_clipu(AT_SCALE(Acc0, ActScale, ActScaleN), 8);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_ReLUN_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
 
 {
 	int Feat = Arg->Feat;
@@ -386,17 +789,74 @@ void KerParReduct_CC_ReLUN_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
 
 	for (int i=First; i<Last; i++) {
 		for (int c=0; c<Feat/2; c++) {
-	                //int Acc0 = gap_clipu(AT_SCALE(In[i*Feat + 2*c+0], Scale[c],   ScaleN[c  ]), 8);
-	                //int Acc1 = gap_clipu(AT_SCALE(In[i*Feat + 2*c+1], Scale[c+1], ScaleN[c+1]), 8);
 			int Acc0 = gap_clipu(In[i*Feat + 2*c+0], 8);
 			int Acc1 = gap_clipu(In[i*Feat + 2*c+1], 8);
 
-	                Out[i*Feat + 2*c  ] = AT_CLIP_POS(Acc0, A0);
-	                Out[i*Feat + 2*c+1] = AT_CLIP_POS(Acc1, A0);
+	                Out[i*Feat + 2*c  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 8);
+	                Out[i*Feat + 2*c+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1, A0), ActScale, ActScaleN), 8);
 	        }
 	        if (Feat&0x1) {
 	                int Acc0 = gap_clipu(In[i*Feat + Feat-1], 8);
-	                Out[Feat-1] = AT_CLIP_POS(Acc0, A0);
+	                Out[i*Feat + Feat-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0, A0), ActScale, ActScaleN), 8);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+void KerParReduct_CC_NoScale_ReLUM_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Out = (unsigned char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			int Acc0 = gap_clipu(In[i*Feat + 2*c+0], 8);
+			int Acc1 = gap_clipu(In[i*Feat + 2*c+1], 8);
+
+			Out[i*Feat + 2*c  ] = gap_clipu(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 8);
+			Out[i*Feat + 2*c+1] = gap_clipu(AT_SCALE(Max(A0, Acc1), ActScale, ActScaleN), 8);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clipu(In[i*Feat + Feat-1], 8);
+	                Out[i*Feat + Feat-1] = gap_clipu(AT_SCALE(Max(A0, Acc0), ActScale, ActScaleN), 8);
+	        }
+	}
+	gap_waitbarrier(0);
+}
+
+
+void KerParReduct_CC_NoScale_ReLUMN_HWC_USQ8(KerConvLinReduct_SQ8_T *Arg)
+
+{
+	int Feat = Arg->Feat;
+	int W = Arg->W;
+	int H = Arg->H;
+	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
+	int * __restrict__ In = (int *__restrict__) Arg->In;
+	unsigned char * __restrict__ Out = (unsigned char *__restrict__) Arg->Out;
+	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
+	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];
+	int A0 = Infos[AT_INF_A0], B0 = Infos[AT_INF_B0], C0 = Infos[AT_INF_C0];
+
+	for (int i=First; i<Last; i++) {
+		for (int c=0; c<Feat/2; c++) {
+			int Acc0 = gap_clipu(In[i*Feat + 2*c+0], 8);
+			int Acc1 = gap_clipu(In[i*Feat + 2*c+1], 8);
+
+			Out[i*Feat + 2*c  ] = gap_clipu(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 8);
+			Out[i*Feat + 2*c+1] = gap_clipu(AT_SCALE(Min(B0, Max(A0, Acc1)), ActScale, ActScaleN), 8);
+	        }
+	        if (Feat&0x1) {
+	                int Acc0 = gap_clipu(In[i*Feat + Feat-1], 8);
+	                Out[i*Feat + Feat-1] = gap_clipu(AT_SCALE(Min(B0, Max(A0, Acc0)), ActScale, ActScaleN), 8);
 	        }
 	}
 	gap_waitbarrier(0);

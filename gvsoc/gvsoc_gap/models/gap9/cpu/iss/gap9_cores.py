@@ -40,6 +40,9 @@ class Gap9_core(Riscv_core):
             ]
         )
 
+        for insn in self.isa.get_tree('pulp_v2').get_insns():
+            insn.set_power_group(1)
+
         for insn in self.isa.get_insns():
 
             if "load" in insn.tags:
@@ -50,6 +53,7 @@ class Gap9_core(Riscv_core):
                 insn.set_latency(5)
 
 
+
 class Gap9_cluster_core(Gap9_core):
 
     def __init__(self):
@@ -58,7 +62,7 @@ class Gap9_cluster_core(Gap9_core):
 
         # Declare the 3 kind of shared resources with appropriate latency and bandwidth
         self.isa.add_resource('fpu_base', instances=4, latency=1, bandwidth=1)
-        self.isa.add_resource('fpu_sqrt', instances=1, latency=34, bandwidth=34)
+        self.isa.add_resource('fpu_sqrt', instances=1, latency=14, bandwidth=14)
         self.isa.add_resource('int64', instances=4, latency=1, bandwidth=1)
 
         # And attach resources to instructions

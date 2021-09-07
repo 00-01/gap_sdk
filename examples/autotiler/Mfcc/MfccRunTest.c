@@ -8,10 +8,6 @@
 #include "gaplib/wavIO.h"
 #include "MFCC_params.h"
 #include "MFCCKernels.h"
-#include "TwiddlesDef.h"
-#include "RFFTTwiddlesDef.h"
-#include "SwapTablesDef.h"
-
 #include "LUT.def"
 #include "MFCC_FB.def"
 
@@ -21,8 +17,8 @@
 #define  N_FRAME        49
 
 #if (DATA_TYPE==2)
-typedef f16 MFCC_IN_TYPE;
-typedef f16 OUT_TYPE;
+typedef F16_DSP MFCC_IN_TYPE;
+typedef F16_DSP OUT_TYPE;
 #elif (DATA_TYPE==3)
 typedef float MFCC_IN_TYPE;
 typedef float OUT_TYPE;
@@ -49,15 +45,19 @@ static void RunMFCC()
 
         #if (N_DCT == 0)
                 #if (DATA_TYPE==2) || (DATA_TYPE==3)
-                Librosa_MFCC(MfccInSig, out_feat, R2_Twiddles_float_512, RFFT_Twiddles_float_1024, R2_SwapTable_float_512, WindowLUT, MFCC_FilterBank, MFCC_Coeffs);
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, RFFTTwiddlesLUT, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs);
+                #elif (DATA_TYPE==1)
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM);
                 #else
-                Librosa_MFCC(MfccInSig, out_feat, R2_Twiddles_fix_512,   RFFT_Twiddles_fix_1024,   R2_SwapTable_fix_512,   WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM);
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, RFFTTwiddlesLUT, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM);
                 #endif
         #else
                 #if (DATA_TYPE==2) || (DATA_TYPE==3)
-                Librosa_MFCC(MfccInSig, out_feat, R2_Twiddles_float_512, RFFT_Twiddles_float_1024, R2_SwapTable_float_512, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, DCT_Coeff);
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, RFFTTwiddlesLUT, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, DCT_Coeff);
+                #elif (DATA_TYPE==1)
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM, DCT_Coeff);
                 #else
-                Librosa_MFCC(MfccInSig, out_feat, R2_Twiddles_fix_512,   RFFT_Twiddles_fix_1024,   R2_SwapTable_fix_512,   WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM, DCT_Coeff);
+                Librosa_MFCC(MfccInSig, out_feat, TwiddlesLUTR2, RFFTTwiddlesLUT, SwapTableR2, WindowLUT, MFCC_FilterBank, MFCC_Coeffs, NORM, DCT_Coeff);
                 #endif
         #endif
         #ifdef PERF

@@ -53,7 +53,13 @@ VALID_MATMUL_ACTIVATIONS_POW2 = (
     SigmoidActivationParameters
 )
 
-VALID_GEN_ACTIVATIONS_FLOAT = ()
+VALID_GEN_ACTIVATIONS_FLOAT = (
+    ReluActivationParameters,
+    LeakyActivationParameters,
+    HSigmoidActivationParameters,
+    HSwishActivationParameters,
+    SigmoidActivationParameters
+)
 
 VALID_FUSIONS = {
     PoolingParameters: {
@@ -67,11 +73,6 @@ VALID_FUSIONS = {
         'float': (VALID_GEN_ACTIVATIONS_FLOAT, ActivationFusion),
     },
     MatrixAddParameters: {
-        'scaled': (VALID_GEN_ACTIVATIONS_SQ8, ActivationFusion),
-        'symmetric': (VALID_GEN_ACTIVATIONS_POW2, ActivationFusion),
-        'float': (VALID_GEN_ACTIVATIONS_FLOAT, ActivationFusion),
-    },
-    MatrixMulParameters: {
         'scaled': (VALID_GEN_ACTIVATIONS_SQ8, ActivationFusion),
         'symmetric': (VALID_GEN_ACTIVATIONS_POW2, ActivationFusion),
         'float': (VALID_GEN_ACTIVATIONS_FLOAT, ActivationFusion),

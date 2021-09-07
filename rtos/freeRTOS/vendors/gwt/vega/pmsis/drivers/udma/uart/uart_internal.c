@@ -87,7 +87,7 @@ static void __pi_uart_error_handler(void *arg)
     struct uart_itf_data_s *itf_data = g_uart_itf_data[periph_id];
     uint32_t error = hal_udma_uart_error_get(periph_id);
     UART_TRACE_ERR("UART(%ld) ERROR IRQ : %lx\n", periph_id, error);
-    printf("UART(%ld) ERROR IRQ : %lx\n", periph_id, error);
+    //printf("UART(%ld) ERROR IRQ : %lx\n", periph_id, error);
 }
 
 static void __pi_uart_handler(void *arg)
@@ -95,7 +95,7 @@ static void __pi_uart_handler(void *arg)
     uint32_t event = (uint32_t) arg;
     uint32_t channel = event & 0x1;
     uint32_t periph_id = (event >> UDMA_CHANNEL_NB_EVENTS_LOG2) - UDMA_UART_ID(0);
-    //UART_TRACE("Uart IRQ %ld %ld\n", event, periph_id);
+    UART_TRACE("Uart IRQ %ld %ld\n", event, periph_id);
 
     struct uart_itf_data_s *itf_data = g_uart_itf_data[periph_id];
     pi_udma_fifo_t *udma_chan = &(itf_data->udma_chan[channel]);
@@ -399,8 +399,8 @@ void __pi_uart_close(struct uart_itf_data_s *itf_data)
         hal_udma_ctrl_cg_enable(UDMA_UART_ID(itf_data->device_id));
 
         /* Free allocated data. */
-        pi_l2_free(itf_data, sizeof(struct uart_itf_data_s));
         g_uart_itf_data[itf_data->device_id] = NULL;
+        pi_l2_free(itf_data, sizeof(struct uart_itf_data_s));
     }
     restore_irq(irq);
 }
@@ -446,7 +446,7 @@ void __pi_uart_copy(struct uart_itf_data_s *itf_data, uint32_t l2_buf,
     task->data[0] = l2_buf;
     task->data[1] = size;
     task->data[2] = channel;
-    task->data[3] = (uint32_t) UDMA_CORE_CFG_DATASIZE_8;
+    task->data[3] = (uint32_t) UDMA_CORE_CFG_DATA_SIZE(UDMA_CORE_CFG_DATASIZE_8);
     task->data[4] = itf_data->device_id;
     task->next    = NULL;
 

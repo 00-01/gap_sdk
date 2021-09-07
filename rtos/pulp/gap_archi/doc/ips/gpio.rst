@@ -1,4 +1,5 @@
-Input file: fe/ips/apb/apb_gpio/docs/APB_GPIO_reference.md
+.. 
+   Input file: fe/ips/apb/apb_gpio/docs/APB_GPIO_reference.md
 
 Register map
 ^^^^^^^^^^^^

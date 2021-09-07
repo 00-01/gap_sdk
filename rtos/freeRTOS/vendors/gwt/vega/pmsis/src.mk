@@ -4,8 +4,7 @@ PMSIS_CLUSTER_SRC             = cluster/malloc/cl_malloc.c \
                                 cluster/drivers/cluster_synchronisation/fc_to_cl_delegate.c \
                                 cluster/drivers/cluster_team/cl_team.c \
                                 cluster/drivers/delegate/hyperbus/hyperbus_cl_internal.c \
-                                cluster/drivers/delegate/uart/uart_cl_internal.c \
-                                cluster/drivers/dma/cl_dma_irq.c
+                                cluster/drivers/delegate/uart/uart_cl_internal.c
 
 PMSIS_CLUSTER_ASM_SRC         = cluster/drivers/cluster_synchronisation/cluster_core.S
 
@@ -19,7 +18,10 @@ PMSIS_DRIVER_SRC              = drivers/fc_event/fc_event.c \
                                 drivers/udma/hyperbus/hyperbus.c \
                                 drivers/udma/hyperbus/hyperbus_internal.c \
                                 drivers/udma/i2c/i2c.c \
+                                drivers/udma/mram/mram.c \
                                 drivers/udma/i2c/i2c_internal.c \
+                                drivers/udma/i2s/i2s.c \
+                                drivers/udma/i2s/i2s_internal.c \
                                 drivers/udma/uart/uart.c \
                                 drivers/udma/uart/uart_internal.c \
                                 drivers/perf/perf_internal.c
@@ -27,8 +29,6 @@ PMSIS_DRIVER_SRC              = drivers/fc_event/fc_event.c \
 PMSIS_DRIVER_ASM_SRC          = util/asm_util.S
 
 #                                drivers/gpio/gpio.c \
-                                drivers/udma/i2s/i2s.c \
-                                drivers/udma/i2s/i2s_internal.c \
                                 drivers/pwm/pwm.c \
                                 drivers/pwm/pwm_internal.c \
                                 drivers/rtc/rtc.c \

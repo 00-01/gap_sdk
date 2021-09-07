@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2018 GreenWaves Technologies
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __CNN_BASICKERNELS_NE16__
 #define __CNN_BASICKERNELS_NE16__
 #include "Gap.h"
@@ -12,6 +28,7 @@ typedef struct {
 	unsigned char * __restrict__ Scale;	/**< Pointer to Scale tensor applied channel-wise on the output */
 	unsigned char * __restrict__ ScaleN;	/**< Pointer to Scale Shift tensor applied channel-wise on the output */
 	unsigned short int Tile_InFeat;		/**< Number of features in In tile */
+	unsigned short int TotalInFeatures; 	/**< Number of loaded In features tile */
 	unsigned short int Tile_InH;		/**< Number of rows in In tile */
 	unsigned short int Tile_InW;		/**< Number of columns in In tile */
 	unsigned short int Tile_OutFeat;	/**< Number of features in Out tile */
@@ -38,7 +55,7 @@ typedef struct {
 	unsigned char * __restrict__  In;
 	unsigned short * __restrict__ Filter;
 	int * __restrict__            Bias;
-	void * __restrict__            Out;
+	void * __restrict__           Out;
 	unsigned char * __restrict__  Scale;
 	unsigned char * __restrict__  ScaleN;
 	unsigned short int            Tile_InFeat;
@@ -53,14 +70,38 @@ typedef struct {
 	unsigned int                  Default_NE16_Job_Cfg;
 } KerLinear_NE16_T;
 
+typedef struct 
+{
+	unsigned char * __restrict__ In;
+	unsigned short int           Tile_InW;
+	unsigned short int           Tile_InH;
+	v4s                          Pad;
+	unsigned short * __restrict__ Filter;
+	int * __restrict__           Bias;
+	unsigned char * __restrict__ Out;
+	unsigned char * __restrict__ Scale;
+	unsigned char * __restrict__ ScaleN;
+	unsigned short int           Tile_OutW;
+	unsigned short int           Tile_OutH;
+	unsigned short int           Tile_InFeat;
+	unsigned short int           Tile_OutFeat;
+	int                          W_Offset;
+	unsigned short int 	     Pad_Val;
+	unsigned char                Qw;
+	unsigned int 		     Default_NE16_Job_Cfg;
+	unsigned char                FirstD0;
+	unsigned char                LastD0;
+	unsigned char                LastT0;
+	void *                       NE16JobEvt;
+} Ker_NE16_Job_T;
+
 /** @brief Enable the NE16
 
 Enable the NE16
 
 Clock is released
 */
-static inline void NE16_Enable() 
-{
+static inline void NE16_Enable() {
         // enable clock
         NE16_CG_ENABLE();
 
@@ -74,12 +115,9 @@ static inline void NE16_Enable()
 
 Disable the NE16
 */
-static inline void NE16_Disable()
-
-{
+static inline void NE16_Disable() {
 	// disable clock
 	NE16_CG_DISABLE();
-
 	// set priority to core side
 	NE16_SETPRIORITY_CORE();
 }
@@ -88,55 +126,42 @@ static inline void NE16_Disable()
 
 Software reset the NE16
 */
-static inline void NE16_SoftReset()
-
-{
+static inline void NE16_SoftReset() {
         // soft-clear NE16
         NE16_WRITE_CMD(NE16_SOFT_CLEAR, NE16_SOFT_CLEAR_ALL);
         for(volatile int kk=0; kk<10; kk++);
 }
 
-static inline void NE16_GvsocTrace(int TraceLevel)
-{
+static inline void NE16_GvsocTrace(int TraceLevel) {
 	NE16_WRITE_REG(NE16_SPECIAL_TRACE_REG, (int) TraceLevel);
 }
+static inline void NE16_GvsocPrintOpt(int PrintOpt) { /* 0: dec, 1: hex */
+	NE16_WRITE_REG(NE16_SPECIAL_HEX_DUMP_REG, (int) PrintOpt);
+}
 
-unsigned int NE16_GenDefaultConfig(unsigned char Qw,
-                        unsigned char Mode16,
-                        unsigned char StreamoutMode,
-                        unsigned char FilterMode,
-                        unsigned char LinearMode,
-                        unsigned char StridedMode,
-                        unsigned char NormBits,
-                        unsigned char Streamin,
-                        unsigned char WOffsetCfg,
-                        unsigned char QuantRightShift,
-                        unsigned char QuantBits,
-                        unsigned char QuantNoRect,
-                        unsigned char NormShift,
-                        unsigned char NormBias
-                       );
 
-typedef struct {
-	unsigned short int *__restrict__ Filter;
-	signed char IsLastTile;
-	unsigned short int OutFeat;
-	unsigned short int Chin;
-	unsigned short int Fcx;
-	unsigned short int Fcy;
-	unsigned char Nbits;
-} WeightsExpandLastTile_T;
-
-void WeightsExpandLastTile(WeightsExpandLastTile_T *Arg);
+static inline void NE16_FireJob() {
+	// commit and trigger NE16 computation
+	NE16_WRITE_CMD(NE16_COMMIT_AND_TRIGGER, NE16_TRIGGER_CMD);
+	// wait for end of computation
+	NE16_BARRIER();
+	// set priority to core side
+	NE16_SETPRIORITY_CORE();
+}
 
 /* Basic Kernels functions */
+void NE16_PrepareJob(Ker_NE16_Job_T *Arg);
 void KerConv3x3Stride1_NE16(KerConv_NE16_T *Arg);
 void KerConv3x3Stride2_NE16(KerConv_NE16_T *Arg);
 void KerConvDW3x3Stride1_NE16(KerConv_NE16_T *Arg);
 void KerConvDW3x3Stride2_NE16(KerConv_NE16_T *Arg);
 void KerConv3x3StrideSxxSy_NE16(KerConv_NE16_T *Arg);
 void KerConv1x1Stride1_NE16(KerConv_NE16_T *Arg);
-void KerConv5x5Stride1_NE16(KerConv_NE16_T *Arg);
+void KerConv1x1StrideS_NE16(KerConv_NE16_T *Arg);
+void KerConv1x1_SmallHW_StrideS_NE16(KerConv_NE16_T *Arg);
+void KerConv1x1_SmallHW_Stride1_NE16(KerConv_NE16_T *Arg);
+void KerConv1D_StrideS_NE16(KerConv_NE16_T *Arg);
+void KerConvNxMDxDy_StrideSxSy_NE16(KerConv_NE16_T *Arg);
 void KerConv3x3Stride1_DxDy_NE16(KerConv_NE16_T *Arg);
 void KerLinear_NE16(KerLinear_NE16_T *Arg);
 

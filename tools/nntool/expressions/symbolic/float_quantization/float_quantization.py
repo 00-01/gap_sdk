@@ -69,8 +69,8 @@ class FloatQuantization(QuantizationHandlerBase):
             qrec_out = Q15ScaleQRec(out_dtype, max_val, out_q)
             # scale clip and cast to output type
             return (ConvertFloatScaled(sym, from_qrec=qrec, to_qrec=qrec_out), qrec_out)
-
-        out_dtype = kwargs.get('out_dtype', np.float32)
+        if not out_dtype:
+            out_dtype = kwargs.get('out_dtype', np.float32)
         # Just cast
         return (Cast(sym, dtype=out_dtype), FloatQRec(dtype=out_dtype, min_val=qrec.min_val, max_val=qrec.max_val))
 
@@ -88,4 +88,4 @@ class FloatQuantization(QuantizationHandlerBase):
                 return None, None, None
             return qtype.scale[0] * math.pow(2, 15), np.int16, 15
         else:
-            return None, None, None
+            return None, qtype.dtype, None

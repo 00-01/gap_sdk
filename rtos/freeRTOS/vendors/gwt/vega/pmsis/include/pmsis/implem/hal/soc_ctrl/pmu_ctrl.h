@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -28,102 +28,23 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PMSIS_IMPLEM_HAL_SOC_CTRL_PMU_CTRL_H__
-#define __PMSIS_IMPLEM_HAL_SOC_CTRL_PMU_CTRL_H__
+#pragma once
 
 #include "pmsis/targets/target.h"
-
-
-/* INFO register, get number of clusters and cores. */
-static inline uint32_t soc_ctrl_info_get(void)
-{
-    return hal_read32(&(soc_ctrl->info));
-}
-
-
-/* CL_ISOLATE register, isolate cluster, stop transactions on AXI bus between cluster and SoC. */
-static inline void soc_ctrl_cl_isolate_set(uint32_t value)
-{
-    hal_write32(&(soc_ctrl->cl_isolate), value);
-}
-
-static inline uint32_t soc_ctrl_cl_isolate_get(void)
-{
-    return hal_read32(&(soc_ctrl->cl_isolate));
-}
-
-
-/* CL_BUSY register. */
-static inline uint32_t soc_ctrl_cl_busy_get(void)
-{
-    return hal_read32(&(soc_ctrl->cl_busy));
-}
-
-
-/* CL_BYPASS. */
-static inline void soc_ctrl_cl_bypass_set(uint32_t value)
-{
-    hal_write32(&(soc_ctrl->cl_bypass), value);
-}
-
-static inline uint32_t soc_ctrl_cl_bypass_get(void)
-{
-    return hal_read32(&(soc_ctrl->cl_bypass));
-}
-
-
-/* PMU_RAR register, DC/DC configuration. */
-static inline void soc_ctrl_safe_pmu_rar_set(uint32_t value)
-{
-    hal_write32(&(soc_ctrl->safe_pmu_rar), value);
-}
-
-static inline uint32_t soc_ctrl_safe_pmu_rar_get(void)
-{
-    return hal_read32(&(soc_ctrl->safe_pmu_rar));
-}
-
-
-/* SLEEPCTRL register, sleep modes configuration. */
-static inline void soc_ctrl_safe_pmu_sleepctrl_set(uint32_t value)
-{
-    hal_write32(&(soc_ctrl->safe_pmu_sleepctrl), value);
-}
-
-static inline uint32_t soc_ctrl_safe_pmu_sleepctrl_get(void)
-{
-    return hal_read32(&(soc_ctrl->safe_pmu_sleepctrl));
-}
-
-static inline uint32_t soc_ctrl_fast_pmu_sleepctrl_get(void)
-{
-    return hal_read32(&(soc_ctrl->sleep_ctrl));
-}
-
-/* FORCE register, L2 memory banks power/retentive configuration. */
-static inline void soc_ctrl_safe_pmu_force_set(uint32_t value)
-{
-    hal_write32(&(soc_ctrl->safe_pmu_force), value);
-}
-
-static inline uint32_t soc_ctrl_safe_pmu_force_get(void)
-{
-    return hal_read32(&(soc_ctrl->safe_pmu_force));
-}
 
 
 /*! INFO. */
 static inline uint8_t hal_soc_ctrl_nb_clusters_get(void)
 {
-    uint8_t nb_clusters = soc_ctrl_info_get();
-    nb_clusters &= SOC_CTRL_INFO_NB_CL_MASK;
+    uint8_t nb_clusters = apb_soc_info_get((uint32_t) apb_soc_ctrl);
+    nb_clusters &= APB_SOC_INFO_NB_CL_MASK;
     return nb_clusters;
 }
 
 static inline uint8_t hal_soc_ctrl_nb_cores_get(void)
 {
-    uint8_t nb_cores = soc_ctrl_info_get();
-    nb_cores &= SOC_CTRL_INFO_NB_CORES_MASK;
+    uint8_t nb_cores = apb_soc_info_get((uint32_t) apb_soc_ctrl);
+    nb_cores &= APB_SOC_INFO_NB_CORES_MASK;
     return nb_cores;
 }
 
@@ -131,175 +52,31 @@ static inline uint8_t hal_soc_ctrl_nb_cores_get(void)
 /*! CL_ISOLATE. */
 static inline void hal_soc_ctrl_cl_isolate_set(uint8_t isolate)
 {
-    soc_ctrl_cl_isolate_set(SOC_CTRL_CL_ISOLATE_EN(isolate));
+    apb_soc_cl_isolate_set((uint32_t) apb_soc_ctrl, APB_SOC_CL_ISOLATE_EN(isolate));
 }
 
 
 /*! CL_BUSY. */
 static inline uint8_t hal_soc_ctrl_cl_busy_get(void)
 {
-    return (soc_ctrl_cl_busy_get() & SOC_CTRL_CL_BUSY_BUSY_MASK);
-}
-
-
-/*! CL_BYPASS. */
-static inline uint32_t hal_soc_ctrl_cl_bypass_get(void)
-{
-    return soc_ctrl_cl_bypass_get();
-}
-
-static inline void hal_soc_ctrl_cl_bypass_mask_set(uint32_t bypass_mask)
-{
-    soc_ctrl_cl_bypass_set(bypass_mask);
-}
-
-static inline void hal_soc_ctrl_cl_bypass_set(uint8_t reset, uint8_t fll_ret,
-                                              uint8_t fll_pwd, uint8_t cg,
-                                              uint8_t byp_clk, uint8_t prog_delay,
-                                              uint8_t curr_set, uint8_t state,
-                                              uint8_t byp_cfg, uint8_t byp_pow)
-{
-    soc_ctrl_cl_bypass_t bypass;
-    bypass.word = 0;
-    bypass.field.rst = reset;
-    bypass.field.fll_ret = fll_ret;
-    bypass.field.fll_pwd = fll_pwd;
-    bypass.field.cg = cg;
-    bypass.field.byp_clk = byp_clk;
-    bypass.field.prog_del = prog_delay;
-    bypass.field.currset = curr_set;
-    bypass.field.cl_state = state;
-    bypass.field.byp_cfg = byp_cfg;
-    bypass.field.byp_pow = byp_pow;
-    soc_ctrl_cl_bypass_set(bypass.word);
-}
-
-static inline void hal_soc_ctrl_cl_bypass_bypass_set(uint8_t byp_clk,
-                                                     uint8_t byp_cfg,
-                                                     uint8_t byp_pow)
-{
-    soc_ctrl_cl_bypass_t bypass;
-    bypass.word = soc_ctrl_cl_bypass_get();
-    bypass.field.byp_clk = byp_clk;
-    bypass.field.byp_cfg = byp_cfg;
-    bypass.field.byp_pow = byp_pow;
-    soc_ctrl_cl_bypass_set(bypass.word);
-}
-
-static inline uint8_t hal_soc_ctrl_cl_bypass_state_get(void)
-{
-    soc_ctrl_cl_bypass_t bypass;
-    bypass.word = soc_ctrl_cl_bypass_get();
-    uint8_t cl_state = ((bypass.word & SOC_CTRL_CL_BYPASS_CL_STATE_MASK)
-                        >> SOC_CTRL_CL_BYPASS_CL_STATE_SHIFT);
-    return cl_state;
-}
-
-
-/*! RAR. */
-static inline uint32_t hal_soc_ctrl_pmu_rar_get(void)
-{
-    return soc_ctrl_safe_pmu_rar_get();
-}
-
-static inline void hal_soc_ctrl_pmu_regulator_set(uint32_t rar_value)
-{
-    /* soc_ctrl_safe_pmu_rar_t rar; */
-    /* rar.word = 0; */
-    /* rar.field.rv_volt = ret_volt; */
-    /* rar.field.lv_volt = low_volt; */
-    /* rar.field.mv_volt = med_volt; */
-    /* rar.field.nv_volt = nom_volt; */
-    soc_ctrl_safe_pmu_rar_set(rar_value);
-}
-
-static inline void hal_soc_ctrl_pmu_rar_set(uint8_t ret_volt, uint8_t low_volt,
-                                            uint8_t med_volt, uint8_t nom_volt)
-{
-    soc_ctrl_safe_pmu_rar_t rar;
-    rar.word = 0;
-    rar.field.rv_volt = ret_volt;
-    rar.field.lv_volt = low_volt;
-    rar.field.mv_volt = med_volt;
-    rar.field.nv_volt = nom_volt;
-    soc_ctrl_safe_pmu_rar_set(rar.word);
-}
-
-static inline uint8_t hal_soc_ctrl_pmu_ret_volt_get(void)
-{
-    uint32_t rar = soc_ctrl_safe_pmu_rar_get();
-    uint8_t ret_volt = ((rar & SOC_CTRL_SAFE_PMU_RAR_RV_VOLT_MASK) >> SOC_CTRL_SAFE_PMU_RAR_RV_VOLT_SHIFT);
-    return ret_volt;
-}
-
-static inline void hal_soc_ctrl_pmu_ret_volt_set(uint8_t ret_volt)
-{
-    soc_ctrl_safe_pmu_rar_t rar;
-    rar.word =  soc_ctrl_safe_pmu_rar_get();
-    rar.field.rv_volt = ret_volt;
-    soc_ctrl_safe_pmu_rar_set(rar.word);
-}
-
-static inline uint8_t hal_soc_ctrl_pmu_low_volt_get(void)
-{
-    uint32_t rar = soc_ctrl_safe_pmu_rar_get();
-    uint8_t low_volt = ((rar & SOC_CTRL_SAFE_PMU_RAR_LV_VOLT_MASK) >> SOC_CTRL_SAFE_PMU_RAR_LV_VOLT_SHIFT);
-    return low_volt;
-}
-
-static inline void hal_soc_ctrl_pmu_low_volt_set(uint8_t low_volt)
-{
-    soc_ctrl_safe_pmu_rar_t rar;
-    rar.word =  soc_ctrl_safe_pmu_rar_get();
-    rar.field.lv_volt = low_volt;
-    soc_ctrl_safe_pmu_rar_set(rar.word);
-}
-
-static inline uint8_t hal_soc_ctrl_pmu_med_volt_get(void)
-{
-    uint32_t rar = soc_ctrl_safe_pmu_rar_get();
-    uint8_t med_volt = ((rar & SOC_CTRL_SAFE_PMU_RAR_MV_VOLT_MASK) >> SOC_CTRL_SAFE_PMU_RAR_MV_VOLT_SHIFT);
-    return med_volt;
-}
-
-static inline void hal_soc_ctrl_pmu_med_volt_set(uint8_t med_volt)
-{
-    soc_ctrl_safe_pmu_rar_t rar;
-    rar.word =  soc_ctrl_safe_pmu_rar_get();
-    rar.field.mv_volt = med_volt;
-    soc_ctrl_safe_pmu_rar_set(rar.word);
-}
-
-static inline uint8_t hal_soc_ctrl_pmu_nom_volt_get(void)
-{
-    uint32_t rar = soc_ctrl_safe_pmu_rar_get();
-    uint8_t nom_volt = ((rar & SOC_CTRL_SAFE_PMU_RAR_NV_VOLT_MASK) >> SOC_CTRL_SAFE_PMU_RAR_NV_VOLT_SHIFT);
-    return nom_volt;
-}
-
-static inline void hal_soc_ctrl_pmu_nom_volt_set(uint8_t nom_volt)
-{
-    soc_ctrl_safe_pmu_rar_t rar;
-    rar.word =  soc_ctrl_safe_pmu_rar_get();
-    rar.field.nv_volt = nom_volt;
-    soc_ctrl_safe_pmu_rar_set(rar.word);
+    return (apb_soc_cl_busy_get((uint32_t) apb_soc_ctrl) & APB_SOC_CL_BUSY_BUSY_MASK);
 }
 
 
 /*! SLEEPCTRL. */
 static inline uint32_t hal_soc_ctrl_pmu_sleepctrl_get(void)
 {
-    return soc_ctrl_safe_pmu_sleepctrl_get();
+    return apb_soc_safe_pmu_sleepctrl_get((uint32_t) apb_soc_ctrl);
 }
 
 static inline uint32_t hal_soc_ctrl_fast_pmu_sleepctrl_get(void)
 {
-    return soc_ctrl_fast_pmu_sleepctrl_get();
+    return apb_soc_sleep_ctrl_get((uint32_t) apb_soc_ctrl);
 }
 
 static inline void hal_soc_ctrl_pmu_sleepctrl_mask_set(uint32_t sleepctrl_mask)
 {
-    soc_ctrl_safe_pmu_sleepctrl_set(sleepctrl_mask);
+    apb_soc_safe_pmu_sleepctrl_set((uint32_t) apb_soc_ctrl, sleepctrl_mask);
 }
 
 static inline void hal_soc_ctrl_pmu_sleepctrl_set(uint8_t cl_wake, uint8_t boot_type,
@@ -310,48 +87,13 @@ static inline void hal_soc_ctrl_pmu_sleepctrl_set(uint8_t cl_wake, uint8_t boot_
                                                   uint8_t l2_r3_ret, uint8_t l2_r2_ret,
                                                   uint8_t l2_r1_ret, uint8_t l2_r0_ret)
 {
-    soc_ctrl_safe_pmu_sleepctrl_t sleepctrl;
-    sleepctrl.word = 0;
-    sleepctrl.field.cl_wake = cl_wake;
-    sleepctrl.field.bttype = boot_type;
-    sleepctrl.field.extint = ext_trigger;
-    sleepctrl.field.btdev = boot_mode;
-    sleepctrl.field.wakestate = wake_state;
-    sleepctrl.field.extwake_en = ext_wake_ena;
-    sleepctrl.field.extwake_type = ext_wake_type;
-    sleepctrl.field.extwake_src = ext_wake_src;
-    sleepctrl.field.cl_fll = cl_fll;
-    sleepctrl.field.soc_fll = soc_fll;
-    sleepctrl.field.l2_r3 = l2_r3_ret;
-    sleepctrl.field.l2_r2 = l2_r2_ret;
-    sleepctrl.field.l2_r1 = l2_r1_ret;
-    sleepctrl.field.l2_r0 = l2_r0_ret;
-    soc_ctrl_safe_pmu_sleepctrl_set(sleepctrl.word);
 }
 
 
-/*! FORCE. */
-static inline uint32_t hal_soc_ctrl_pmu_force_pd_get(void)
+/*! CLK_SEL. */
+static inline void hal_soc_ctrl_clk_sel_set(uint8_t soc_fll_id, uint8_t cl_fll_id)
 {
-    return soc_ctrl_safe_pmu_force_get();
+    uint32_t clk_sel = (APB_SOC_CLK_SEL_CLK_SOC(soc_fll_id) |
+                        APB_SOC_CLK_SEL_CLK_CLUSTER(cl_fll_id));
+    apb_soc_clk_sel_set((uint32_t) apb_soc_ctrl, clk_sel);
 }
-
-static inline void hal_soc_ctrl_pmu_force_pd_set(uint8_t l2_r3_off, uint8_t l2_r2_off,
-                                                 uint8_t l2_r1_off, uint8_t l2_r0_off,
-                                                 uint8_t l2_r3_ret, uint8_t l2_r2_ret,
-                                                 uint8_t l2_r1_ret, uint8_t l2_r0_ret)
-{
-    soc_ctrl_safe_pmu_force_t force;
-    force.word = 0;
-    force.field.pd_l2_r3 = l2_r3_off;
-    force.field.pd_l2_r2 = l2_r2_off;
-    force.field.pd_l2_r1 = l2_r1_off;
-    force.field.pd_l2_r0 = l2_r0_off;
-    force.field.ret_l2_r3 = l2_r3_ret;
-    force.field.ret_l2_r2 = l2_r2_ret;
-    force.field.ret_l2_r1 = l2_r1_ret;
-    force.field.ret_l2_r0 = l2_r0_ret;
-    soc_ctrl_safe_pmu_force_set(force.word);
-}
-
-#endif  /* __PMSIS_IMPLEM_HAL_SOC_CTRL_PMU_CTRL_H__ */

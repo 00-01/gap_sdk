@@ -14,6 +14,7 @@
 
 import logging
 from functools import reduce
+from utils.node_id import NodeId
 
 from generation.at_types.at_params import NO_ACTIVATION, gen_active_at_params
 from generation.at_types.gen_ctrl import GenCtrl
@@ -39,8 +40,9 @@ def global_pool_kernels_generator(gen, node, qrec, in_eparams, out_eparams, cnam
     if isinstance(node, ActivationFusion):
         cnodes = node.contained_nodes()
         if isinstance(cnodes[0], GlobalPoolingParameters):
+            act_q = gen.G.quantization[NodeId(node, cnodes[1])]
             gen.kernels.append(GlobalPoolKernel(
-                node.name, cname, cnodes[0], cnodes[1], at_ver=gen.opts['at_ver'], force_relu=gen.force_relu))
+                node.name, cname, cnodes[0], cnodes[1], act_q, at_ver=gen.opts['at_ver'], force_relu=gen.force_relu))
             return True
         return False
     gen.kernels.append(GlobalPoolKernel(node.name, cname, node,
@@ -71,7 +73,7 @@ def gen_cnn_globalpool_sq8(code_block, cname, ctrl, feat, width, height, poolope
 @gen_includes(
     'CNN_Generators_SQ8.h')
 class GlobalPoolKernel(AutotilerKernel):
-    def __init__(self, node_name, cname, pool_params, act_params, gen_ctrl=None, at_ver=3, force_relu=True):
+    def __init__(self, node_name, cname, pool_params, act_params, act_q=None, gen_ctrl=None, at_ver=3, force_relu=True):
         if gen_ctrl is None:
             self.gen_ctrl = GenCtrl(None, cname=cname)
         else:
@@ -82,7 +84,8 @@ class GlobalPoolKernel(AutotilerKernel):
 
         if act_params is not None:
             self.at_act_params = gen_active_at_params(
-                act_params, force_relu=force_relu)
+                act_params, force_relu=force_relu,
+                asymmetric=act_q.in_qs[0].zero_point != 0)
         else:
             self.at_act_params = NO_ACTIVATION
 

@@ -38,6 +38,7 @@ ENTRY(reset_handler)
 MEMORY
 {
   FC_tcdm           : ORIGIN = 0x1B000000, LENGTH = 0x4000
+  fc_tcdm_aliased   : ORIGIN = 0x00000004, LENGTH = 0x00003ffc
   L2                : ORIGIN = 0x1C000000, LENGTH = 0x80000
   L1_sram           : ORIGIN = 0x10000000, LENGTH = 0x10000
 }
@@ -67,7 +68,7 @@ SECTIONS
      {
        *(.fcTcdmTiny)
        *(.fcTcdmTiny.*)
-     } > FC_tcdm
+     } > fc_tcdm_aliased AT> FC_tcdm
 
      .fcTcdm :
      {

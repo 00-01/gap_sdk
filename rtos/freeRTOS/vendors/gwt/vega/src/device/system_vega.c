@@ -49,15 +49,16 @@ static volatile uint32_t tick_rate = 0;
 
 void system_init(void)
 {
-    /* Disable all IRQs first. */
-    //NVIC->MASK_IRQ_AND = 0xFFFFFFFF;
+    /* Deactivate all soc events as they are active by default. */
+    //hal_soc_eu_fc_mask_reset();
+    //hal_soc_eu_cl_mask_reset();
+    //hal_soc_eu_pr_mask_reset();
 
-    /* Deactivate all soc events. */
-    //SOCEU->FC_MASK_MSB = 0xFFFFFFFF;
-    //SOCEU->FC_MASK_LSB = 0xFFFFFFFF;
+    /* Reset IRQ & mask. */
+    //hal_itc_reset();
 
-    /* FLush FC Icache and then enable it. */
-    //SCBC->ICACHE_ENABLE = 0xFFFFFFFF;
+    /* Enable FC Icache. */
+    //hal_fc_icache_enable_set(1);
 
     /* Setup FC_SOC events handler. */
     pi_fc_event_handler_init(FC_SOC_EVENT_IRQN);
@@ -66,6 +67,8 @@ void system_init(void)
 
     /* PMU Init */
     __pi_pmu_init();
+    pi_fll_init(FLL_ID_FC, (uint32_t) ARCHI_FREQ_INIT);
+    pi_fll_init(FLL_ID_PERIPH, (uint32_t) ARCHI_FREQ_INIT);
 
     /* Enable IRQ. */
     __enable_irq();
@@ -141,7 +144,7 @@ void system_exit(int32_t code)
         #endif  /* __PLATFORM_GVSOC__ */
 
         /* Write return value to APB device */
-        soc_ctrl_corestatus_set(code);
+        hal_soc_ctrl_corestatus_set(code);
     }
     /* In case the platform does not support exit or this core is not allowed to exit the platform ... */
     hal_itc_wait_for_interrupt();

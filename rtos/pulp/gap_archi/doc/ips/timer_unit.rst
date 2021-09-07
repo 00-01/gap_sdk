@@ -1,4 +1,5 @@
-Input file: fe/ips/timer_unit/doc/TIMER_UNIT_reference.md
+.. 
+   Input file: fe/ips/timer_unit/doc/TIMER_UNIT_reference.md
 
 Register map
 ^^^^^^^^^^^^

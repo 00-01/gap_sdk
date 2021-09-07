@@ -61,9 +61,9 @@ def tune_options(G, nodes, options):
 
 def tune_float(G, nodes, float_type):
     all_nodes = get_nodes_and_fusion_nodes(nodes)
-    force_scheme = {node: 'float' for node in all_nodes}
+    force_scheme = {node: 'FLOAT' for node in all_nodes}
     force_options = {node: {'float_type': float_type} for node in all_nodes}
-    quantizer = UnifiedQuantizer.from_quantized_graph(G, extra_schemes=['float'])
+    quantizer = UnifiedQuantizer.from_quantized_graph(G, extra_schemes=['FLOAT'])
     quantizer.quantize(
         G, start_nodes=nodes, force_scheme=force_scheme, force_options=force_options)
     RemoveUnnecessaryQuantizeOperators().match(G)

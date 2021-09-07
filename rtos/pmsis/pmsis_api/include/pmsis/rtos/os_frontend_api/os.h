@@ -19,6 +19,10 @@
 
 #include "pmsis/pmsis_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @ingroup groupRTOS
  *
@@ -490,4 +494,7 @@ static inline void pmsis_mutex_release(pmsis_mutex_t *mutex);
  * \endcond
  */
 
+#ifdef __cplusplus
+}
+#endif
 #endif  /* __PMSIS_RTOS_OS_H__ */

@@ -55,6 +55,6 @@ clean::
 
 .PHONY: model clean
 
-include $(GAP_SDK_HOME)/tools/rules/pmsis_rules.mk
+include $(GAP_SDK_HOME)/utils/rules/pmsis_rules.mk
 
 

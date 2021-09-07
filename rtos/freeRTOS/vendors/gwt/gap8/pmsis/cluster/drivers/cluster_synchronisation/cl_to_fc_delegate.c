@@ -22,6 +22,9 @@
 
 extern struct cluster_driver_data *__per_cluster_data[];
 
+PI_L2 pi_task_t delegate_task[16] = {0};
+volatile uint32_t delegate_task_mask = 0xFFFF;
+
 void cl_notify_fc_event_handler(void)
 {
     struct cluster_driver_data *data = __per_cluster_data[0];
@@ -30,7 +33,13 @@ void cl_notify_fc_event_handler(void)
     /* Light callback executed now. */
     if ((uint32_t) task & 0x1)
     {
+        hal_compiler_barrier();
         task = (pi_task_t *) ((uint32_t) task & ~0x1);
+        uint32_t delegate_task_id = __FF1(delegate_task_mask);
+        delegate_task_mask &= ~(1<<delegate_task_id);
+        task->arg[3] = (uintptr_t)&(delegate_task[delegate_task_id]);
+        task->arg[2] = delegate_task_id;
+        hal_compiler_barrier();
         callback_func = (pi_callback_func_t) task->arg[0];
         callback_func((void*) task->arg[1]);
     }
@@ -41,6 +50,7 @@ void cl_notify_fc_event_handler(void)
     }
     hal_compiler_barrier();
     data->task_to_fc = NULL;
+    hal_compiler_barrier();
     hal_eu_cluster_evt_trig_set(FC_NOTIFY_CLUSTER_EVENT, 0);
 }
 
@@ -76,6 +86,17 @@ void cl_wait_task(uint8_t *done)
 
 void cl_notify_task_done(uint8_t *done, uint8_t cluster_id)
 {
+    int irq = disable_irq();
     (*(volatile uint8_t *) done) = 1;
     hal_eu_cluster_evt_trig_set(FC_NOTIFY_CLUSTER_EVENT, 0);
+    restore_irq(irq);
+}
+
+void cl_notify_task_done_clear(uint8_t *done, uint8_t cluster_id, uint32_t delegate_task_id)
+{
+    int irq = disable_irq();
+    (*(volatile uint8_t *) done) = 1;
+    delegate_task_mask |= (1<<delegate_task_id);
+    hal_eu_cluster_evt_trig_set(FC_NOTIFY_CLUSTER_EVENT, 0);
+    restore_irq(irq);
 }

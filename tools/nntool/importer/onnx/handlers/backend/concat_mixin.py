@@ -31,6 +31,7 @@ class ConcatMixin(ConstantMixin):
         inputs = [all_nodes[inp] for inp in node.input]
         input_shapes = [inp[2].shape for inp in inputs]
         axis_sum = sum(shape[axis] for shape in input_shapes)
+        axis = axis if axis >= 0 else len(input_shapes[0]) + axis
         output_shape = [axis_sum if idx == axis else dim for idx, dim in enumerate(input_shapes[0])]
         pout_dim = ProvisionalDim(output_shape)
         none_dims = sum([1 if dim is None else 0 for dim in output_shape[:axis:]])

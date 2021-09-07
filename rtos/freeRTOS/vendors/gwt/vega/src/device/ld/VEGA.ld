@@ -34,8 +34,8 @@ ENTRY(reset_handler)
 MEMORY
 {
   /* L2_priv 0 : FC private data. */
-  L2_priv0          : ORIGIN = 0x1C000000, LENGTH = 0x10000
-  L2_priv0_aliased  : ORIGIN = 0x00000000, LENGTH = 0x10000
+  L2_priv0          : ORIGIN = 0x1C000004, LENGTH = 0x0FFFC
+  L2_priv0_aliased  : ORIGIN = 0x00000004, LENGTH = 0x0FFFC
 
   /* Considering L2_PRIV0 and L2_PRIV1 as one unique memory. */
   /* L2_priv1 : FC code. */
@@ -43,7 +43,7 @@ MEMORY
   /* L2_priv1_aliased  : ORIGIN = 0x00008000, LENGTH = 0x8000 */
 
   /* L2 shared memory(FC+Cluster). */
-  L2_shared         : ORIGIN = 0x1C010000, LENGTH = 0x170000
+  L2_shared         : ORIGIN = 0x1C010000, LENGTH = 0x180000
 
   /* L1 cluster memory. */
   L1                : ORIGIN = 0x10000000, LENGTH = 0x00020000
@@ -69,13 +69,7 @@ SECTIONS
         *(.fcTcdmTiny)
         *(.fcTcdmTiny.*)
         . = ALIGN(16);
-        __l1FcShared_start = .;
-        *(.l1FcTiny)
-        *(.l1FcTiny.*)
-        __l1FcShared_end = .;
     } > L2_priv0_aliased AT> L2_priv0
-
-    __l1FcShared_size = __l1FcShared_end - __l1FcShared_start;
 
     .boot :
     {
@@ -182,6 +176,8 @@ SECTIONS
         *(.fcTcdm.*)
         *(.fcTcdm_g)
         *(.fcTcdm_g.*)
+        *(.heapfcram)
+        *(.heapfcram.*)
         . = ALIGN(16);
         edata  =  .;
         _edata  =  .;
@@ -192,33 +188,20 @@ SECTIONS
         . = ALIGN(16);
         __fc_bss_start__ = .;
         __stack_irq_end__ = .;
-        __stack_irq_start__ = __stack_irq_end__ + __STACK_IRQ_SIZE;
-        __stack_fc_pointer__ = __stack_irq_start__ + 0x4;
-        __stack_fc_end__ = __stack_fc_pointer__;
-        __stack_fc_start__ = __stack_fc_end__ + __STACK_FC_SIZE;
-        /* __l2_priv0_end = __stack_fc_start__ + 0x4; */
-        __fc_bss_end__ = __stack_fc_start__;
+        . = . + __STACK_IRQ_SIZE;
+        __stack_irq_start__ = .;
+        __fc_bss_end__ = __stack_irq_start__;
+        . = ALIGN(16);
     } > L2_priv0
 
-    .heap_l2_priv0 (__fc_bss_end__) :
-    {
-        . = ALIGN(16);
-        *(.heapfcram)
-        *(.heapfcram.*)
-        *(.heapl2priv0)
-        *(.heap_l2_priv0)
-        *(.heap_l2_priv0.*)
-        . = ALIGN(16);
-        __heapfcram_start = .;
-        __heap_l2_priv0_start = .;
-        __stack_fc_end__ = .;
-        . += __STACK_FC_SIZE;
-        __stack_fc_start__ = .;
-    } > L2_priv0
+    /* L2_priv0 heap. */
+    __heapfcram_start = .;
+    /* Stack used by main, will be included in l2_priv0 heap. */
+    __stack_fc_end__ = .;
+    . = . + __STACK_FC_SIZE;
+    __stack_fc_start__ = .;
 
-    /* L2_priv0 heap size. */
     __heapfcram_size = ORIGIN(L2_priv0) + LENGTH(L2_priv0) - __heapfcram_start;
-    __heap_l2_priv0_size = ORIGIN(L2_priv0) + LENGTH(L2_priv0) - __heap_l2_priv0_start;
 
     /* End of L2_PRIV0. */
     /* L2_PRIV1 is considered extension of L2_PRIV0. */
@@ -273,6 +256,8 @@ SECTIONS
         *(.l2_data.*)
         *(.data_fc_shared)
         *(.data_fc_shared.*)
+        *(.heapl2ram)
+        *(.heapl2ram.*)
         __data_end__ = .;
     } > L2_shared
 
@@ -319,42 +304,19 @@ SECTIONS
         *(.l1cluster_g.*)
         *(.data_l1)
         *(.data_l1.*)
-        . = ALIGN(16);
-        __l1_cluster_g_end = .;
-    } > L1 AT> L2_shared
-
-    .heap_l1_cluster (__l1_cluster_g_end):
-    {
-        . = ALIGN(16);
-        *(.heap_l1_cluster)
-        *(.heap_l1_cluster.*)
         *(.heapsram)
         *(.heapsram.*)
-         . = ALIGN(16);
-        __heap_l1_cluster_start = .;
-        __heapsram_start = .;
-        __l1_heapsram_start = .;
-    } > L1
+        . = ALIGN(16);
+    } > L1 AT> L2_shared
 
-    /* L1 heap size. */
-    __heapsram_size = ORIGIN(L1) + LENGTH(L1) - __heapsram_start;
+
+    /* L1 heap. */
+    __l1_heapsram_start = .;
     __l1_heapsram_size = ORIGIN(L1) + LENGTH(L1) - __l1_heapsram_start;
-    __heap_l1_cluster_size = ORIGIN(L1) + LENGTH(L1) - __heap_l1_cluster_start;
+
     __l1_preload_size = SIZEOF(.data_tiny_l1) + SIZEOF(.l1cluster_g);
 
-    .heap_l2_shared (__l1_preload_start_inL2 + __l1_preload_size) :
-    {
-        . = ALIGN(16);
-        *(.heapl2ram)
-        *(.heapl2ram.*)
-        *(.heap_l2_shared)
-        *(.heap_l2_shared.*)
-        . = ALIGN(16);
-        __heapl2ram_start = .;
-        __heap_l2_shared_start = .;
-    } > L2_shared
-
-    /* L2 heap size. */
+    /* L2 heap. */
+    __heapl2ram_start = LOADADDR(.l1cluster_g) + SIZEOF(.l1cluster_g);
     __heapl2ram_size = ORIGIN(L2_shared) + LENGTH(L2_shared) - __heapl2ram_start;
-    __heap_l2_shared_size = ORIGIN(L2_shared) + LENGTH(L2_shared) - __heap_l2_shared_start;
 }

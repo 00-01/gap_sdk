@@ -205,7 +205,6 @@ static void __pi_i2c_handler(void *arg)
     struct i2c_itf_data_s *driver_data = g_i2c_itf_data[periph_id];
 
     /* Pending transfer. */
-    
     struct pi_task *task = driver_data->pending;
     if (task != NULL)
     {
@@ -286,7 +285,6 @@ void __pi_i2c_write_read_async(struct i2c_cs_data_s *cs_data, void *tx_buffer,
     uint32_t irq = disable_irq();
 
     struct i2c_itf_data_s *driver_data = g_i2c_itf_data[cs_data->device_id];
-    //printf("WRITE SIZE %ld, READ SIZE %ld\n", tx_size, rx_size);
 
     //pi_i2c_t *i2c = (pi_i2c_t *)device->data;
 
@@ -324,12 +322,13 @@ void __pi_i2c_write_read_async(struct i2c_cs_data_s *cs_data, void *tx_buffer,
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_RD_NACK();
 
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_STOP();
-    driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WAIT(0x5UL);
+    driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WAIT(0xFFUL);
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_EOT();
 
     /* Send everything in command channel */
     hal_i2c_enqueue(driver_data->device_id, COMMAND_CHANNEL,
             driver_data->i2c_cmd_seq, seq_index*4, UDMA_CORE_RX_CFG_EN(1));
+    for(volatile int i = 0; i < 50000; i++);
     restore_irq(irq);
 }
 
@@ -363,18 +362,18 @@ void __pi_i2c_write_dual_async(struct i2c_cs_data_s *cs_data, void *buffer0,
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WR();
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_SETUP_UCA(1, ((uint32_t)buffer0) & 0x1FFFFF);
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_SETUP_UCS(1, ((uint32_t)size0) & 0x1FFFFF);
-
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_RPT(size1);
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WR();
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_SETUP_UCA(1, ((uint32_t)buffer1) & 0x1FFFFF);
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_SETUP_UCS(1, ((uint32_t)size1) & 0x1FFFFF);
 
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_STOP();
-    driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WAIT(0x5UL);
+    driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_WAIT(0xFFUL);
     driver_data->i2c_cmd_seq[seq_index++] = NEW_I2C_CMD_EOT();
     /* Send everything in command channel */
     hal_i2c_enqueue(driver_data->device_id, COMMAND_CHANNEL,
             driver_data->i2c_cmd_seq, seq_index*4, UDMA_CORE_RX_CFG_EN(1));
+    for(volatile int i = 0; i < 50000; i++);
     restore_irq(irq);
 }
 

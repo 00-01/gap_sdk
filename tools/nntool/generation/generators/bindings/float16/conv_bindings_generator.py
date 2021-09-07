@@ -70,6 +70,5 @@ def set_act_bindings(gen, step_idx, in_eparams, out_eparams, cname,
     )
     gen.bindings.append(
         NodeBindingList(cname, GNodeArgEdge(in_eparams[0]),
-                        GNodeArgEdge(out_eparams[0], "GNA_OUT"),
-                        GNodeArgNode(act_params, INFOS)
+                        GNodeArgEdge(out_eparams[0], "GNA_OUT")
                         ))

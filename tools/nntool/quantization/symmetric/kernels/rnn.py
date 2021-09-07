@@ -98,21 +98,26 @@ def mean_stddev_normalization(arr: np.ndarray):
 
 
 def htanh(x, qtype):
-    one = qtype.quantize(np.array([1]))
-    return np.minimum(np.maximum(x, -one), one)
+    return np.minimum(
+        np.maximum(x, qtype.quantize(np.array([-1]))),
+        qtype.quantize(np.array([1])))
 
 
 def tanh(x, qtype):
     return qtype.quantize(np.tanh(qtype.dequantize(x)))
 
+def clip_and_execute(act_fn):
+    def fn(val, qtype):
+        return act_fn(np.clip(val, -math.pow(2, 17), math.pow(2, 17)-1).astype(np.int32), qtype)
+    return fn
 
 def get_activation(name, use_hard):
     if name == 'relu':
         return relu
     if name == 'sigmoid':
-        return hsigmoid if use_hard else sigmoid_lut
+        return hsigmoid if use_hard else clip_and_execute(sigmoid_lut)
     if name == 'tanh':
-        return htanh if use_hard else tanh_lut
+        return htanh if use_hard else clip_and_execute(tanh_lut)
     raise NotImplementedError("This activation is not implemented")
 
 
@@ -157,12 +162,13 @@ class RnnSymmetricMixin():
 
 def scale_rnn_input(qrec: QRec,
                     weighted_input_tensor: np.ndarray,
-                    axis: int):
+                    axis: int,
+                    key='i_2_a_q'):
     # For AT model creation this should not be set. This is just for simulation
     # i.e. input scale == state scale == output scale
     # scale input_scale * input_weights to state_scale * recurrent_weights_scale
     weighted_input_tensor = weighted_input_tensor.astype(np.int32)
-    return qrec.cache['i_2_a_q'].apply_scales(weighted_input_tensor, axis)
+    return qrec.cache[key].apply_scales(weighted_input_tensor, axis)
 
 
 def scale_rnn_output(qrec,
@@ -180,6 +186,10 @@ def scale_rnn_state(qrec,
     return qrec.cache['s_2_s_q'].apply_scales(state_tensor, axis)
 
 
+def weights_zp(weights, zp):
+    return -np.sum(weights * zp, axis=1)
+
+
 @params_type(RNNParameters)
 @qrec_type('scaled')
 class RNNSymmetric(RnnSymmetricMixin, KernelBase):
@@ -189,9 +199,181 @@ class RNNSymmetric(RnnSymmetricMixin, KernelBase):
                     idx: int,
                     input_tensor: np.ndarray,
                     qrec):
+        if args['i_state'][1].dtype == np.uint8:
+            return cls.step_kernelu8_u8(params, args, idx, input_tensor, qrec)
+        if args['i_state'][1].dtype == np.uint16:
+            return cls.step_kernelu16_u8(params, args, idx, input_tensor, qrec)
         if args['i_state'][1].dtype == np.int16:
             return cls.step_kernel16_8(params, args, idx, input_tensor, qrec)
         return cls.step_kernel8_8(params, args, idx, input_tensor, qrec)
+
+    @classmethod
+    def step_kernelu8_u8(cls, params: GRUParameters,
+                         args: Mapping[str, np.ndarray],
+                         idx: int,
+                         input_tensor: np.ndarray,
+                         qrec):
+
+        scales = qrec.cache['scales']
+
+        # For each cell: compute input_weight * input if there is an input
+        if idx < params.n_input_cells:
+            # calculate weights zero point * input
+            inp_weights = args['i_2_i_w'][0].astype(INT_DTYPE)
+            in_t = input_tensor[idx].astype(INT_DTYPE)
+            input_gate_scratch = - \
+                np.sum(in_t * args['i_2_i_w'][1].zero_point.astype(INT_DTYPE))
+            # now calculate gate
+            input_gate_scratch = input_gate_scratch + inp_weights.dot(in_t)
+            DiagCollector.record(
+                'input_in_inputscale', input_gate_scratch, scale=scales['inp_before_scale'], node=params)
+            input_gate_scratch = input_gate_scratch * \
+                qrec.cache['i_2_s_q'].qbiases
+            input_gate_scratch = input_gate_scratch + \
+                args['i_b'][1].attr.interleaved_values[0]
+            input_gate_scratch = input_gate_scratch >> qrec.cache['i_2_s_q'].qnorms
+            DiagCollector.record(
+                'input_in_statescale', input_gate_scratch, scale=scales['inp_after_scale'], node=params)
+
+        # state * state weights
+        DiagCollector.record(
+            'state', args['i_state'][0], scale=None, node=params)
+        DiagCollector.record(
+            'state_weights', args['r_2_i_w'][0], scale=None, node=params)
+
+        state_weights = args['r_2_i_w'][0].astype(INT_DTYPE)
+        state_t = args['i_state'][0].astype(INT_DTYPE)
+        # input_gate_scratch is streamed in subtract calculate weights zero point * state
+        input_gate_scratch_state = input_gate_scratch - \
+            np.sum(state_t * args['r_2_i_w'][1].zero_point.astype(INT_DTYPE))
+        # Now calculate gate
+        input_gate_scratch_state += state_weights.dot(
+            args['i_state'][0].astype(INT_DTYPE))
+
+        DiagCollector.record(
+            'h_state_post_streamin', input_gate_scratch_state, scale=scales['inp_after_scale'], node=params)
+
+        # scale to state scale
+        input_gate_scratch = input_gate_scratch_state * \
+            qrec.cache['s_2_s_q'].qbiases
+        # biases are added before norm - this includes the state zero point offset
+        input_gate_scratch += args['i_b'][0]
+        input_gate_scratch = input_gate_scratch >> qrec.cache['s_2_s_q'].qnorms
+
+        DiagCollector.record(
+            'h_state_preact', input_gate_scratch, scale=scales['act_input_scale'], node=params)
+
+        # apply activation at state scale
+        input_gate_scratch = get_activation(params.activation, params.hard_act)(
+            input_gate_scratch, qrec.cache['act_qtype'])
+
+        DiagCollector.record(
+            'h_state_prescale', input_gate_scratch, scale=scales['int_scale'], node=params)
+        # scale the state scale to the output scale
+        o_q = qrec.out_qs[0]
+        # scale state_scale to output_scale
+        output_gate_scratch = np.maximum(np.minimum(
+            qrec.cache['s_2_o_q'].apply_scales(input_gate_scratch, 0), 127), -128)
+        output_gate_scratch = output_gate_scratch.astype(
+            np.uint8) + o_q.zero_point.astype(np.uint8)
+        DiagCollector.record(
+            'h_state_out', output_gate_scratch, scale=scales['out_scale'], zero_point=o_q.zero_point.astype(np.uint8), node=params)
+        # store the state
+        args['i_state'][0] = output_gate_scratch.copy()
+        return output_gate_scratch
+
+    @classmethod
+    def step_kernelu16_u8(cls, params: GRUParameters,
+                          args: Mapping[str, np.ndarray],
+                          idx: int,
+                          input_tensor: np.ndarray,
+                          qrec):
+
+        scales = qrec.cache['scales']
+
+        # For each cell: compute input_weight * input if there is an input
+        if idx < params.n_input_cells:
+            # scale result to recurrent_weight * input_state scale
+            inp_weights = args['i_2_i_w'][0].astype(INT_DTYPE)
+            in_t = input_tensor[idx].astype(INT_DTYPE)
+            # i_zp_b contains the input zero_point offset
+            # the weights zp offset is calculated as in NE16
+            DiagCollector.record(
+                'input_biases', args['i_b'][1].attr.interleaved_values[0], scale=scales['inp_before_scale'], node=params)
+            input_gate_scratch = args['i_b'][1].attr.interleaved_values[0].astype(
+                INT_DTYPE) - np.sum(in_t * args['i_2_i_w'][1].zero_point.astype(INT_DTYPE))
+            DiagCollector.record(
+                'input_zero_correction', input_gate_scratch, scale=scales['inp_before_scale'], node=params)
+            input_gate_scratch += inp_weights.dot(in_t)
+            DiagCollector.record(
+                'input_in_inputscale', input_gate_scratch, scale=scales['inp_before_scale'], node=params)
+            input_gate_scratch = at_norm(
+                input_gate_scratch, qrec.cache['i_2_s_q'].pre_normalization)
+            input_gate_scratch = input_gate_scratch * \
+                qrec.cache['i_2_s_q'].qbiases
+            input_gate_scratch = at_norm(
+                input_gate_scratch, qrec.cache['i_2_s_q'].qnorms)
+            DiagCollector.record(
+                'input_preact', input_gate_scratch, scale=scales['act_input_scale'], node=params)
+
+        # For each cell: compute recurrent_weight * input_state
+        state_weights = args['r_2_i_w'][0].astype(INT_DTYPE)
+        DiagCollector.record(
+            'state_weights', args['r_2_i_w'][0], scale=None, node=params)
+        state_t = args['i_state'][0].astype(INT_DTYPE)
+        DiagCollector.record(
+            'state', state_t, scale=None, node=params)
+
+        # i_b contains the state zero_point offset + the combined bias in state*weights scale
+        # the weights zp offset is calculated as in NE16
+        DiagCollector.record(
+            'state_biases', args['i_b'][0], scale=scales['inp_after_scale'], node=params)
+        input_gate_scratch_state = args['i_b'][0] - np.sum(
+            state_t * args['r_2_i_w'][1].zero_point.astype(INT_DTYPE))
+        DiagCollector.record(
+            'state_zero_correction', input_gate_scratch_state, scale=scales['inp_after_scale'], node=params)
+        input_gate_scratch_state += state_weights.dot(state_t)
+        DiagCollector.record(
+            'state_prod', input_gate_scratch_state, scale=scales['inp_after_scale'], node=params)
+
+        # scale to state scale
+        input_gate_scratch_state = at_norm(
+            input_gate_scratch_state, qrec.cache['s_2_s_q'].pre_normalization)
+        input_gate_scratch_state = input_gate_scratch_state * \
+            qrec.cache['s_2_s_q'].qbiases
+        # biases are added before norm
+        input_gate_scratch_state = at_norm(
+            input_gate_scratch_state, qrec.cache['s_2_s_q'].qnorms)
+
+        DiagCollector.record(
+            'h_state_only_postscale', input_gate_scratch_state, scale=scales['act_input_scale'], node=params)
+
+        input_gate_scratch = input_gate_scratch+input_gate_scratch_state
+
+        DiagCollector.record(
+            'h_state_preact', input_gate_scratch, scale=scales['act_input_scale'], node=params)
+
+        # apply activation at state scale
+        input_gate_scratch = get_activation(params.activation, False)(
+            input_gate_scratch, args['i_state'][1])
+
+        DiagCollector.record(
+            'h_state_prescale', input_gate_scratch, scale=scales['int_scale'], node=params)
+
+        # scale the state scale to the output scale
+        o_q = qrec.out_qs[0]
+        # scale state_scale to output_scale - clip signed
+        output_gate_scratch = np.clip(qrec.cache['s_2_o_q'].apply_scales(
+            input_gate_scratch, 0), -32768, 32767)
+        # move to unsigned
+        output_gate_scratch = output_gate_scratch.astype(
+            np.uint16) + o_q.zero_point.astype(np.uint16)
+
+        DiagCollector.record(
+            'h_state_out', output_gate_scratch, scale=scales['out_scale'], zero_point=o_q.zero_point.astype(np.uint16), node=params)
+        # store the state
+        args['i_state'][0] = output_gate_scratch.copy()
+        return output_gate_scratch
 
     @classmethod
     def step_kernel8_8(cls, params: GRUParameters,
@@ -750,6 +932,23 @@ def scale_lstm_output(qrec, tensor: np.ndarray, axis: int):
     return qrec.out_qs[0].clip(scale_to(qrec, 'state_out_q', tensor, axis))
 
 
+def check_unsupported(args):
+    use_cifg = 'i_2_i_w' in args and args['i_2_i_w'][0] is None
+    use_peephole = 'c_2_o_w' in args and args['c_2_o_w'][0] is not None
+    use_layer_norm = 'f_norm' in args and args['f_norm'][0] is not None
+    if use_cifg:
+        raise NotImplementedError("cifg mode is not supported")
+    if use_peephole:
+        raise NotImplementedError("peephole mode is not supported")
+    if use_layer_norm:
+        raise NotImplementedError("layer norm mode is not supported")
+    use_projection_weight = 'proj_w' in args and args['proj_w'][0] is not None
+    use_projection_bias = 'proj_b' in args and args['proj_b'][0] is not None
+
+    if use_projection_weight or use_projection_bias:
+        raise NotImplementedError("LSTMP is not yet supported by kernel")
+
+
 @ params_type(LSTMParameters)
 @ qrec_type('scaled')
 class LSTMSymmetric(RnnSymmetricMixin, KernelBase):
@@ -759,9 +958,301 @@ class LSTMSymmetric(RnnSymmetricMixin, KernelBase):
                     idx: int,
                     input_tensor: np.ndarray,
                     qrec):
+        if args['i_state'][1].dtype == np.uint8:
+            return cls.step_kernelu8_u8(params, args, idx, input_tensor, qrec)
+        if args['i_state'][1].dtype == np.uint16:
+            return cls.step_kernelu16_u8(params, args, idx, input_tensor, qrec)
         if args['i_state'][1].dtype == np.int16:
             return cls.step_kernel16_8(params, args, idx, input_tensor, qrec)
         return cls.step_kernel8_8(params, args, idx, input_tensor, qrec)
+
+    # NE16 8 bit kernel
+    @ classmethod
+    def step_kernelu8_u8(cls, params: LSTMParameters,
+                         args: Mapping[str, np.ndarray],
+                         idx: int,
+                         input_tensor: np.ndarray,
+                         qrec):
+
+        check_unsupported(args)
+
+        r_pscales = qrec.cache['r_pscales']
+        i_pscales = qrec.cache['i_pscales']
+        input_scratch = {}
+        if idx < params.n_input_cells:
+            in_t = input_tensor[idx].astype(INT_DTYPE)
+            for gate in ['i', 'f', 'c', 'o']:
+                name = f'i_2_{gate}_w'
+                # calculate weights zero point * input
+                w_val = args[name][0].astype(INT_DTYPE)
+                w_qtype = args[name][1]
+                input_scratch[gate] = - \
+                    np.sum(in_t * w_qtype.zero_point.astype(INT_DTYPE))
+                # now calculate gate
+                input_scratch[gate] = input_scratch[gate] + w_val.dot(in_t)
+                DiagCollector.record(
+                    f'input_{gate}_in_inputscale',
+                    input_scratch[gate],
+                    scale=i_pscales[gate],
+                    node=params)
+
+                input_scratch[gate] = input_scratch[gate] * \
+                    qrec.cache[f'i_2_{gate}_q'].qbiases
+                input_scratch[gate] = input_scratch[gate] + \
+                    args[f'{gate}_b'][1].attr.interleaved_values[0]
+                input_scratch[gate] = input_scratch[gate] >> qrec.cache[f'i_2_{gate}_q'].qnorms
+                DiagCollector.record(
+                    f'input_{gate}_in_statescale',
+                    input_scratch[gate],
+                    scale=r_pscales[gate],
+                    node=params)
+
+        state_t = args['i_state'][0].astype(INT_DTYPE)
+        for gate in ['i', 'f', 'c', 'o']:
+            name = f'r_2_{gate}_w'
+            # calculate weights zero point * input
+            w_val = args[name][0].astype(INT_DTYPE)
+            w_qtype = args[name][1]
+            input_scratch[gate] = input_scratch[gate] - \
+                np.sum(state_t * w_qtype.zero_point.astype(INT_DTYPE))
+            # now calculate gate
+            input_scratch[gate] = input_scratch[gate] + w_val.dot(state_t)
+            DiagCollector.record(
+                f'state_{gate}_in_statescale',
+                input_scratch[gate],
+                scale=i_pscales[gate],
+                node=params)
+
+            input_scratch[gate] = input_scratch[gate] * \
+                qrec.cache[f'r_2_{gate}_q'].qbiases
+            input_scratch[gate] = input_scratch[gate] + \
+                args[f'{gate}_b'][0].astype(INT_DTYPE)
+            input_scratch[gate] = input_scratch[gate] >> qrec.cache[f'r_2_{gate}_q'].qnorms
+            DiagCollector.record(
+                f'state_{gate}_in_intscale',
+                input_scratch[gate],
+                scale=r_pscales['int_scale'],
+                node=params)
+
+        int_qtype = internal_qtype(qrec)
+
+        # Apply activations
+        for gate, activation in [('i', 'sigmoid'), ('f', 'sigmoid'), ('o', 'sigmoid'), ('c', 'tanh')]:
+            input_scratch[gate] = get_activation(activation, params.hard_act)(
+                input_scratch[gate], int_qtype)
+            DiagCollector.record(
+                f'{gate}_gate_after_act', input_scratch[gate],
+                scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 * c_state Q -> Q15
+        cstate_cbar_f = args['c_state'][0].astype(INT_DTYPE) * input_scratch['f']
+        DiagCollector.record(
+            'cstate_cbar_f_prescale', cstate_cbar_f, node=params)
+        cstate_cbar_f = scale_lstm_cellin(
+            qrec,
+            cstate_cbar_f,
+            0)
+
+        DiagCollector.record(
+            'cstate_cbar_f', cstate_cbar_f,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 * Q15 -> Q15
+        cstate_c_i = at_norm(
+            input_scratch['c'] * input_scratch['i'], 15)
+
+        DiagCollector.record(
+            'cstate_c_i', cstate_c_i,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 + Q15
+        cstate = cstate_cbar_f + cstate_c_i
+        DiagCollector.record(
+            'c_state_before_scale', cstate,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 -> Cell Out
+        args['c_state'][0] = scale_lstm_cellout(qrec, cstate, 0)
+        DiagCollector.record(
+            'c_state_out', args['c_state'][0], scale=args['c_state'][1].scale, node=params)
+
+        # Q15 -> Q12 -> Q15
+        cell_scratch = get_activation('tanh', params.hard_act)(
+            at_norm(cstate, 3), int_qtype)
+
+        # Q15 * Q15 -> Q15
+        input_scratch['o'] = at_norm((input_scratch['o'] * cell_scratch), 15)
+
+        DiagCollector.record(
+            'output_before_scale', input_scratch['o'], scale=r_pscales['act_out_scale'], node=params)
+
+        output = np.clip(
+            at_norm(
+                input_scratch['o'] * qrec.cache['state_out_q'].qbiases,
+                qrec.cache['state_out_q'].qnorms
+            ) + qrec.out_qs[0].zero_point[0],
+            0,
+            0xff).astype(np.uint8)
+
+        DiagCollector.record(
+            'output', output, scale=qrec.out_qs[0].scale, node=params, zero_point=qrec.out_qs[0].zero_point[0])
+
+        # args['i_state'][0] = qrec.scale_i_state(output_gate_scratch.copy(), 0, ktype="symmetric")
+        args['i_state'][0] = output.copy()
+
+        if params.lstm_output_c_state:
+            return output, args['c_state'][0]
+        return output, None
+
+    # NE16 16 bit kernel
+    # Difference with 8 bit kernel is that bias is streamed in separately for each gate and
+    # scaling is manual in software
+    # This is necessary to stop input and weights zero offset causing overflow
+    @ classmethod
+    def step_kernelu16_u8(cls, params: LSTMParameters,
+                         args: Mapping[str, np.ndarray],
+                         idx: int,
+                         input_tensor: np.ndarray,
+                         qrec):
+
+        check_unsupported(args)
+
+        r_pscales = qrec.cache['r_pscales']
+        i_pscales = qrec.cache['i_pscales']
+        input_scratch = {}
+        if idx < params.n_input_cells:
+            in_t = input_tensor[idx].astype(INT_DTYPE)
+            for gate in ['i', 'f', 'c', 'o']:
+                name = f'i_2_{gate}_w'
+                # calculate weights zero point * input
+                w_val = args[name][0].astype(INT_DTYPE)
+                w_qtype = args[name][1]
+                input_scratch[gate] = args[f'{gate}_b'][1].attr.interleaved_values[0] - \
+                    np.sum(in_t * w_qtype.zero_point.astype(INT_DTYPE))
+                # now calculate gate
+                input_scratch[gate] = input_scratch[gate] + w_val.dot(in_t)
+                DiagCollector.record(
+                    f'input_{gate}_in_inputscale',
+                    input_scratch[gate],
+                    scale=i_pscales[gate],
+                    node=params)
+
+                if qrec.cache[f'i_2_{gate}_q'].pre_normalization > 0:
+                    input_scratch[gate] = at_norm(
+                        input_scratch[gate],
+                        qrec.cache[f'i_2_{gate}_q'].pre_normalization)
+                input_scratch[gate] = at_norm(
+                    input_scratch[gate] * qrec.cache[f'i_2_{gate}_q'].qbiases,
+                    qrec.cache[f'i_2_{gate}_q'].qnorms)
+
+                DiagCollector.record(
+                    f'input_{gate}_in_statescale',
+                    input_scratch[gate],
+                    scale=r_pscales['int_scale'],
+                    node=params)
+
+        state_t = args['i_state'][0].astype(INT_DTYPE)
+        state_scratch = {}
+        for gate in ['i', 'f', 'c', 'o']:
+            name = f'r_2_{gate}_w'
+            # calculate weights zero point * input
+            w_val = args[name][0].astype(INT_DTYPE)
+            w_qtype = args[name][1]
+            state_scratch[gate] = args[f'{gate}_b'][0].astype(INT_DTYPE) - \
+                np.sum(state_t * w_qtype.zero_point.astype(INT_DTYPE))
+            # now calculate gate
+            state_scratch[gate] = state_scratch[gate] + w_val.dot(state_t)
+            DiagCollector.record(
+                f'state_{gate}_in_statescale',
+                state_scratch[gate],
+                scale=i_pscales[gate],
+                node=params)
+
+            if qrec.cache[f'r_2_{gate}_q'].pre_normalization > 0:
+                state_scratch[gate] = at_norm(
+                    state_scratch[gate],
+                    qrec.cache[f'r_2_{gate}_q'].pre_normalization)
+            state_scratch[gate] = at_norm(
+                state_scratch[gate] * qrec.cache[f'r_2_{gate}_q'].qbiases,
+                qrec.cache[f'r_2_{gate}_q'].qnorms)
+
+            DiagCollector.record(
+                f'state_{gate}_in_intscale',
+                state_scratch[gate],
+                scale=r_pscales['int_scale'],
+                node=params)
+
+        int_qtype = internal_qtype(qrec)
+
+        # Apply activations
+        for gate, activation in [('i', 'sigmoid'), ('f', 'sigmoid'), ('o', 'sigmoid'), ('c', 'tanh')]:
+            input_scratch[gate] = get_activation(activation, params.hard_act)(
+                input_scratch[gate] + state_scratch[gate], int_qtype)
+            DiagCollector.record(
+                f'{gate}_gate_after_act', input_scratch[gate],
+                scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 * c_state Q -> Q15
+        cstate_cbar_f = args['c_state'][0].astype(INT_DTYPE) * input_scratch['f']
+        DiagCollector.record(
+            'cstate_cbar_f_prescale', cstate_cbar_f, node=params)
+        # Note - There is a prenorm in 16 bit mode but it is done by apply_scales
+        # cstate_cbar_f = at_norm(cstate_cbar_f, 8)
+        cstate_cbar_f = scale_lstm_cellin(
+            qrec,
+            cstate_cbar_f,
+            0)
+
+        DiagCollector.record(
+            'cstate_cbar_f', cstate_cbar_f,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 * Q15 -> Q15
+        cstate_c_i = at_norm(
+            input_scratch['c'] * input_scratch['i'], 15)
+
+        DiagCollector.record(
+            'cstate_c_i', cstate_c_i,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 + Q15
+        cstate = cstate_cbar_f + cstate_c_i
+        DiagCollector.record(
+            'c_state_before_scale', cstate,
+            scale=r_pscales['act_out_scale'], node=params)
+
+        # Q15 -> Cell Out
+        args['c_state'][0] = scale_lstm_cellout(qrec, cstate, 0)
+        DiagCollector.record(
+            'c_state_out', args['c_state'][0], scale=args['c_state'][1].scale, node=params)
+
+        # Q15 -> Q12 -> Q15
+        cell_scratch = get_activation('tanh', params.hard_act)(
+            at_norm(cstate, 3), int_qtype)
+
+        # Q15 * Q15 -> Q15
+        input_scratch['o'] = at_norm((input_scratch['o'] * cell_scratch), 15)
+
+        DiagCollector.record(
+            'output_before_scale', input_scratch['o'], scale=r_pscales['act_out_scale'], node=params)
+
+        output = np.clip(
+            at_norm(
+                input_scratch['o'] * qrec.cache['state_out_q'].qbiases,
+                qrec.cache['state_out_q'].qnorms
+            ) + qrec.out_qs[0].zero_point[0],
+            0,
+            0xffff).astype(np.uint16)
+
+        DiagCollector.record(
+            'output', output, scale=qrec.out_qs[0].scale, node=params, zero_point=qrec.out_qs[0].zero_point[0])
+
+        # args['i_state'][0] = qrec.scale_i_state(output_gate_scratch.copy(), 0, ktype="symmetric")
+        args['i_state'][0] = output.copy()
+
+        if params.lstm_output_c_state:
+            return output, args['c_state'][0]
+        return output, None
 
     @ classmethod
     def step_kernel8_8(cls, params: LSTMParameters,

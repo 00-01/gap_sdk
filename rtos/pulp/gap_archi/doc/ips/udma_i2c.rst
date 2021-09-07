@@ -1,4 +1,5 @@
-Input file: fe/ips/udma/udma_i2c/README.md
+.. 
+   Input file: fe/ips/udma/udma_i2c/README.md
 
 Register map
 ^^^^^^^^^^^^

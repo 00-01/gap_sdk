@@ -1,9 +1,5 @@
 #include "Gap.h"
-#include "math_funcs.h"
-#include "CmplxFunctions.h"
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include "DSP_Lib.h"
 
 #ifndef Min
 #define Min(x, y)       (((x)<(y))?(x):(y))
@@ -73,18 +69,17 @@ void CmplxMagSquared_Fix32_scal(CmplxMag_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void CmplxMagSquared_f16(CmplxMag_T *Arg)
 {
-        v2h *__restrict__ FrameIn    = (v2h *) Arg->FrameIn;
-        f16 *__restrict__ MagSquared = (f16 *) Arg->FrameOut;
+        F16V_DSP *__restrict__ FrameIn    = (F16V_DSP *) Arg->FrameIn;
+        F16_DSP *__restrict__ MagSquared = (F16_DSP *) Arg->FrameOut;
         int N = (Arg->Nfft)/2 + 1;
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
         Chunk = ChunkSize(N);
         First = CoreId*Chunk; Last = Min(First + Chunk, N);
 
         for (i=First; i<(unsigned int)Last; i++) {
-                f16 P = (FrameIn[i][0] * FrameIn[i][0]) + (FrameIn[i][1] * FrameIn[i][1]);
+                F16_DSP P = (FrameIn[i][0] * FrameIn[i][0]) + (FrameIn[i][1] * FrameIn[i][1]);
                 MagSquared[i] = P;
         }
         gap_waitbarrier(0);
@@ -95,7 +90,6 @@ void CmplxMagSquared_f16(CmplxMag_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void CmplxMagSquared_f32(CmplxMag_T *Arg)
 {
@@ -186,18 +180,17 @@ void CmplxMag_Fix32_scal(CmplxMag_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void CmplxMag_f16(CmplxMag_T *Arg)
 {
-        v2h *__restrict__ FrameIn = (v2h *) Arg->FrameIn;
-        f16 *__restrict__ Mag     = (f16 *) Arg->FrameOut;
+        F16_DSP *__restrict__ FrameIn = (F16_DSP *) Arg->FrameIn;
+        F16_DSP *__restrict__ Mag     = (F16_DSP *) Arg->FrameOut;
         int N = (Arg->Nfft)/2 + 1;
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
         Chunk = ChunkSize(N);
         First = CoreId*Chunk; Last = Min(First + Chunk, N);
 
         for (i=First; i<(unsigned int)Last; i++) {
-                // Mag[i] = (f16) (sqrt((float) (FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1])));
+                Mag[i] = (F16_DSP) (SqrtF16(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]));
         }
         gap_waitbarrier(0);
 
@@ -207,7 +200,6 @@ void CmplxMag_f16(CmplxMag_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void CmplxMag_f32(CmplxMag_T *Arg)
 {
@@ -219,7 +211,7 @@ void CmplxMag_f32(CmplxMag_T *Arg)
         First = CoreId*Chunk; Last = Min(First + Chunk, N);
 
         for (i=First; i<(unsigned int)Last; i++) {
-                Mag[i] = (float) sqrt(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]);
+                Mag[i] = (float) SqrtF32(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]);
         }
         gap_waitbarrier(0);
 

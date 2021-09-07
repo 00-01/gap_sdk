@@ -262,6 +262,7 @@ typedef struct iss_decoder_item_s {
       int latency;
       iss_decoder_arg_t args[ISS_MAX_DECODE_ARGS];
       int resource_id;
+      int power_group;
     } insn;
 
     struct {
@@ -443,7 +444,7 @@ typedef struct iss_csr_s
   iss_reg_t mtvec;
   iss_reg_t mcause;
 #if defined(ISS_HAS_PERF_COUNTERS)
-  iss_reg_t pccr[CSR_PCER_NB_EVENTS];
+  iss_reg_t pccr[32];
   iss_reg_t pcer;
   iss_reg_t pcmr;
 #endif

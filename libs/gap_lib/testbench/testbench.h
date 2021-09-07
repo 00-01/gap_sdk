@@ -124,14 +124,16 @@ typedef struct
             int32_t nb_samples;
             uint32_t filepath;
             uint32_t filepath_len;
-            uint32_t type;
+            uint8_t type;
+            uint8_t width;
         } tx_file_dumper;
         struct
         {
             int32_t nb_samples;
             uint32_t filepath;
             uint32_t filepath_len;
-            uint32_t type;
+            uint8_t type;
+            uint8_t width;
         } rx_file_reader;
     };
 

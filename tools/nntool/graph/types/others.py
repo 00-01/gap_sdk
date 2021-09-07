@@ -467,6 +467,7 @@ class BinaryOpParameters(CanFuseToExpression, Parameters):
                 if op_type == subcls.CLS_OP_NAME:
                     return super(BinaryOpParameters, cls).__new__(subcls)
             raise ValueError(f'binary op {op_type} not found')
+        return super(BinaryOpParameters, cls).__new__(cls, **kwargs)
 
     def __init__(self, *args, op_type="maximum", **kwargs):
         super(BinaryOpParameters, self).__init__(*args, **kwargs)

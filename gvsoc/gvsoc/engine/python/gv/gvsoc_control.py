@@ -230,7 +230,7 @@ class Router(object):
         The path to the router in the architecture.
     """
 
-    def __init__(self, proxy: Proxy, path: str = '/sys/board/chip/soc/axi_ico'):
+    def __init__(self, proxy: Proxy, path: str = '**/chip/soc/axi_ico'):
         self.proxy = proxy
         self.lock = threading.Lock()
         self.condition = threading.Condition(self.lock)
@@ -388,7 +388,7 @@ class Testbench(object):
         The path to the testbench in the architecture.
     """
 
-    def __init__(self, proxy: Proxy, path: str = '/sys/board/testbench/testbench'):
+    def __init__(self, proxy: Proxy, path: str = '**/testbench/testbench'):
         self.proxy = proxy
         self.component = proxy._get_component(path)
 
@@ -677,7 +677,7 @@ class Testbench_i2s(object):
 
     def open(self, word_size: int = 16, sampling_freq: int = -1, nb_slots: int = 1, is_pdm: bool = False,
             is_full_duplex: bool = False, is_ext_clk: bool = False, is_ext_ws: bool = False, is_sai0_clk: bool = False,
-            is_sai0_ws: bool = False, clk_polarity: int = 0, ws_polarity: int = 0):
+            is_sai0_ws: bool = False, clk_polarity: int = 0, ws_polarity: int = 0, ws_delay: int = 1):
         """Open and configure SAI.
 
         Parameters
@@ -705,6 +705,8 @@ class Testbench_i2s(object):
             Clock polarity, definition is the same as SAI0 specifications.
         ws_polarity : int, optional
             Word strobe polarity, definition is the same as SAI0 specifications.
+        ws_delay : int, optional
+            Word strobe delay, definition is the same as SAI0 specifications.
 
         Raises
         ------
@@ -726,6 +728,7 @@ class Testbench_i2s(object):
         options += ' is_sai0_ws=%d' % is_sai0_ws
         options += ' clk_polarity=%d' % clk_polarity
         options += ' ws_polarity=%d' % ws_polarity
+        options += ' ws_delay=%d' % ws_delay
         cmd = 'component %s i2s setup %s\n' % (self.testbench, options)
         self.proxy.socket.send(cmd.encode('ascii'))
         self.proxy._get_retval()

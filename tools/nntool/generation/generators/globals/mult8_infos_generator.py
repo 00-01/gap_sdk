@@ -12,6 +12,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from graph.types.activations import HTanHActivationParameters, TanHActivationParameters
 import math
 import numpy as np
 from generation.at_types.constant_info import ConstantInfo
@@ -219,6 +220,7 @@ def act_infos(gen, pnode, fnode, act_params, act_q, extra1=0, extra2=0, extra3=0
         contents = np.array([0, 0, 0, 0, 0, extra1, extra2,
                              extra3, extra4], dtype=np.int8)
     elif isinstance(act_params, ReluActivationParameters):
+        compute_in_out_scale(act_q)
         actscale = act_q.cache['scale_mul_biases_q'].qbiases[0]
         actscalen = act_q.cache['scale_mul_biases_q'].qnorms[0]
         if act_params.upper_bound is None:  # or fnode is not None:
@@ -305,7 +307,7 @@ def act_infos(gen, pnode, fnode, act_params, act_q, extra1=0, extra2=0, extra3=0
                               act_q.cache['scale_mul_biases_q'].qbiases[0],
                               act_q.cache['scale_mul_biases_q'].qnorms[0],
                               leak_factor_quant)
-    elif isinstance(act_params, SigmoidActivationParameters):
+    elif isinstance(act_params, (SigmoidActivationParameters, TanHActivationParameters)):
         assert act_q.in_qs[0].zero_point == 0 and act_q.out_qs[0].zero_point == 0, "asymmetric not supported"
         compute_in_out_scale(act_q, extra_scale=QType.Pow2(
             bits=32, q=7, signed=True).scale/act_q.in_qs[0].scale)
@@ -326,17 +328,18 @@ def act_infos(gen, pnode, fnode, act_params, act_q, extra1=0, extra2=0, extra3=0
                              act_q.cache['scale_mul_biases_q'].qnorms[0],
                              0, 0, 0, extra1, extra2, extra3, extra4],
                             dtype=np.int8)
-        comment += str.format("in: {:05f} out: {:05f}",
-                              act_q.in_qs[0].scale[0],
-                              act_q.out_qs[0].scale[0])
 
     if for_ne16:
         # append weights_offset and pad_val for ne16
         # TODO - default config maybe in future
+        if isinstance(pnode, ConvFusionParameters):
+            filt_q = gen.G.quantization[NodeId(pnode, fnode)]
+        else:
+            filt_q = gen.G.quantization[NodeId(pnode)]
         pad_value = np.array(in_zero_point).astype(np.int16)
         pad_value1 = np.bitwise_and(pad_value, 0xFF)
         pad_value2 = np.bitwise_and(pad_value, 0xFF00) >> 8
-        w_offset = np.array(-128).astype(np.int32)
+        w_offset = - np.array(filt_q.in_qs[1].zero_point).astype(np.int32)
         w_offset1 = np.bitwise_and(w_offset, 0xFF)
         w_offset2 = np.bitwise_and(w_offset, 0xFF00) >> 8
         w_offset3 = np.bitwise_and(w_offset, 0xFF0000) >> 16

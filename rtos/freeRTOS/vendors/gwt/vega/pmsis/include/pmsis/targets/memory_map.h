@@ -71,6 +71,7 @@
 #define I3C1_ADDR                                   (SOC_PERIPHERALS_ADDR + I3C1_OFFSET)
 /* TIMER. */
 #define FC_TIMER_ADDR(id)                           (SOC_PERIPHERALS_ADDR + FC_TIMER_OFFSET + (FC_TIMER(id) << TIMER_SIZE_LOG2))
+#define FC_ICACHE_ADDR                              (SOC_PERIPHERALS_ADDR + FC_ICACHE_OFFSET)
 //#define FC_TIMER_ADDR                               (SOC_PERIPHERALS_ADDR + FC_TIMER_OFFSET)
 #define DPHY_ADDR                                   (SOC_PERIPHERALS_ADDR + DPHY_OFFSET)
 #define CSI2_ADDR                                   (SOC_PERIPHERALS_ADDR + CSI2_OFFSET)

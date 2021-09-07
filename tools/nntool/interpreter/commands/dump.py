@@ -135,7 +135,7 @@ specific step of the graph."""
                 img_in = img_in.resize((width, height))
 
                 if self.G.has_ssd_postprocess:
-                    bboxes, classes, scores, _ = [outputs[graph_out.step_idx][0] for graph_out in self.G.outputs()]
+                    bboxes, classes, scores = [outputs[graph_out.step_idx][0] for graph_out in self.G.outputs()]
                     draw = ImageDraw.Draw(img_in, 'RGBA')
 
                     for box, score, class_id in zip(bboxes, scores, classes):

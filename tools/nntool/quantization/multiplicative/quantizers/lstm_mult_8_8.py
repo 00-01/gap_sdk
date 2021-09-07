@@ -18,6 +18,7 @@ import math
 from copy import deepcopy
 
 import numpy as np
+from numpy.core.shape_base import _concatenate_shapes
 from graph.types import LSTMParameters
 from quantization.multiplicative.scaling_qtypes import MultMulBiasScaleQType
 from quantization.new_qrec import QRec
@@ -123,16 +124,26 @@ class LSTMMultMult8x8(RescaleConstantMixin, MultQuantizionHandler):
             out_tanh_sig_scale = math.pow(2, -15)
         int_scale = math.pow(2, -int_q)
 
+        edges = G.indexed_in_edges(params.name)
         scale_pairs = {chan: ('i_2_%s_w' % chan, 'r_2_%s_w' % chan)
                        for chan in ['i', 'o', 'c', 'f']}
-        for weight_name in [weight_name for scale_pair in scale_pairs.values() for weight_name in scale_pair]:
-            in_q = in_qs[names[weight_name]]
-            in_qs[names[weight_name]] = QType.from_min_max_sq(
+        for scale_pair in scale_pairs.values():
+            in_q = in_qs[names[scale_pair[0]]]
+            in_qs[names[scale_pair[0]]] = QType.from_min_max_sq(
                 in_q.min_val,
                 in_q.max_val,
                 dtype=np.int8,
-                narrow_range=opts.get('narrow_weights'))
-            in_qs[names[weight_name]].bits = opts['weight_bits']
+                narrow_range=opts.get('narrow_weights'),
+                dont_generate_value = True)
+            in_qs[names[scale_pair[0]]].bits = opts['weight_bits']
+            in_q = in_qs[names[scale_pair[1]]]
+            in_qs[names[scale_pair[1]]] = QType.from_min_max_sq(
+                in_q.min_val,
+                in_q.max_val,
+                dtype=np.int8,
+                narrow_range=opts.get('narrow_weights'),
+                concatenated_nodes=[edges[names[scale_pair[0]]].from_node.name])
+            in_qs[names[scale_pair[1]]].bits = opts['weight_bits']
 
         w_scales = [(in_qs[names[namei]].scale, in_qs[names[namer]].scale)
                     for k, (namei, namer) in scale_pairs.items()]

@@ -40,7 +40,7 @@ class BasicConstantQuant(FloatQuantization):
                   qrec: FloatQRec = None,
                   **kwargs) -> Tuple[Symbol, FloatQRec]:
 
-        return sym, FloatQRec(dtype=np.float32, min_val=sym.value[0], max_val=sym.value[0])
+        return sym, FloatQRec(dtype=bfloat16, min_val=sym.value[0], max_val=sym.value[0])
 
 
 @qhandler("Float", Variable)

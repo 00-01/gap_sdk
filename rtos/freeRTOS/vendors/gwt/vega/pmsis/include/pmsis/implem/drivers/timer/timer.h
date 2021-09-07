@@ -47,9 +47,6 @@
  * Definitions
  ******************************************************************************/
 
-#define fc_timer(id)  ((timer_periph_t *) SysTick)         /*!< Pointer to FC TImer. */
-#define cl_timer(id)  ((timer_periph_t *) CLUSTER_SysTick) /*!< Pointer to Cluster Timer. */
-
 /*******************************************************************************
  * Driver data
  *****************************************************************************/

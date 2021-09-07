@@ -27,28 +27,46 @@
 typedef struct
 {
     volatile uint32_t info; /**< Core information register. */
-    volatile uint32_t _reserved_0[2]; /**< Reserved/Unused. */
+    volatile uint32_t fc_boot; /**< Reserved/Unused. */
+    volatile uint32_t fc_fetch;   /**< Reserved/Unused. */
     volatile uint32_t cl_isolate; /**< Isolate cluster register. */
-    volatile uint32_t _reserved_1[23]; /**< Reserved/Unused. */
+    volatile uint32_t padfun[4]; /**< Mux config register : pad 0-15, 16-31, 32-47, 48-63. */
+    volatile uint32_t padcfg[16]; /**< Function register : pad 0-3, 4-7, 8-11,..., 56-59, 60-63. */
     volatile uint32_t cl_busy; /**< Cluster busy register. */
-    volatile uint32_t cl_bypass; /**< Cluster PMU bypass configuration register. */
+    volatile uint32_t reserved_0[2]; /**< Reserved/Unused. */
     volatile uint32_t jtagreg; /**< JTAG external register. */
-    volatile uint32_t l2_sleep; /**< L2 sleep configuration register. */
     volatile uint32_t sleep_ctrl; /**< Alias for SAFE_PMU_SLEEPCTRL. */
-    volatile uint32_t _reserved_2[8]; /**< Reserved/Unused. */
+    volatile uint32_t clk_div_i3c; /**< I3C clock div settings register. */
+    volatile uint32_t reserved_1[8]; /**< Reserved/Unused. */
     volatile uint32_t corestatus; /**< EOC and chip status register. */
-    volatile uint32_t _reserved_30[7]; /**< Reserved/Unused. */
+    volatile uint32_t reserved_2[8]; /**< Reserved/Unused. */
     volatile uint32_t corestatus_ro; /**< EOC and chip status register read mirror. */
-    volatile uint32_t _reserved_3[15]; /**< Reserved/Unused. */
-    volatile uint32_t safe_pmu_rar; /**< DC/DC configuration register. */
+    volatile uint32_t boot_sel; /**< Bootsel. */
+    volatile uint32_t watchdog_rst; /**< Watchdog reset register. */
+    volatile uint32_t reserved_3; /**< Reserved/Unused. */
+    volatile uint32_t clk_sel; /**< FC FLL sel register. */
+    volatile uint32_t clk_div_soc; /**< */
+    volatile uint32_t clk_div_clu; /**< */
+    volatile uint32_t clk_div_per; /**< */
+    volatile uint32_t supervisor_debug; /**< */
+    volatile uint32_t rwm_grp0_dbg[7]; /**< Reserved/Unused. */
+    volatile uint32_t reserved_4; /**< Reserved/Unused. */
     volatile uint32_t safe_pmu_sleepctrl; /**< Sleep modes configuration register. */
-    volatile uint32_t safe_pmu_force; /**< L2 rententive state configuration. */
-    volatile uint32_t _reserved_4[13]; /**< Reserved/Unused. */
-    volatile uint32_t safe_padfun[4]; /**< Mux config register : pad 0-15, 16-31, 32-47, 48-63. */
+    volatile uint32_t reserved_5; /**< Reserved/Unused. */
+    volatile uint32_t safe_pg_cfg; /**< Reserved/Unused. */
+    volatile uint32_t safe_pmu_wd; /**< Watchdog. */
+    volatile uint32_t reserved_6[16]; /**< Reserved/Unused. */
     volatile uint32_t safe_sleeppadcfg[4]; /**< Sleep config register : pad 0-15, 16-31, 32-47, 48-63. */
     volatile uint32_t safe_padsleep; /**< Enable Sleep mode for pads. */
-    volatile uint32_t _reserved_5[7]; /**< Reserved/Unused. */
-    volatile uint32_t safe_padcfg[16]; /**< Function register : pad 0-3, 4-7, 8-11,..., 56-59, 60-63. */
+    volatile uint32_t safe_neva_cfg; /**< Config timings for NEVA. */
+    volatile uint32_t safe_trc_cfg; /**< */
+    volatile uint32_t sage_bbgen_cfg; /**< BBgen power control. */
+    volatile uint32_t safe_gpreg_ao;  /**< General purpose register AO. */
+    volatile uint32_t safe_l2_btrim_stdby; /**< L2 standby configuration. */
+    volatile uint32_t safe_fll_ctrl;       /**< FLL2 FLL3 power control. */
+    volatile uint32_t safe_l1_pwr_ctrl;    /**< L1 power control. */
+    volatile uint32_t safe_l2_pwr_ctrl;    /**< L2 power control. */
+    volatile uint32_t reserved_7[16]; /**< Reserved/Unused. */
     volatile uint32_t reg_gpio_iso; /**< GPIO power domain pad input isolation register. */
     volatile uint32_t reg_cam_iso; /**< CAM power domain pad input isolation register. */
     volatile uint32_t reg_lvds_iso; /**< LVDS power domain pad input isolation register. */

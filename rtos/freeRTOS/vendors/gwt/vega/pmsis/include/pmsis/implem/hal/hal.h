@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -28,60 +28,65 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* This file shall be used for verification purpose only. */
+#pragma once
 
-#ifndef __PMSIS_HAL_H__
-#define __PMSIS_HAL_H__
+#include "pmsis/targets/target.h"
 
 /* Hal includes. */
 
-/* Event unit. */
-#include "event_unit/event_unit.h"
-
-/* Efuse */
-#include "efuse/pmsis_efuse.h"
-
 /* FLL. */
-#include "fll/fll.h"
+#include "pmsis/implem/hal/fll/fll.h"
 
 /* GPIO. */
-#include "gpio/gpio.h"
-
-/* PWM */
-#include "pwm/pwm.h"
-#include "pwm/pwm_ctrl.h"
-
-/* RTC */
-#include "rtc/rtc.h"
-
-/* Soc_ctrl. */
-#include "soc_ctrl/pmu_ctrl.h"
-#include "soc_ctrl/soc_ctrl_pad.h"
-
-/* PMU. */
-#include "pmu/pmu_dlc.h"
-
-/* Soc events generator. */
-#include "soc_eu/soc_eu.h"
+#include "pmsis/implem/hal/gpio/gpio.h"
 
 /* UDMA. */
-#include "udma/udma_core.h"
-#include "udma/udma_ctrl.h"
-#include "udma/udma_hyper.h"
-#include "udma/udma_i2c.h"
-#include "udma/udma_uart.h"
-//#include "udma/udma_cpi.h"
-//#include "udma/udma_i2s.h"
-//#include "udma/udma_spim.h"
+#include "pmsis/implem/hal/udma/udma_core.h"
+#include "pmsis/implem/hal/udma/udma_ctrl.h"
+#include "pmsis/implem/hal/udma/udma_hyper.h"
+#include "pmsis/implem/hal/udma/udma_i2c.h"
+#include "pmsis/implem/hal/udma/udma_i2s.h"
+#include "pmsis/implem/hal/udma/udma_uart.h"
+//#include "pmsis/implem/hal/udma/udma_cpi.h"
+//#include "pmsis/implem/hal/udma/udma_spim.h"
+
+/* SOC_CTRL. */
+#include "pmsis/implem/hal/soc_ctrl/pmu_ctrl.h"
+#include "pmsis/implem/hal/soc_ctrl/soc_ctrl_pad.h"
+
+/* PWM */
+#include "pmsis/implem/hal/pwm/pwm.h"
+#include "pmsis/implem/hal/pwm/pwm_ctrl.h"
+
+/* SOC_EU. */
+#include "pmsis/implem/hal/soc_eu/soc_eu.h"
+
+/* PMU. */
+#include "pmsis/implem/hal/pmu/pmu.h"
+
+/* RTC */
+#include "pmsis/implem/hal/rtc/rtc.h"
+
+/* FC_ICACHE. */
+#include "pmsis/implem/hal/fc_icache/fc_icache.h"
+
+/* ITC */
+#include "pmsis/implem/hal/itc/itc.h"
+
+/* Efuse */
+#include "pmsis/implem/hal/efuse/pmsis_efuse.h"
+
 
 /* Cluster. */
 #include "pmsis/implem/hal/cluster/cluster_ctrl_unit.h"
 #include "pmsis/implem/hal/cluster/cluster_event_unit.h"
 #include "pmsis/implem/hal/cluster/cluster_icache_ctrl.h"
-/* DMA. */
-#include "dma/dma.h"
+#include "pmsis/implem/hal/cluster/cluster_dma.h"
 
-/* ITC */
-#include "itc/itc.h"
 
-#endif  /* __PMSIS_HAL_H__ */
+/** STDOUT access. */
+static inline void hal_stdout_putc_set(uint32_t cluster_id, uint32_t core_id, uint8_t c)
+{
+    uint32_t base = (uint32_t) _stdout(cluster_id);
+    GAP_WRITE(base, STDOUT_PUTC_OFFSET + (core_id << 3), c);
+}

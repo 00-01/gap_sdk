@@ -42,64 +42,56 @@
 
 #define APB_SOC_STATUS_EOC_SHIFT         ( 31 )
 
-/* Corestatus register. */
-static inline void soc_ctrl_corestatus_set(int32_t value)
-{
-    hal_write32(&(soc_ctrl->corestatus), (1 << APB_SOC_STATUS_EOC_SHIFT) | value);
-    //hal_write32(&(soc_ctrl->corestatus), value);
-}
-
-static inline uint32_t soc_ctrl_corestatus_get(void)
-{
-    return hal_read32(&(soc_ctrl->corestatus));
-}
-
 
 /* Safe_padfun register. */
 static inline void soc_ctrl_safe_padfun_set(uint8_t reg_num, uint32_t value)
 {
-    hal_write32(&(soc_ctrl->safe_padfun[reg_num]), value);
 }
 
 static inline uint32_t soc_ctrl_safe_padfun_get(uint8_t reg_num)
 {
-    return hal_read32(&(soc_ctrl->safe_padfun[reg_num]));
+    return 0;
 }
 
 
 /* Safe_sleeppadcfg register. */
 static inline void soc_ctrl_safe_sleeppadcfg_set(uint8_t reg_num, uint32_t value)
 {
-    hal_write32(&(soc_ctrl->safe_sleeppadcfg[reg_num]), value);
 }
 
 static inline uint32_t soc_ctrl_safe_sleeppadcfg_get(uint8_t reg_num)
 {
-    return hal_read32(&(soc_ctrl->safe_sleeppadcfg[reg_num]));
+    return 0;
 }
 
 
 /* Safe_padsleep register. */
 static inline void soc_ctrl_safe_padsleep_set(uint32_t value)
 {
-    hal_write32(&(soc_ctrl->safe_padsleep), value);
 }
 
 static inline uint32_t soc_ctrl_safe_padsleep_get()
 {
-    return hal_read32(&(soc_ctrl->safe_padsleep));
+    return 0;
 }
 
 
 /* Safe_padcfg register. */
 static inline void soc_ctrl_safe_padcfg_set(uint8_t reg_num, uint32_t value)
 {
-    hal_write32(&(soc_ctrl->safe_padcfg[reg_num]), value);
 }
 
 static inline uint32_t soc_ctrl_safe_padcfg_get(uint8_t reg_num)
 {
-    return hal_read32(&(soc_ctrl->safe_padcfg[reg_num]));
+    return 0;
+}
+
+
+/*! Corestatus. */
+static inline void hal_soc_ctrl_corestatus_set(int32_t value)
+{
+    uint32_t status = ((1 << APB_SOC_STATUS_EOC_SHIFT) | value);
+    apb_soc_corestatus_set((uint32_t) apb_soc_ctrl, status);
 }
 
 
@@ -107,22 +99,21 @@ static inline uint32_t soc_ctrl_safe_padcfg_get(uint8_t reg_num)
 /* Pad function configuration. */
 static inline void hal_pad_function_set(uint8_t pad, uint8_t func)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F);
-    uint32_t mask = 0x3, shift = (pad_pos << 1);
-    uint32_t val = soc_ctrl_safe_padfun_get(pad_reg);
-    val = ((val & ~(mask << shift)) | (func << shift));
-    soc_ctrl_safe_padfun_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F); */
+    /* uint32_t mask = 0x3, shift = (pad_pos << 1); */
+    /* uint32_t val = soc_ctrl_safe_padfun_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | (func << shift)); */
+    /* soc_ctrl_safe_padfun_set(pad_reg, val); */
 }
 
 static inline void hal_pad_padfunc_set(uint8_t pad_reg, uint32_t value)
 {
-    soc_ctrl_safe_padfun_set(pad_reg, value);
 }
 
 static inline uint32_t hal_pad_padfunc_get(uint8_t pad_reg)
 {
-    return soc_ctrl_safe_padfun_get(pad_reg);
+    return 0;
 }
 
 
@@ -130,45 +121,44 @@ static inline uint32_t hal_pad_padfunc_get(uint8_t pad_reg)
 /* Sleeppad direction configuration. */
 static inline void hal_pad_sleeppad_direction_set(uint8_t pad, uint8_t dir)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F);
-    uint32_t mask = 0x1, shift = (pad_pos << 1);
-    uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | (dir << shift));
-    soc_ctrl_safe_sleeppadcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F); */
+    /* uint32_t mask = 0x1, shift = (pad_pos << 1); */
+    /* uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | (dir << shift)); */
+    /* soc_ctrl_safe_sleeppadcfg_set(pad_reg, val); */
 }
 
 /* Sleeppad state configuration. */
 static inline void hal_pad_sleeppad_state_set(uint8_t pad, uint8_t state)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F);
-    uint32_t mask = 0x2, shift = (pad_pos << 1);
-    uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | ((state << 1) << shift));
-    soc_ctrl_safe_sleeppadcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F); */
+    /* uint32_t mask = 0x2, shift = (pad_pos << 1); */
+    /* uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | ((state << 1) << shift)); */
+    /* soc_ctrl_safe_sleeppadcfg_set(pad_reg, val); */
 }
 
 /* Sleeppad state & dir configuration. */
 static inline void hal_pad_sleeppad_configuration_set(uint8_t pad, uint8_t dir,
                                                       uint8_t state)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F);
-    uint32_t mask = 0x3, shift = (pad_pos << 1);
-    uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | (((state << 1) | dir) << shift));
-    soc_ctrl_safe_sleeppadcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 4), pad_pos = (pad & 0x0F); */
+    /* uint32_t mask = 0x3, shift = (pad_pos << 1); */
+    /* uint32_t val = soc_ctrl_safe_sleeppadcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | (((state << 1) | dir) << shift)); */
+    /* soc_ctrl_safe_sleeppadcfg_set(pad_reg, val); */
 }
 
 static inline void hal_pad_sleeppadcfg_set(uint8_t pad_reg, uint32_t value)
 {
-    soc_ctrl_safe_sleeppadcfg_set(pad_reg, value);
 }
 
 static inline uint32_t hal_pad_sleeppadcfg_get(uint8_t pad_reg)
 {
-    return soc_ctrl_safe_sleeppadcfg_get(pad_reg);
+    return 0;
 }
 
 
@@ -176,8 +166,6 @@ static inline uint32_t hal_pad_sleeppadcfg_get(uint8_t pad_reg)
 /* Enable sleep mode for pads. */
 static inline void hal_pad_padsleep_enable(uint8_t enable)
 {
-    uint32_t val = SOC_CTRL_SAFE_PADSLEEP_EN(enable);
-    soc_ctrl_safe_padsleep_set(val);
 }
 
 
@@ -185,34 +173,34 @@ static inline void hal_pad_padsleep_enable(uint8_t enable)
 /* Set pull activation of a pad. */
 static inline void hal_pad_padcfg_pull_enable(uint8_t pad, uint8_t pe)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03);
-    uint32_t mask = 0x1, shift = (pad_pos << 3);
-    uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | (pe << shift));
-    soc_ctrl_safe_padcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03); */
+    /* uint32_t mask = 0x1, shift = (pad_pos << 3); */
+    /* uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | (pe << shift)); */
+    /* soc_ctrl_safe_padcfg_set(pad_reg, val); */
 }
 
 /* Set drive strength of a pad. */
 static inline void hal_pad_padcfg_drive_strength_set(uint8_t pad, uint8_t ds)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03);
-    uint32_t mask = 0x2, shift = (pad_pos << 3);
-    uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | ((ds << 1) << shift));
-    soc_ctrl_safe_padcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03); */
+    /* uint32_t mask = 0x2, shift = (pad_pos << 3); */
+    /* uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | ((ds << 1) << shift)); */
+    /* soc_ctrl_safe_padcfg_set(pad_reg, val); */
 }
 
 /* Padcfg pull activation & drive strength configuration. */
 static inline void hal_pad_padcfg_configuration_set(uint8_t pad, uint8_t pe, uint8_t ds)
 {
-    /* Get reg number and its position in the register. */
-    uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03);
-    uint32_t mask = 0x3, shift = (pad_pos << 3);
-    uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg);
-    val = ((val & ~(mask << shift)) | (((ds << 1) | pe) << shift));
-    soc_ctrl_safe_padcfg_set(pad_reg, val);
+    /* /\* Get reg number and its position in the register. *\/ */
+    /* uint32_t pad_reg = (pad >> 2), pad_pos = (pad & 0x03); */
+    /* uint32_t mask = 0x3, shift = (pad_pos << 3); */
+    /* uint32_t val = soc_ctrl_safe_padcfg_get(pad_reg); */
+    /* val = ((val & ~(mask << shift)) | (((ds << 1) | pe) << shift)); */
+    /* soc_ctrl_safe_padcfg_set(pad_reg, val); */
 }
 
 #endif  /* __PI_HAL_SOC_CTRL_PAD_H__ */

@@ -266,7 +266,9 @@ def str_qs(qtypes):
 class UnifiedQuantizer():
     def __init__(self, scheme_priority, activation_stats, **kwargs):
         if isinstance(scheme_priority, str):
-            scheme_priority = [scheme_priority]
+            scheme_priority = [scheme_priority.upper()]
+        else:
+            scheme_priority = [priority.upper() for priority in scheme_priority]
         self._global_options = kwargs
         self._options = {}
         self._activation_stats = activation_stats
@@ -323,7 +325,7 @@ class UnifiedQuantizer():
                 DEBUG("handler %s selected for %s(%s)", handler.__name__,
                       params.__class__.__name__, params.name)
                 return in_qs, force_out_qs, handler
-            if not parent_params:
+            if not parent_params or all([isinstance(edge.from_node, FusionInputParameters) for edge in cur_G.in_edges(params.name)]):
                 LOG.info('no match for params %s in %s out %s scheme %s',
                          params.name, QRec.qs_to_str(in_qs), QRec.qs_to_str(force_out_qs), scheme_priority)
                 # see if we can find a handler without the input constraint
@@ -378,7 +380,14 @@ class UnifiedQuantizer():
         if not force_change and qrec and quantization_matches(qrec.in_qs, in_qs):
             # if there is a qrec and all inputs match the current qrec then finish
             DEBUG('%s: qrec matches input', params.name)
-            return
+            # force all continues regardless unless we are moving forwards from a backwards pass
+            if stop_at or not force_all:
+                return
+
+        # if an existing qrec has a defined input pass that to the handler
+        if not in_qs and qrec:
+            in_qs = deepcopy(qrec.in_qs)
+
         DEBUG(
             'forwards %s in: %s out: %s stop %s fusion %s',
             params.name,
@@ -443,7 +452,8 @@ class UnifiedQuantizer():
         in_edges = cur_G.indexed_in_edges(params.name)
         edges_to_go_back_on = []
         for idx, in_q in enumerate(in_qs):
-            if in_q is None:
+            # in_qs can be set for inputs so skip those since they have no in edges
+            if in_q is None or idx >= len(in_edges):
                 continue
             if cur_qrec.in_qs[idx] != in_q:
                 DEBUG("forwards in edge %s does not match was %s need %s",
@@ -856,6 +866,7 @@ class UnifiedQuantizer():
             'all_stats': self._activation_stats,
             'G': G,
             'force_scheme': force_scheme if force_scheme is not None else {},
+            'force_all': force_all,
             'graph_update': {'requires_adjust': False},
             'backcounters': {}
         }
@@ -867,7 +878,6 @@ class UnifiedQuantizer():
             G, self._global_options, state.qrecs.options, force_options)
         state.qrecs.options = self._options
         if force_all:
-            state.qrecs.clear_qrecs()
             state.edge_recs.clear()
         try:
             G.quantization = state.qrecs

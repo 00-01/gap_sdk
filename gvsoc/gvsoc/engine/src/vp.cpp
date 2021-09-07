@@ -44,6 +44,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/prctl.h>
+#include <vp/time/time_scheduler.hpp>
 
 
 extern "C" long long int dpi_time_ps();
@@ -387,6 +388,7 @@ void vp::component_clock::pre_build(component *comp)
 
     comp->traces.new_trace("comp", comp->get_trace(), vp::DEBUG);
     comp->traces.new_trace("warning", &comp->warning, vp::WARNING);
+
 }
 
 
@@ -1125,25 +1127,55 @@ void vp::component::add_child(std::string name, vp::component *child)
     this->childs_dict[name] = child;
 }
 
-vp::component *vp::component::get_component(std::string path)
+
+
+static std::vector<std::string> split(const std::string& s, char delimiter)
 {
-    if (this->get_path() == path)
+   std::vector<std::string> tokens;
+   std::string token;
+   std::istringstream tokenStream(s);
+   while (std::getline(tokenStream, token, delimiter))
+   {
+      tokens.push_back(token);
+   }
+   return tokens;
+}
+
+
+vp::component *vp::component::get_component(std::vector<std::string> path_list)
+{
+    if (path_list.size() == 0)
     {
         return this;
     }
 
-    if (this->get_path() != "")
+    std::string name = "";
+    unsigned int name_pos= 0;
+    for (auto x: path_list)
     {
-        if (path.find(this->get_path()) != 0)
+        if (x != "*" && x != "**")
         {
-            return NULL;
+            name = x;
+            break;
         }
+        name_pos += 1;
     }
-
 
     for (auto x:this->childs)
     {
-        vp::component *comp = x->get_component(path);
+        vp::component *comp;
+        if (name == x->get_name())
+        {
+            comp = x->get_component({ path_list.begin() + name_pos + 1, path_list.end() });
+        }
+        else if (path_list[0] == "**")
+        {
+            comp = x->get_component(path_list);
+        }
+        else if (path_list[0] == "*")
+        {
+            comp = x->get_component({ path_list.begin() + 1, path_list.end() });
+        }
         if (comp)
         {
             return comp;
@@ -1257,6 +1289,11 @@ void vp::reg::reset(bool active)
         else
         {
             memset((void *)this->value_bytes, 0, this->nb_bytes);
+        }
+
+        if (this->reg_event.get_event_active())
+        {
+            this->reg_event.event((uint8_t *)this->value_bytes);
         }
     }
 }
@@ -1668,7 +1705,7 @@ void Gv_proxy::proxy_loop(int socket_fd, int reply_fd)
 
                 if (words[0] == "get_component")
                 {
-                    vp::component *comp = this->top->get_component(words[1]);
+                    vp::component *comp = this->top->get_component(split(words[1], '/'));
                     dprintf(reply_fd, "%p\n", comp);
                 }
                 else if (words[0] == "component")
@@ -1713,13 +1750,17 @@ void Gv_proxy::proxy_loop(int socket_fd, int reply_fd)
                     {
                         if (words[1] == "add")
                         {
-                            this->top->traces.get_trace_manager()->add_trace_path(1, words[2]);
-                            this->top->traces.get_trace_manager()->check_traces();
+                            // TODO regular expressions are too slow for the profiler, should be moved
+                            // to a new command
+                            //this->top->traces.get_trace_manager()->add_trace_path(1, words[2]);
+                            //this->top->traces.get_trace_manager()->check_traces();
+                            this->top->traces.get_trace_manager()->conf_trace(1, words[2], 1);
                         }
                         else
                         {
-                            this->top->traces.get_trace_manager()->add_exclude_trace_path(1, words[2]);
-                            this->top->traces.get_trace_manager()->check_traces();
+                            //this->top->traces.get_trace_manager()->add_exclude_trace_path(1, words[2]);
+                            //this->top->traces.get_trace_manager()->check_traces();
+                            this->top->traces.get_trace_manager()->conf_trace(1, words[2], 0);
                         }
                     }
                 }
@@ -2093,6 +2134,66 @@ void Gvsoc_proxy::remove_trace_regex(std::string regex)
     dprintf(this->req_pipe[1], "trace remove %s\n", regex.c_str());
 }
 
+
+vp::time_scheduler::time_scheduler(js::config *config)
+    : time_engine_client(config)
+{
+
+}
+
+
+int64_t vp::time_scheduler::exec()
+{
+    vp::time_event *current = this->first_event;
+
+    while (current && current->time == this->get_time())
+    {
+        this->first_event = current->next;
+
+        current->meth(current->_this, current);
+
+        current = this->first_event;
+    }
+
+    if (this->first_event == NULL)
+    {
+        return -1;
+    }
+    else
+    {
+        return this->first_event->time - this->get_time();
+    }
+}
+
+
+vp::time_event::time_event(time_scheduler *comp, time_event_meth_t *meth)
+    : comp(comp), _this((void *)static_cast<vp::component *>((vp::time_scheduler *)(comp))), meth(meth), enqueued(false)
+{
+
+}
+
+vp::time_event *vp::time_scheduler::enqueue(time_event *event, int64_t time)
+{
+    vp::time_event *current = this->first_event, *prev = NULL;
+    int64_t full_time = time + this->get_time();
+
+    while (current && current->time < full_time)
+    {
+        prev = current;
+        current = current->next;
+    }
+
+    if (prev)
+        prev->next = event;
+    else
+        this->first_event = event;
+    event->next = current;
+    event->time = full_time;
+
+    this->enqueue_to_engine(time);
+
+    return event;
+}
 
 
 

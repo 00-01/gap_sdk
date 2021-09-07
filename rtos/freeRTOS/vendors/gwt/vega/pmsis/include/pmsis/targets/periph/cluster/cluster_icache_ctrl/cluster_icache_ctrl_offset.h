@@ -41,8 +41,10 @@
 /*! Cluster_icache_ctrl */
 #define CL_ICACHE_CTRL_ENABLE           ( 0x00 )
 #define CL_ICACHE_CTRL_FLUSH            ( 0x04 )
-#define CL_ICACHE_CTRL_SEL_FLUSH_STATUS ( 0x08 )
-#define CL_ICACHE_CTRL_L0_FLUSH         ( 0x0C )
+#define CL_ICACHE_CTRL_FLUSH_L1         ( 0x08 )
+#define CL_ICACHE_CTRL_FLUSH_SEL        ( 0x0C )
+#define CL_ICACHE_CTRL_CNTS_CLEAR       ( 0x10 )
+#define CL_ICACHE_CTRL_CNTS_ENABLE      ( 0x14 )
 
 
 

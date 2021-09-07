@@ -13,17 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from copy import deepcopy
 from functools import reduce
-from importer.common.provisional_dim import ProvisionalDim
 
 from graph.dim import Dim
-from graph.types import (NNEdge, NoOPParameters, ReshapeParameters,
-                         StridedSliceParameters)
+from graph.types import NNEdge, ReshapeParameters
+from importer.common.provisional_dim import ProvisionalDim
 from importer.tflite2.common import LOG
 from importer.tflite2.common.tflite_node import TFLiteNode
-from importer.tflite2.tflite_schema_head.ReshapeOptions import \
-    ReshapeOptions
+from importer.tflite2.tflite_schema_head.ReshapeOptions import ReshapeOptions
 from utils.node_id import NodeId
 
 from ..backend_handler import BackendHandler
@@ -53,7 +50,7 @@ class Reshape(BackendHandler):
             node.input[1].used = True
             new_shape = list(set_shape_tensor)
         else:
-            ValueError(f"Cannot asses new_shape for Reshape Parameter: {node.name}")
+            ValueError(f"Cannot assess new_shape for Reshape Parameter: {node.name}")
 
         if -1 in new_shape:
             new_shape_size = reduce(lambda x, y: x * 1 if y == -1 else x * y, new_shape, 1)

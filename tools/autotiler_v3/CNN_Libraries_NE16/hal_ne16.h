@@ -23,9 +23,18 @@
 #ifndef __HAL_NE16_H__
 #define __HAL_NE16_H__
 
+#if defined(__riscv__)
+#ifdef PMSIS_DRIVERS
+    #define eu_evt_maskWaitAndClr(x) (hal_cl_eu_event_mask_wait_and_clear(x))
+#endif
+#else
+    #define eu_evt_maskWaitAndClr(x)
+#endif
+
 /* REGISTER MAP */
 
 // Special gvsoc register to enable traces
+#define NE16_SPECIAL_HEX_DUMP_REG 0x64
 #define NE16_SPECIAL_TRACE_REG 0x60
 #define NE16_L0_JOB_START_END 0
 #define NE16_L1_CONFIG 1
@@ -216,7 +225,9 @@
 #define NE16_BARRIER_NOSTATUS()      eu_evt_maskWaitAndClr (1 << NE16_EVT0)
 #define NE16_BARRIER()               do { eu_evt_maskWaitAndClr (1 << NE16_EVT0); } while((*(int volatile *)(NE16_ADDR_BASE + NE16_STATUS)) != 0)
 #define NE16_BUSYWAIT()              do {                                         } while((*(int volatile *)(NE16_ADDR_BASE + NE16_STATUS)) != 0)
-#define NE16_BARRIER_ACQUIRE(job_id) job_id = NE16_READ_CMD(job_id, NE16_ACQUIRE); \
+#define NE16_READ_STATUS()           (*(int volatile *)(NE16_ADDR_BASE + NE16_STATUS))
+#define NE16_READ_RUNNING_JOB()           (*(int volatile *)(NE16_ADDR_BASE + NE16_RUNNING_JOB))
+#define NE16_BARRIER_ACQUIRE(job_id) NE16_READ_CMD(job_id, NE16_ACQUIRE); \
                                      while(job_id < 0) { eu_evt_maskWaitAndClr (1 << NE16_EVT0); NE16_READ_CMD(job_id, NE16_ACQUIRE); };
 
 #endif /* __HAL_NE16_H__ */

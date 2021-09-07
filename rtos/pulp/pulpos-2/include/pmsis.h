@@ -31,6 +31,7 @@
 
 
 #define PI_INLINE_CL_TEAM_0 static inline
+#define PI_INLINE_CL_TEAM_1 static inline
 #define PI_INLINE_HYPER_LVL_0 static inline
 #define PI_INLINE_OCTOSPI_LVL_0 static inline
 
@@ -64,6 +65,7 @@
 #include "pmsis/drivers/spi.h"
 #include "pmsis/drivers/gpio.h"
 #include "pmsis/drivers/uart.h"
+#include "pmsis/drivers/ffc.h"
 #include "pmsis/drivers/pwm.h"
 #include "pmsis/drivers/pad.h"
 #include "pmsis/drivers/aes.h"

@@ -50,6 +50,9 @@ class InputFloat32(KernelBase):
             in_tensor = in_tensor.reshape(params.dims.shape)
         else:
             in_tensor = resize(in_tensor, params.dims.shape)
+        out_dtype = qrec.out_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        in_tensor = in_tensor.astype(out_dtype)
         if params.transpose_out:
             in_tensor = np.transpose(in_tensor, params.transpose_out)
         return qrec.get_outputs(params, [in_tensor], ktype="float")

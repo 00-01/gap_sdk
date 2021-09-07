@@ -27,7 +27,7 @@ from graph.matches.matchers.remove_unnecessary_quantize_operators import \
     RemoveUnnecessaryQuantizeOperators
 from stats.activation_ranges_collector import ActivationRangesCollector
 
-QUANTIZATION_SCHEMES = ['SQ8', 'POW2']
+QUANTIZATION_SCHEMES = ['SQ8', 'POW2', 'FLOAT']
 from utils.stats_funcs import STATS_BITS
 
 LOG = logging.getLogger('nntool.'+__name__)

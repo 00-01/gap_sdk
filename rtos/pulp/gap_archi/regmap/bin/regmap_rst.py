@@ -139,12 +139,16 @@ class Register(object):
 
 class Regmap(object):
 
-    def dump_to_rst(self, rst):
+    def dump_to_rst(self, rst, pretty_name):
 
         if self.input_file is not None:
-            rst.file.write('Input file: %s\n' % self.input_file)
+            rst.file.write('.. \n')
+            rst.file.write('   Input file: %s\n' % self.input_file)
 
-        rst.dump_title('Register map', 5)
+        if pretty_name is not None:
+            rst.dump_title('Register map for %s' % pretty_name, 5)
+        else:
+            rst.dump_title('Register map', 5)
 
         rst.dump_title('Overview', 6)
 
@@ -181,7 +185,7 @@ class Regmap(object):
 
 
 
-def dump_to_rst(regmap, name, rst_path):
+def dump_to_rst(regmap, name, rst_path, pretty_name):
     rst_file = Rst_file(name, rst_path)
-    regmap.dump_to_rst(rst_file)
+    regmap.dump_to_rst(rst_file, pretty_name)
     rst_file.close()

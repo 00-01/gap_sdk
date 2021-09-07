@@ -3169,7 +3169,6 @@ void KerParMatMulLeakyreluSxSy_fps(KerMatMul_fps_T *Arg)
 	}
 }
 
-
 /* Matrix mult for small first matrix in the product, goal is to improve parallelism in this specific situation */
 
 /* In1 fits completly in shared L1, usually conv weights

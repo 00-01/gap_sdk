@@ -13,15 +13,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from generation.bindings import (CommentBindingList, GNodeArgEdge,
-                                 GNodeArgNode, NodeBindingList)
-from generation.generator_decorators import QREC_FLOAT, QREC_MULT8, generation_function
+                                 NodeBindingList)
+from generation.generator_decorators import QREC_FLOAT, generation_function
 from graph.types import (ActivationFusion, MatrixAddParameters,
                          PaddedAddFusionParameters)
-from quantization.multiplicative.mulbias import set_add_in_scale
 from utils.node_id import NodeId
 
 
-@generation_function("bindings", (MatrixAddParameters, ActivationFusion, PaddedAddFusionParameters), qrec_types=(QREC_FLOAT,))
+@generation_function("bindings", (MatrixAddParameters,
+                                  ActivationFusion, PaddedAddFusionParameters), qrec_types=(QREC_FLOAT,))
 def matadd_bindings_generator(gen, node, qrec, in_eparams, out_eparams, cname) -> bool:
     step_idx = node.step_idx
     if isinstance(node, PaddedAddFusionParameters):
@@ -52,15 +52,12 @@ def set_matadd_bindings(gen, node, step_idx, in_eparams, out_eparams, cname, qre
     del step_idx
     if out_q is None:
         out_q = qrec
-    set_add_in_scale(qrec)
-    scaled_idx = qrec.cache['scaled_idx']
-    not_scaled_idx = 0 if scaled_idx else 1
     gen.bindings.append(
         CommentBindingList("Node {} in1q {} in2q {} outq {}", cname,
-                           qrec.in_qs[scaled_idx], qrec.in_qs[not_scaled_idx], out_q.out_qs[0])
+                           qrec.in_qs[0], qrec.in_qs[1], out_q.out_qs[0])
     )
     gen.bindings.append(
-        NodeBindingList(cname, GNodeArgEdge(in_eparams[scaled_idx]),
-                        GNodeArgEdge(in_eparams[not_scaled_idx]),
+        NodeBindingList(cname, GNodeArgEdge(in_eparams[0]),
+                        GNodeArgEdge(in_eparams[1]),
                         GNodeArgEdge(out_eparams[0], "GNA_OUT")
                         ))

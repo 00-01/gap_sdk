@@ -25,7 +25,7 @@ using namespace std::placeholders;
 
 Uart_periph::Uart_periph(udma *top, int id, int itf_id)
     : Udma_periph(top, id),
-    rx_fsm(top, this),
+    rx_fsm(top, this, "uart" + std::to_string(itf_id)),
     tx_fsm(top, this),
     tx_bit(1),
     rx_rts(1)
@@ -158,8 +158,11 @@ void Uart_periph::reset(bool active)
 {
     Udma_periph::reset(active);
 
+    this->regmap.reset(active);
     this->tx_fsm.reset(active);
     this->rx_fsm.reset(active);
+    this->rx_channel->reset(active);
+    this->tx_channel->reset(active);
 }
 
 

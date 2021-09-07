@@ -169,6 +169,8 @@ void test_mnist(void)
     /* Configure And open cluster. */
     struct pi_device cluster_dev;
     struct pi_cluster_conf cl_conf;
+    
+    pi_cluster_conf_init(&cl_conf);
     cl_conf.id = 0;
     pi_open_from_conf(&cluster_dev, (void *) &cl_conf);
     if (pi_cluster_open(&cluster_dev))
@@ -181,9 +183,8 @@ void test_mnist(void)
     MnistCNN_Construct();
 
     struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
-    memset(task, 0, sizeof(struct pi_cluster_task));
-    task->entry = RunMnist;
-    task->arg = (void *) &rec_digit;
+
+	pi_cluster_task(task, (void (*)(void *))RunMnist, (void *) &rec_digit);
     task->stack_size = (uint32_t) STACK_SIZE;
     printf("Calling Cluster\n");
     pi_cluster_send_task_to_cl(&cluster_dev, task);

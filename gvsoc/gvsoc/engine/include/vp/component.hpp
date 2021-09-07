@@ -83,6 +83,12 @@ namespace vp {
       inline void set_32(uint32_t value) { *(uint32_t *)this->value_bytes = value; }
       inline void set_64(uint64_t value) { *(uint64_t *)this->value_bytes = value; }
 
+      inline void release() {
+        this->trace.msg("Release register\n");
+        if (this->reg_event.get_event_active())
+          this->reg_event.event(NULL);
+      }
+
       inline void read(int reg_offset, int size, uint8_t *value) { memcpy((void *)value, (void *)(this->value_bytes+reg_offset), size); }
       inline void read(uint8_t *value) { memcpy((void *)value, (void *)this->value_bytes, this->nb_bytes); }
       inline uint8_t  get_1 () { return *(uint8_t *)this->value_bytes; }
@@ -403,6 +409,10 @@ namespace vp {
     virtual void pause() {}
     virtual int join() { return -1; }
 
+    virtual void dump_traces(FILE *file) {}
+
+    void dump_traces_recursive(FILE *file);
+
 
     inline js::config *get_js_config() { return comp_js_config; }
 
@@ -490,7 +500,7 @@ namespace vp {
 
     std::vector<vp::component *> get_childs() { return childs; }
     std::map<std::string, vp::component *> get_childs_dict() { return childs_dict; }
-    vp::component *get_component(std::string path);
+    vp::component *get_component(std::vector<std::string> path_list);
 
     virtual vp::port *get_slave_port(std::string name) { return this->slave_ports[name]; }
     virtual vp::port *get_master_port(std::string name) { return this->master_ports[name]; }

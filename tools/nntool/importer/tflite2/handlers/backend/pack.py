@@ -13,11 +13,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from importer.common.constant_mixin import ConstantMixin
 import numpy as np
 from graph.types import ConcatParameters, NNEdge
 from graph.types.input_output import ConstantInputParameters
 from graph.types.others import ReshapeParameters
+from importer.common.constant_mixin import ConstantMixin
 from importer.common.provisional_dim import ProvisionalDim
 from importer.tflite2.common import LOG, check
 from importer.tflite2.common.tflite_node import TFLiteNode

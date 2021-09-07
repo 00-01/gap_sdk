@@ -103,13 +103,13 @@ do { \
   { \
     _this->ipc_stat_nb_insn++; \
   } \
-  if (_this->power_trace.get_active()) \
-  { \
-  _this->insn_power.account_event(); \
- } \
  \
   iss_insn_t *insn = _this->cpu.current_insn; \
   int cycles = func(_this); \
+  if (_this->power_trace.get_active()) \
+  { \
+  _this->insn_groups_power[_this->cpu.prev_insn->decoder_item->u.insn.power_group].account_event(); \
+ } \
   trdb_record_instruction(_this, insn); \
   if (cycles >= 0) \
   { \
@@ -429,11 +429,10 @@ void iss_wrapper::check_state()
   }
   else
   {
-    uint8_t zero = 0;
     if (halted.get() && !do_step.get())
     {
       is_active_reg.set(false);
-      this->state_event.event(&zero);
+      this->state_event.event(NULL);
       if (this->ipc_stat_event.get_event_active())
         this->stop_ipc_stat();
       this->halt_core();
@@ -443,7 +442,7 @@ void iss_wrapper::check_state()
       if (irq_req == -1)
       {
         is_active_reg.set(false);
-        this->state_event.event(&zero);
+        this->state_event.event(NULL);
         if (this->ipc_stat_event.get_event_active())
           this->stop_ipc_stat();
       }
@@ -469,8 +468,7 @@ int iss_wrapper::data_misaligned_req(iss_addr_t addr, uint8_t *data_ptr, int siz
 
   decode_trace.msg("Misaligned data request (addr: 0x%lx, size: 0x%x, is_write: %d)\n", addr, size, is_write);
 
-  static uint8_t one = 1, zero = 0;
-  this->misaligned_req_event.event_pulse(this->get_period(), &one, &zero);
+  iss_pccr_account_event(this, CSR_PCER_MISALIGNED, 1);
 
   // The access is a misaligned access
   // Change the event so that we can do the first access now and the next access
@@ -550,22 +548,31 @@ void iss_wrapper::debug_req()
 bool iss_wrapper::user_access(iss_addr_t addr, uint8_t *buffer, iss_addr_t size, bool is_write)
 {
   vp::io_req *req = &io_req;
-  req->init();
-  req->set_debug(true);
-  req->set_addr(addr);
-  req->set_size(size);
-  req->set_is_write(is_write);
-  req->set_data(buffer);
-  int err = data.req(req);
-  if (err != vp::IO_REQ_OK) 
+  std::string str = "";
+  while(size != 0)
   {
-    if (err == vp::IO_REQ_INVALID)
-      this->warning.fatal("Invalid IO response during debug request\n");
-    else
-      this->warning.fatal("Pending IO response during debug request\n");
+    req->init();
+    req->set_debug(true);
+    req->set_addr(addr);
+    req->set_size(1);
+    req->set_is_write(is_write);
+    req->set_data(buffer);
+    int err = data.req(req);
+    if (err != vp::IO_REQ_OK) 
+    {
+      if (err == vp::IO_REQ_INVALID)
+        this->warning.fatal("Invalid IO response during debug request\n");
+      else
+        this->warning.fatal("Pending IO response during debug request\n");
 
-    return true;
+      return true;
+    }
+
+    addr++;
+    size--;
+    buffer++;
   }
+    
   return false;
 }
 
@@ -763,7 +770,6 @@ void iss_wrapper::handle_riscv_ebreak()
       this->cpu.regfile.regs[10] = -1;
       return;
     }
-    int result = -1;
     std::string path = this->read_user_string(args[0]);
     if (path == "")
     {
@@ -781,7 +787,116 @@ void iss_wrapper::handle_riscv_ebreak()
       }
       this->traces.get_trace_manager()->check_traces();
     }
-  }    
+  }
+  else if (id == 0x101)
+  {
+    iss_reg_t args[1];
+    if (this->user_access(this->cpu.regfile.regs[11], (uint8_t *)args, sizeof(args), false))
+    {
+      this->cpu.regfile.regs[10] = -1;
+      return;
+    }
+
+    iss_csr_write(this, CSR_PCER, args[0]);
+  }
+  else if (id == 0x102)
+  {
+    iss_csr_write(this, CSR_PCCR(31), 0);
+    this->cycle_count = 0;
+    iss_reg_t value;
+    iss_csr_read(this, CSR_PCMR, &value);
+    if ((value & 1) == 1)
+    {
+      this->cycle_count_start = this->get_cycles();
+    }
+  }
+  else if (id == 0x103)
+  {
+    iss_reg_t value;
+    iss_csr_read(this, CSR_PCMR, &value);
+    if ((value & 1) == 0)
+    {
+      this->cycle_count_start = this->get_cycles();
+    }
+
+    iss_csr_write(this, CSR_PCMR, 1);
+  }
+  else if (id == 0x104)
+  {
+
+    iss_reg_t value;
+    iss_csr_read(this, CSR_PCMR, &value);
+    if ((value & 1) == 1)
+    {
+      this->cycle_count += this->get_cycles() - this->cycle_count_start;
+    }
+
+    iss_csr_write(this, CSR_PCMR, 0);
+  }
+  else if (id == 0x105)
+  {
+    iss_reg_t args[1];
+    if (this->user_access(this->cpu.regfile.regs[11], (uint8_t *)args, sizeof(args), false))
+    {
+      return;
+    }
+    iss_csr_read(this, CSR_PCCR(args[0]), &this->cpu.regfile.regs[10]);
+  }
+  else if (id == 0x106)
+  {
+    iss_reg_t args[2];
+    if (this->user_access(this->cpu.regfile.regs[11], (uint8_t *)args, sizeof(args), false))
+    {
+      this->cpu.regfile.regs[10] = -1;
+      return;
+    }
+    std::string path = this->read_user_string(args[0]);
+    std::string mode = this->read_user_string(args[1]);
+    if (path == "")
+    {
+      this->warning.force_warning("Invalid user string while opening trace (addr: 0x%x)\n", args[0]);
+    }
+    else
+    {
+      if (mode == "")
+      {
+        this->warning.force_warning("Invalid user string while opening trace (addr: 0x%x)\n", args[1]);
+      }
+      else
+      {
+        this->cpu.regfile.regs[10] = 0;
+        FILE *file = fopen(path.c_str(), mode.c_str());
+        if (file == NULL)
+        {
+          this->cpu.regfile.regs[10] = -1;
+          return;
+        }
+
+        iss_reg_t value;
+        iss_csr_read(this, CSR_PCMR, &value);
+        if ((value & 1) == 1)
+        {
+          this->cycle_count += this->get_cycles() - this->cycle_count_start;
+          this->cycle_count_start = this->get_cycles();
+        }
+
+        fprintf(file, "PCER values at timestamp %ld ps, duration %ld cycles\n", this->get_time(), this->cycle_count);
+        fprintf(file, "Index; Name; Description; Value\n");
+        for (int i=0; i<31; i++)
+        {
+          if (this->pcer_info[i].name != "")
+          {
+            iss_reg_t value;
+            iss_csr_read(this, CSR_PCCR(i), &value);
+            fprintf(file, "%d; %s; %s; %d\n", i, this->pcer_info[i].name.c_str(), this->pcer_info[i].help.c_str(), value);
+          }
+        }
+
+
+        fclose(file);
+      }
+    }
+  }
   else
   {
     this->warning.force_warning("Unknown ebreak call (id: %d)\n", id);
@@ -1089,26 +1204,6 @@ int iss_wrapper::build()
   traces.new_trace_event_string("inline_func", &inline_trace_event);
   traces.new_trace_event_string("file", &file_trace_event);
   traces.new_trace_event("line", &line_trace_event, 32);
-  traces.new_trace_event("misaligned", &misaligned_req_event, 1);
-
-  // TODO this should come from the config file as different chips may not have
-  // same counters
-  traces.new_trace_event("pcer_cycles", &pcer_trace_event[0], 1);
-  traces.new_trace_event("pcer_instr", &pcer_trace_event[1], 1);
-  traces.new_trace_event("pcer_ld_stall", &pcer_trace_event[2], 1);
-  traces.new_trace_event("pcer_jmp_stall", &pcer_trace_event[3], 1);
-  traces.new_trace_event("pcer_imiss", &pcer_trace_event[4], 1);
-  traces.new_trace_event("pcer_ld", &pcer_trace_event[5], 1);
-  traces.new_trace_event("pcer_st", &pcer_trace_event[6], 1);
-  traces.new_trace_event("pcer_jump", &pcer_trace_event[7], 1);
-  traces.new_trace_event("pcer_branch", &pcer_trace_event[8], 1);
-  traces.new_trace_event("pcer_taken_branch", &pcer_trace_event[9], 1);
-  traces.new_trace_event("pcer_rvc", &pcer_trace_event[10], 1);
-  traces.new_trace_event("pcer_ld_ext", &pcer_trace_event[11], 1);
-  traces.new_trace_event("pcer_st_ext", &pcer_trace_event[12], 1);
-  traces.new_trace_event("pcer_ld_ext_cycles", &pcer_trace_event[13], 1);
-  traces.new_trace_event("pcer_st_ext_cycles", &pcer_trace_event[14], 1);
-  traces.new_trace_event("pcer_tcdm_cont", &pcer_trace_event[15], 1);
 
   traces.new_trace_event_real("ipc_stat", &ipc_stat_event);
 
@@ -1125,7 +1220,20 @@ int iss_wrapper::build()
   this->new_reg("step_mode", &this->step_mode, false);
   this->new_reg("do_step", &this->do_step, false);
 
-  power.new_event("power_insn", &insn_power, this->get_js_config()->get("**/insn"), &power_trace);
+  if (this->get_js_config()->get("**/insn_groups"))
+  {
+    js::config *config = this->get_js_config()->get("**/insn_groups");
+    this->insn_groups_power.resize(config->get_size());
+    for (int i=0; i<config->get_size(); i++)
+    {
+      power.new_event("power_insn_" + std::to_string(i), &this->insn_groups_power[i], config->get_elem(i), &power_trace);
+    }
+  }
+  else
+  {
+    this->insn_groups_power.resize(1);
+    power.new_event("power_insn", &this->insn_groups_power[0], this->get_js_config()->get("**/insn"), &power_trace);
+  }
   power.new_event("power_clock_gated", &clock_gated_power, this->get_js_config()->get("**/clock_gated"), &power_trace);
   power.new_leakage_event("leakage", &leakage_power, this->get_js_config()->get("**/leakage"), &power_trace);
 
@@ -1168,8 +1276,8 @@ int iss_wrapper::build()
   for (int i=0; i<32; i++)
   {
     new_master_port("ext_counter[" + std::to_string(i) + "]", &ext_counter[i]);
+    this->pcer_info[i].name  = "";
   }
-  
 
   current_event = event_new(iss_wrapper::exec_first_instr);
   instr_event = event_new(iss_wrapper::exec_instr);
@@ -1255,11 +1363,10 @@ void iss_wrapper::reset(bool active)
     this->irq_req = -1;
     this->wakeup_latency = 0;
 
-    for (int i=0; i<CSR_PCER_NB_EVENTS; i++)
+    for (int i=0; i<32; i++)
     {
       this->pcer_trace_event[i].event(NULL);
     }
-    this->misaligned_req_event.event(NULL);
 
     this->ipc_stat_nb_insn = 0;
     this->ipc_stat_delay = 10;
@@ -1272,11 +1379,10 @@ void iss_wrapper::reset(bool active)
     iss_reset(this, 0);
 
     uint64_t zero = 0;
-    for (int i=0; i<CSR_PCER_NB_EVENTS; i++)
+    for (int i=0; i<32; i++)
     {
       this->pcer_trace_event[i].event((uint8_t *)&zero);
     }
-    this->misaligned_req_event.event((uint8_t *)&zero);
 
     iss_pc_set(this, this->bootaddr_reg.get() + this->bootaddr_offset);
     iss_irq_set_vector_table(this, this->bootaddr_reg.get() & ~((1<<8) - 1));
@@ -1398,6 +1504,51 @@ int iss_wrapper::gdbserver_stepi()
 int iss_wrapper::gdbserver_state()
 {
     return vp::Gdbserver_core::state::running;
+}
+
+
+void iss_wrapper::declare_pcer(int index, std::string name, std::string help)
+{
+    this->pcer_info[index].name = name;
+    this->pcer_info[index].help = help;
+}
+
+
+void iss_wrapper::target_open()
+{
+    this->declare_pcer(CSR_PCER_CYCLES, "Cycles", "Count the number of cycles the core was running");
+    this->declare_pcer(CSR_PCER_INSTR, "instr", "Count the number of instructions executed");
+    this->declare_pcer(CSR_PCER_LD_STALL, "ld_stall", "Number of load use hazards");
+    this->declare_pcer(CSR_PCER_JMP_STALL, "jmp_stall", "Number of jump register hazards");
+    this->declare_pcer(CSR_PCER_IMISS, "imiss", "Cycles waiting for instruction fetches. i.e. the number of instructions wasted due to non-ideal caches");
+    this->declare_pcer(CSR_PCER_LD, "ld", "Number of memory loads executed. Misaligned accesses are counted twice");
+    this->declare_pcer(CSR_PCER_ST, "st", "Number of memory stores executed. Misaligned accesses are counted twice");
+    this->declare_pcer(CSR_PCER_JUMP, "jump", "Number of jump instructions seen, i.e. j, jr, jal, jalr");
+    this->declare_pcer(CSR_PCER_BRANCH, "branch", "Number of branch instructions seen, i.e. bf, bnf");
+    this->declare_pcer(CSR_PCER_TAKEN_BRANCH, "taken_branch", "Number of taken branch instructions seen, i.e. bf, bnf");
+    this->declare_pcer(CSR_PCER_RVC, "rvc", "Number of compressed instructions");
+    this->declare_pcer(CSR_PCER_LD_EXT, "ld_ext", "Number of memory loads to EXT executed. Misaligned accesses are counted twice. Every non-TCDM access is considered external");
+    this->declare_pcer(CSR_PCER_ST_EXT, "st_ext", "Number of memory stores to EXT executed. Misaligned accesses are counted twice. Every non-TCDM access is considered external");
+    this->declare_pcer(CSR_PCER_LD_EXT_CYC, "ld_ext_cycles", "Cycles used for memory loads to EXT. Every non-TCDM access is considered external");
+    this->declare_pcer(CSR_PCER_ST_EXT_CYC, "st_ext_cycles", "Cycles used for memory stores to EXT. Every non-TCDM access is considered external");
+    this->declare_pcer(CSR_PCER_TCDM_CONT, "tcdm_cont", "Cycles wasted due to TCDM/log-interconnect contention");
+    
+    traces.new_trace_event("pcer_cycles", &pcer_trace_event[0], 1);
+    traces.new_trace_event("pcer_instr", &pcer_trace_event[1], 1);
+    traces.new_trace_event("pcer_ld_stall", &pcer_trace_event[2], 1);
+    traces.new_trace_event("pcer_jmp_stall", &pcer_trace_event[3], 1);
+    traces.new_trace_event("pcer_imiss", &pcer_trace_event[4], 1);
+    traces.new_trace_event("pcer_ld", &pcer_trace_event[5], 1);
+    traces.new_trace_event("pcer_st", &pcer_trace_event[6], 1);
+    traces.new_trace_event("pcer_jump", &pcer_trace_event[7], 1);
+    traces.new_trace_event("pcer_branch", &pcer_trace_event[8], 1);
+    traces.new_trace_event("pcer_taken_branch", &pcer_trace_event[9], 1);
+    traces.new_trace_event("pcer_rvc", &pcer_trace_event[10], 1);
+    traces.new_trace_event("pcer_ld_ext", &pcer_trace_event[11], 1);
+    traces.new_trace_event("pcer_st_ext", &pcer_trace_event[12], 1);
+    traces.new_trace_event("pcer_ld_ext_cycles", &pcer_trace_event[13], 1);
+    traces.new_trace_event("pcer_st_ext_cycles", &pcer_trace_event[14], 1);
+    traces.new_trace_event("pcer_tcdm_cont", &pcer_trace_event[15], 1);
 }
 
 

@@ -295,7 +295,7 @@ do { \
 
 #define AT_QSPIRAM_CL_COPY(dev,ext,loc,size,dir,event) AT_QSPIRAM_FC_COPY(dev,ext,loc,size,dir,event)
 
-#define AT_QSPIRAM_CL_COPY2D(dev,ext,loc,size,stride,len,dir,event) AT_QSPIRAM_CL_COPY2D(dev,ext,loc,size,stride,len,dir,event)
+#define AT_QSPIRAM_CL_COPY2D(dev,ext,loc,size,stride,len,dir,event) AT_QSPIRAM_FC_COPY2D(dev,ext,loc,size,stride,len,dir,event)
 
 #define AT_QSPIRAM_CL_WAIT(dev,event) 
 
@@ -472,6 +472,7 @@ typedef void (*AT_FORK_FUN_TYPE)(void *);
 typedef void *AT_FORK_ARG_TYPE;
 
 #define AT_FORK(nb_cores,entry,arg)
+#define AT_FORK_CC(nb_cores,entry,arg)
 #define AT_FORK_WAIT()
 
 #endif

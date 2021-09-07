@@ -36,4 +36,8 @@ static inline unsigned int __attribute__ ((always_inline)) ExtInsMaskSafe_archi(
 #define GAP_BEXTRACTU(src,size,off)    __builtin_pulp_bextractu((src), (size), (off))
 #define GAP_BEXTRACT(src,size,off)     __builtin_pulp_bextract((src), (size), (off))
 
+#define ARCHI_READ(base, offset)          GAP_READ(base, offset)
+#define ARCHI_WRITE(base, offset, value)  GAP_WRITE(base, offset, value)
+#define ARCHI_BEXTRACTU(src, size, off)   GAP_BEXTRACTU(src, size, off)
+
 #endif

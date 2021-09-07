@@ -17,17 +17,8 @@ from collections.abc import Iterable
 from functools import reduce
 
 import numpy as np
+from quantization.qtype import DTYPE_GAP_CTYPE
 
-DTYPES_TO_CTYPES = {
-    np.int32: 'int',
-    np.int16: 'short',
-    np.int8: 'signed char',
-    np.uint32: 'unsigned int',
-    np.uint16: 'unsigned short',
-    np.uint8: 'unsigned char',
-    np.float32: 'float',
-    np.float64: 'double',
-}
 
 class SymbolStats():
     def __init__(self, stats=None) -> None:
@@ -302,6 +293,11 @@ handlesr = Symbol.handlesr
 environment = Symbol.environment
 c_headers = Symbol.c_headers
 
+def print_float_constant(val):
+    val = float(val)
+    if int(val) == val:
+        return f"{val:.1f}f"
+    return f"{val:g}f"
 
 @environment({
     'float32': np.float32,
@@ -330,6 +326,14 @@ class Constant(Symbol):
                 raise ValueError('attempt to create None Constant')
         else:
             self._value = np.atleast_1d(value).astype(dtype)
+
+    @property
+    def sym_c_headers(self):
+        if self.qrec and self.qrec.ctype == "F16":
+            return [
+                '"CNN_FloatType.h"'
+            ]
+        return self.C_HEADERS
 
     @property
     def is_constant(self):
@@ -370,10 +374,17 @@ class Constant(Symbol):
 
     def _c_expr(self, *args, **kwargs):
         if len(self.value.shape) == 0:
-            return self._value
-        if len(self.value) == 1:
-            return self._value[0]
-        raise ValueError('cannot produce c code for functions with array constants')
+            val = self._value
+        elif len(self.value) == 1:
+            val = self._value[0]
+        else:
+            raise ValueError('cannot produce c code for functions with array constants')
+        if self.qrec:
+            if self.qrec.ctype == "F16":
+                return f"(F16){print_float_constant(val)}"
+            elif self.qrec.ctype == "float":
+                return print_float_constant(val)
+        return val
 
     def __repr__(self) -> str:
         return str(self._value)
@@ -430,6 +441,14 @@ class Variable(Symbol):
         self._shape = shape
         self._index_vars = None
         self._ispointer = False
+
+    @property
+    def sym_c_headers(self):
+        if self.qrec and self.qrec.ctype == "F16":
+            return [
+                '"CNN_FloatType.h"'
+            ]
+        return self.C_HEADERS
 
     @property
     def value(self):
@@ -508,9 +527,9 @@ class Variable(Symbol):
     def _c_expr(self, *args, declare=False, dtype=None, **kwargs):
         if declare:
             if dtype:
-                return "%s %s%s"%(DTYPES_TO_CTYPES[dtype], "*" if self._ispointer else "", self.name)
+                return "%s %s%s"%(DTYPE_GAP_CTYPE[dtype], "*" if self._ispointer else "", self.name)
             else:
-                return "%s %s%s"%(DTYPES_TO_CTYPES[self.dtype], "*" if self._ispointer else "", self.name)
+                return "%s %s%s"%(DTYPE_GAP_CTYPE[self.dtype], "*" if self._ispointer else "", self.name)
         if self._index_vars is not None:
             if self._index_vars:
                 return f"{self.name}[{self.gen_index(self._index_vars)}]"

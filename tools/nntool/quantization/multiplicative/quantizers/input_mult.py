@@ -34,10 +34,12 @@ from ..mult_quantization_handler import MultQuantizionHandler
 )
 @params_type(InputParameters)
 @out_qs_constraint({'dtype': set([np.int8, np.uint8, np.int16, np.uint16])})
-class FromStatsMult(MultQuantizionHandler):
+class InputMult(MultQuantizionHandler):
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):
         force_out_qs, out_dtype = cls.get_mult_opts(**kwargs)
+        if in_qs and in_qs[0].dtype in (np.int8, np.uint8, np.int16, np.uint16):
+            out_dtype = in_qs[0].dtype
         force_out_q = force_out_qs and force_out_qs[0]
         opts = kwargs['opts']
         if force_out_q:

@@ -83,29 +83,13 @@ int32_t pi_fll_frequency_set(uint8_t fll_id, uint32_t frequency, uint8_t check);
  */
 uint32_t pi_fll_frequency_get(uint8_t fll_id, uint8_t real);
 
-/*!
- * @brief Calculate FC SOC domain's max frequency with certain voltage
+/**
+ * \brief Update FLL frequency value.
  *
- * @param  voltage  Given voltage
- *
- * @return max frquency.
+ * \param fll_id         FLL domain.
+ * \param freq           Frequency value to update.
  */
-static inline int pi_fll_soc_max_freq_at_V(int voltage)
-{
-    return (FLL_SOC_MIN_FREQUENCY + (voltage - DCDC_DEFAULT_LV) * FLL_SOC_FV_SLOPE);
-}
-
-/*!
- * @brief Calculate cluster domain's max frequency with certain voltage
- *
- * @param  voltage  Given voltage
- *
- * @return max frquency.
- */
-static inline int pi_fll_cluster_max_freq_at_V(int voltage)
-{
-    return (FLL_CLUSTER_MIN_FREQUENCY + (voltage - DCDC_DEFAULT_LV) * FLL_CLUSTER_FV_SLOPE);
-}
+void pi_fll_frequency_value_update(uint8_t fll_id, uint32_t freq);
 
 typedef void (* pi_freq_func_t) (void *arg);
 
@@ -134,5 +118,7 @@ static inline void pi_freq_callback_init(pi_freq_cb_t *cb, pi_freq_func_t func,
     cb->next = NULL;
     cb->prev = NULL;
 }
+
+void pi_freq_set_value(uint8_t fll_id, uint32_t freq); 
 
 #endif /* __PMSIS_IMPLEM_DRIVERS_FLL_H__ */

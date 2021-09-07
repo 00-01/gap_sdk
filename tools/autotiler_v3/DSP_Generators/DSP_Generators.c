@@ -13,6 +13,11 @@
 #include "AutoTilerLib.h"
 #include "AutoTilerLibTypes.h"
 #include "DSP_Generators.h"
+#ifdef __FLOAT_EMUL__
+#define F16_SIZE 4
+#else
+#define F16_SIZE 2
+#endif
 
 #define D0      KER_ITER_D0
 #define D1      KER_ITER_D1
@@ -104,8 +109,8 @@ void LoadMFCCLibrary()
 			  CArgs(5,
 				TCArg("void * __restrict__", "Frame"),
 				TCArg("void * __restrict__", "Out"),
-				TCArg("f16",                 "Prev"),
-				TCArg("f16",                 "PreempFactor"),
+				TCArg("F16_DSP",                 "Prev"),
+				TCArg("F16_DSP",                 "PreempFactor"),
 				TCArg("int",                 "FrameSize")
 				)
 		);
@@ -156,7 +161,7 @@ void LoadMFCCLibrary()
 		);
 
 	LibKernelTemplate("MFCC_Log_T",
-			  CArgs(9,
+			  CArgs(10,
 				TCArg("void *__restrict__", "FrameIn"),
 				TCArg("void *__restrict__", "FrameOut"),
 				TCArg("unsigned int", "FrameSize"),
@@ -165,7 +170,23 @@ void LoadMFCCLibrary()
 				TCArg("short int", "Q_FFT_Out"),
 				TCArg("short int", "Mel_Coeff_Dyn"),
 				TCArg("signed char", "IsMagSquared"),
-				TCArg("signed char *__restrict__", "shift_buff")
+				TCArg("signed char *__restrict__", "shift_buff"),
+				TCArg("int", "LogOffset")
+				)
+		);
+
+	LibKernelTemplate("MFCC_LogF_T",
+			  CArgs(10,
+				TCArg("void *__restrict__", "FrameIn"),
+				TCArg("void *__restrict__", "FrameOut"),
+				TCArg("unsigned int", "FrameSize"),
+				TCArg("unsigned short int", "Norm"),
+				TCArg("short int", "ExtraQ"),
+				TCArg("short int", "Q_FFT_Out"),
+				TCArg("short int", "Mel_Coeff_Dyn"),
+				TCArg("signed char", "IsMagSquared"),
+				TCArg("signed char *__restrict__", "shift_buff"),
+				TCArg("float", "LogOffset")
 				)
 		);
 
@@ -173,7 +194,7 @@ void LoadMFCCLibrary()
 			  CArgs(4,
 				TCArg("int *__restrict__", "In"),
 				TCArg("short int *__restrict__", "Out"),
-				TCArg("unsigned short int", "Norm"),
+				TCArg("unsigned shor	t int", "Norm"),
 				TCArg("int", "N")
 				)
 		);
@@ -232,6 +253,11 @@ void LoadMFCCLibrary()
 	LibKernel("RFFT_DIF_Par_f32",		CALL_PARALLEL, 0, "RFFT_Arg_T", NULL);
 	LibKernel("RFFT_DIF_Par_f16",	  	CALL_PARALLEL, 0, "RFFT_Arg_T", NULL);
 
+	LibKernel("IRFFT_DIF_Par_Fix16",		CALL_PARALLEL, 0, "RFFT_Arg_T", NULL);
+	LibKernel("IRFFT_DIF_Par_Fix32_Scal",	CALL_PARALLEL, 0, "RFFT_scal_Arg_T", NULL);
+	LibKernel("IRFFT_DIF_Par_f32",		CALL_PARALLEL, 0, "RFFT_Arg_T", NULL);
+	LibKernel("IRFFT_DIF_Par_f16",	  	CALL_PARALLEL, 0, "RFFT_Arg_T", NULL);
+
 	/* DSP Basic Kernels */
         LibKernel("PreEmphasis", 		CALL_PARALLEL, 0, "PreEmphasis_T", NULL);
         LibKernel("PreEmphasis_f16", 		CALL_PARALLEL, 0, "PreEmphasis_f16_T", NULL);
@@ -270,12 +296,12 @@ void LoadMFCCLibrary()
 
         LibKernel("MFCC_ComputeLog_Fix32",	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
         LibKernel("MFCC_ComputeLog_Fix32_Scal", CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
-        LibKernel("MFCC_ComputeLog_f16", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
-        LibKernel("MFCC_ComputeLog_f32", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
+        LibKernel("MFCC_ComputeLog_f16", 	CALL_PARALLEL, 0, "MFCC_LogF_T", NULL);
+        LibKernel("MFCC_ComputeLog_f32", 	CALL_PARALLEL, 0, "MFCC_LogF_T", NULL);
         LibKernel("MFCC_ComputeDB_Fix32", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
         LibKernel("MFCC_ComputeDB_Fix32_Scal", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
-        LibKernel("MFCC_ComputeDB_f16", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
-        LibKernel("MFCC_ComputeDB_f32", 	CALL_PARALLEL, 0, "MFCC_Log_T", NULL);
+        LibKernel("MFCC_ComputeDB_f16", 	CALL_PARALLEL, 0, "MFCC_LogF_T", NULL);
+        LibKernel("MFCC_ComputeDB_f32", 	CALL_PARALLEL, 0, "MFCC_LogF_T", NULL);
 
         LibKernel("norm_clip_16",	 	CALL_PARALLEL, 0, "Norm_Clip_args_T", NULL);
         LibKernel("norm_clip_32_melspect",	CALL_PARALLEL, 0, "MFCC_Clip_32_T", NULL);
@@ -291,22 +317,23 @@ void LoadMFCCLibrary()
 
         LibKernel("Conjugate_Fix16_Par",   CALL_PARALLEL, CArgs(2, TCArg("v2s   * __restrict__", "Data"), TCArg("int", "Ni")), "SwapSamples_Arg_T", NULL);
         LibKernel("Conjugate_Fix32_Par",   CALL_PARALLEL, CArgs(2, TCArg("int   * __restrict__", "Data"), TCArg("int", "Ni")), "SwapSamples_Arg_T", NULL);
-        LibKernel("Conjugate_Float16_Par", CALL_PARALLEL, CArgs(2, TCArg("v2h   * __restrict__", "Data"), TCArg("int", "Ni")), "SwapSamples_Arg_T", NULL);
+        LibKernel("Conjugate_Float16_Par", CALL_PARALLEL, CArgs(2, TCArg("F16V_DSP   * __restrict__", "Data"), TCArg("int", "Ni")), "SwapSamples_Arg_T", NULL);
         LibKernel("Conjugate_Float32_Par", CALL_PARALLEL, CArgs(2, TCArg("float * __restrict__", "Data"), TCArg("int", "Ni")), "SwapSamples_Arg_T", NULL);
 }
 
 void PieceWiseGenerator(char *Name, CNN_GenControl_T *Ctrl, char *FunName, int Dim, int DataType, int Inplace)
 {
 	char * InPointer;
+	int InItemSize=2, OutItemSize=2, LUTItemSize=2;
 	switch (DataType){
 		case FIX16:
-			InPointer   = "int16_t * __restrict__"; break;
+			InPointer   = "int16_t * __restrict__"; InItemSize=2; OutItemSize=2; break;
 		case FIX32:
-			InPointer   = "int * __restrict__"; break;
+			InPointer   = "int * __restrict__"; InItemSize=4; OutItemSize=4; break;
 		case FLOAT16:
-			InPointer   = "f16 * __restrict__"; break;
+			InPointer   = "F16_DSP * __restrict__"; InItemSize=F16_SIZE; OutItemSize=F16_SIZE; break;
 		case FLOAT32:
-			InPointer   = "float * __restrict__"; break;
+			InPointer   = "float * __restrict__"; InItemSize=4; OutItemSize=4; break;
 		default:
 			return GenTilingError("Data Type %d not known", DataType);
 	}
@@ -329,8 +356,8 @@ void PieceWiseGenerator(char *Name, CNN_GenControl_T *Ctrl, char *FunName, int D
 			     )
 		),
 		KerArgs(2,
-			KerArg("In",  KerArgSpace(1,T0), OBJ_IN_OUT, 1, Dim, DataType==FLOAT32||DataType==FIX32?4:2,  0, 0, 0, "In"),
-		Inplace?KerArg("Out", KerArgSpace(1,T0), OBJ_IN_OUT, 1, Dim, DataType==FLOAT32||DataType==FIX32?4:2,  0, 0, 0, "Out"):AT_NO_KER_ARG
+			KerArg("In",  KerArgSpace(1,T0), OBJ_IN_OUT, 1, Dim, InItemSize,  0, 0, 0, "In"),
+		Inplace?KerArg("Out", KerArgSpace(1,T0), OBJ_IN_OUT, 1, Dim, OutItemSize, 0, 0, 0, "Out"):AT_NO_KER_ARG
 		)
 	);
 }
@@ -355,9 +382,12 @@ int MFCC_Generator_old(
 	)
 {
 	AT_PadType PadType = PAD_RIGHT;
+	float MfccLogOffset = 0.0;
 	if (Ctrl) {
 		if (Ctrl->PadType != -1) PadType = Ctrl->PadType;
+		if (Ctrl->MfccLogOffset != -1) MfccLogOffset = FIX2FP(Ctrl->MfccLogOffset, 30);
 	}
+	printf("LOG OFFSET %f\n", MfccLogOffset);
 	int MFCC_Coeff_Dyn = 15;
 	if (__builtin_popcount(Nfft) != 1) GenTilingError("%s, Incorrect FFTDim: %d, it has to be a a power of 2", Name, Nfft);
 	int UseRadix4 = (DataType!=FIX32) && (!ForceRadix2FFT && ((__builtin_ctz(Nfft)%2)==0) && (Nfft>64));
@@ -369,7 +399,7 @@ int MFCC_Generator_old(
 	int Q_Out_FFT = 15 - (Log2Nfft - 3) + (UseRadix4?1:0);
 	printf("MFCC_COEF_DYN = %d\nFFT_BITS = %d\nUSE_DB = %d\nDATA_TYPE = %d\n", MFCC_Coeff_Dyn, Log2Nfft, UseDB, DataType);
 
-	char *PreEmpKernel=0, *WinKernel=0, *FFTKernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *UserKernType=0, *UserKernPointer=0;      
+	char *PreEmpKernel=0, *WinKernel=0, *FFTKernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *UserKernType=0, *UserKernPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;      
 
 	switch (DataType){
 		case FIX16:
@@ -384,6 +414,7 @@ int MFCC_Generator_old(
 			DCTKernel = "MFCC_ComputeDCT_II_Fix16";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2; OutItemSize=OutMelspectrogram?4:2, LUTItemSize=2;
 			break;
 		case FIX32:
 			PreEmpKernel = "PreEmphasis";
@@ -397,6 +428,7 @@ int MFCC_Generator_old(
 			DCTKernel = "MFCC_ComputeDCT_II_Fix16";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2; OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f16":0;
@@ -408,8 +440,9 @@ int MFCC_Generator_old(
 			MfccKernel = "MelFilterBank_f16";
 			LogKernel = UseDB?"MFCC_ComputeDB_f16":"MFCC_ComputeLog_f16";
 			DCTKernel = "MFCC_ComputeDCT_II_Fix16";
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE; OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FLOAT32:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f32":0;
@@ -423,12 +456,14 @@ int MFCC_Generator_old(
 			DCTKernel = "MFCC_ComputeDCT_II_f32";
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
+			InItemSize=4; OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			GenTilingError("Data Type %d not known", DataType);
 	}
 
 	int ncalls = 10;
+	UserSymbols(1, US_Float("LogOffset", MfccLogOffset));
 	Kernel_T *Kernel = UserKernel(Name,
                 NFrames<0?
                 KernelIterSpace(2, IterFixedSpaceDynBound(D0, 10000, "NFrames"), IterTiledSpace(T0)):
@@ -506,7 +541,7 @@ int MFCC_Generator_old(
 			     ),
 			(OutMelspectrogram==0)?
 			Call(LogKernel,LOC_LOOP,
-			     Bindings(9,
+			     Bindings(10,
 			     	(Ndct==0 && (DataType==FLOAT16 || DataType==FLOAT32))?K_Arg("Out", KER_ARG_TILE):K_Arg("InOut2", KER_ARG_TILE),
 			 	(Ndct==0)?K_Arg("Out", KER_ARG_TILE):K_Arg("InOut1", KER_ARG_TILE),
 				Imm(NMelBanks),
@@ -515,7 +550,8 @@ int MFCC_Generator_old(
 				(DataType==FIX16 || DataType==FIX32)?Imm(Q_Out_FFT):AT_IGNORE_ARG_BINDING,
 				(DataType==FIX16 || DataType==FIX32)?Imm(MFCC_Coeff_Dyn):AT_IGNORE_ARG_BINDING,
 				(DataType==FIX16 || DataType==FIX32)?Imm(MagSquared):AT_IGNORE_ARG_BINDING,
-			       	(DataType==FIX16 || DataType==FIX32)?K_Arg("shift_buff", KER_ARG_TILE):AT_IGNORE_ARG_BINDING)
+			       	(DataType==FIX16 || DataType==FIX32)?K_Arg("shift_buff", KER_ARG_TILE):AT_IGNORE_ARG_BINDING,
+			        (DataType==FIX16 || DataType==FIX32)?Imm(FP2FIX(MfccLogOffset, 30)):BindKExpr("LogOffset"))
 			      ):AT_NO_CALL,
 			((DataType==FIX32 || DataType==FIX16) && (OutMelspectrogram!=0))?
 			Call("norm_clip_32_melspect", LOC_LOOP,
@@ -547,31 +583,31 @@ int MFCC_Generator_old(
 			     ):AT_NO_CALL
 		),
 		KerArgs(14,
-			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	       1, FrameSize, 	  	  DataType==FLOAT32?4:2,                       FrameSize-FrameStride, 0, 0, "In"),
-			KerArg("Out",         	  KerArgSpace(1,D0), OBJ_OUT_DB,   	       1, Ndct==0?NMelBanks:Ndct, DataType==FLOAT32||OutMelspectrogram?4:2,    0, 0, 0, "Out"),
-			KerArg("InOut1",          KerArgSpace(1,T0), O_BUFF,   		       1, Nfft,   		  sizeof(int),          		       0, 0, 0, ""),
+			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	       1, FrameSize, 	  	  InItemSize, FrameSize-FrameStride, 0, 0, "In"),
+			KerArg("Out",         	  KerArgSpace(1,D0), OBJ_OUT_DB,   	       1, Ndct==0?NMelBanks:Ndct, OutItemSize,		          0, 0, 0, "Out"),
+			KerArg("InOut1",          KerArgSpace(1,T0), O_BUFF,   		       1, Nfft,   		  sizeof(int), 		          0, 0, 0, ""),
 			OutFFT?
-			KerArg("Out_fft",         KerArgSpace(1,D0), OBJ_OUT_DB,	       1, 2*Nfft,   		  (DataType==FLOAT32||DataType==FIX32)?4:2,    0, 0, 0, "FFT_Out"):
-			KerArg("Out_fft",         KerArgSpace(1,T0), O_BUFF,		       1, 2*Nfft,   		  (DataType==FLOAT32||DataType==FIX32)?4:2,    0, 0, 0, ""),
+			KerArg("Out_fft",         KerArgSpace(1,D0), OBJ_OUT_DB,	       1, 2*Nfft,   		  OutItemSize,    	          0, 0, 0, "FFT_Out"):
+			KerArg("Out_fft",         KerArgSpace(1,T0), O_BUFF,		       1, 2*Nfft,   		  OutItemSize,    	          0, 0, 0, ""),
 			DataType==FIX32?
 			(OutFFT?
-			KerArg("shift_fft",       KerArgSpace(1,D0), OBJ_OUT_DB,	       1, Nfft,			  sizeof(signed char), 			       0, 0, 0, "FFT_Shift_Buff"):
-			KerArg("shift_fft",       KerArgSpace(1,T0), O_BUFF,		       1, Nfft,			  sizeof(signed char), 			       0, 0, 0, "")):0,
+			KerArg("shift_fft",       KerArgSpace(1,D0), OBJ_OUT_DB,	       1, Nfft,			  sizeof(signed char), 	          0, 0, 0, "FFT_Shift_Buff"):
+			KerArg("shift_fft",       KerArgSpace(1,T0), O_BUFF,		       1, Nfft,			  sizeof(signed char), 	          0, 0, 0, "")):0,
 			(DataType==FIX16||DataType==FIX32)?
 			(OutFFT?
-			KerArg("Shift",		  KerArgSpace(1,D0), OBJ_OUT_DB,	       1, 1, 			  sizeof(short int),   			       0, 0, 0, "PreempShift"):
-			KerArg("Shift",		  KerArgSpace(1,T0), O_BUFF|O_NTILED,	       1, 1, 			  sizeof(short int),   			       0, 0, 0, "")):0,
+			KerArg("Shift",		  KerArgSpace(1,D0), OBJ_OUT_DB,	       1, 1, 			  sizeof(short int),              0, 0, 0, "PreempShift"):
+			KerArg("Shift",		  KerArgSpace(1,T0), O_BUFF|O_NTILED,	       1, 1, 			  sizeof(short int),              0, 0, 0, "")):0,
 			(Ndct||DataType==FIX32||DataType==FIX16)?
-			KerArg("InOut2", 	  KerArgSpace(1,T0), O_BUFF, 		       1, NMelBanks, 		  sizeof(int), 0, 0, 0, ""):0,
-			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, FrameSize,              DataType==FLOAT32?4:2,		       0, 0, 0, "WinTable"),
-	      		KerArg("Twiddles_fft", 	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, UseRadix4?2*(3*Nfft/4):Nfft, DataType==FLOAT32?4:2,    		       0, 0, 0, "Twiddles_fft"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, Nfft,              	  sizeof(short int),    		       0, 0, 0, "SwapTable_fft"),
-			KerArg("Mel_FilterBank",  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, NMelBanks,          	  6,			 		       0, 0, 0, "Mel_FilterBank"),
-			KerArg("Mel_Coeffs",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, SizeMelCoeff,        	  DataType==FLOAT32?4:2,      		       0, 0, 0, "Mel_Coeffs"),
+			KerArg("InOut2", 	  KerArgSpace(1,T0), O_BUFF, 		       1, NMelBanks, 		  sizeof(int), 			  0, 0, 0, ""):0,
+			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, FrameSize,              LUTItemSize,		          0, 0, 0, "WinTable"),
+	      		KerArg("Twiddles_fft", 	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, UseRadix4?2*(3*Nfft/4):Nfft, LUTItemSize,    	          0, 0, 0, "Twiddles_fft"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, Nfft,              	  sizeof(short int),              0, 0, 0, "SwapTable_fft"),
+			KerArg("Mel_FilterBank",  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, NMelBanks,          	  6,			          0, 0, 0, "Mel_FilterBank"),
+			KerArg("Mel_Coeffs",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, SizeMelCoeff,        	  LUTItemSize,      	          0, 0, 0, "Mel_Coeffs"),
 			(DataType==FIX16 || DataType==FIX32)?
-			KerArg("shift_buff",   	  KerArgSpace(1,T0), O_BUFF,    	       1, NMelBanks,          	  sizeof(signed char),  		       0, 0, 0, ""):0,
+			KerArg("shift_buff",   	  KerArgSpace(1,T0), O_BUFF,    	       1, NMelBanks,          	  sizeof(signed char),            0, 0, 0, ""):0,
 		  	Ndct?
-		  	KerArg("DCT_Coeff",  	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, Ndct*Ndct,         	  DataType==FLOAT32?4:2, 		       0, 0, 0, "DCT_Coeff"):0
+		  	KerArg("DCT_Coeff",  	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST,      1, Ndct*Ndct,         	  LUTItemSize, 		          0, 0, 0, "DCT_Coeff"):0
 		)
 	);
 	return 1;
@@ -598,9 +634,12 @@ int MFCC_Generator(
 {
 	if (DataType==FIX32) return MFCC_Generator_old(Name, Ctrl, NFrames, FrameSize, FrameStride, Nfft, NMelBanks, SizeMelCoeff, Ndct, PreempFactor, LifterCoeff, 0, MagSquared, DataType, LogType, OutFFT);
 	AT_PadType PadType = PAD_RIGHT;
+	float MfccLogOffset = 0.0;
 	if (Ctrl) {
 		if (Ctrl->PadType != -1) PadType = Ctrl->PadType;
+		if (Ctrl->MfccLogOffset != -1) MfccLogOffset = FIX2FP(Ctrl->MfccLogOffset, 30);
 	}
+	printf("LOG OFFSET %f\n", MfccLogOffset);
 	int MFCC_Coeff_Dyn = 15;
 	if (__builtin_popcount(Nfft) != 1) GenTilingError("%s, Incorrect FFTDim: %d, it has to be a a power of 2", Name, Nfft);
 	int UseRadix4 = (DataType!=FIX32) && (((__builtin_ctz(Nfft>>1)%2)==0) && ((Nfft>>1)>64));
@@ -612,7 +651,7 @@ int MFCC_Generator(
 	int Q_Out_FFT = 15 - (Log2Nfft - 3) + (UseRadix4?1:0);
 	printf("MFCC_COEF_DYN = %d\nFFT_BITS = %d\nUSE_DB = %d\nDATA_TYPE = %d\n", MFCC_Coeff_Dyn, Log2Nfft, UseDB, DataType);
 
-	char *PreEmpKernel=0, *WinKernel=0, *RFFT_Kernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *LifterKern=0, *UserKernType=0, *UserKernPointer=0;
+	char *PreEmpKernel=0, *WinKernel=0, *RFFT_Kernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *LifterKern=0, *UserKernType=0, *UserKernPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2; 
 
 	switch (DataType){
 		case FIX16:
@@ -626,6 +665,7 @@ int MFCC_Generator(
 			LifterKern = LifterCoeff>0?"MFCC_Lifter_Fix16":0;
 			UserKernType = "short int";
 			UserKernPointer = "short int * __restrict__";
+			InItemSize=2; OutItemSize=2, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f16":0;
@@ -636,8 +676,9 @@ int MFCC_Generator(
 			LogKernel = UseDB?"MFCC_ComputeDB_f16":"MFCC_ComputeLog_f16";
 			DCTKernel = "MFCC_ComputeDCT_II_f16";
 			LifterKern = LifterCoeff>0?"MFCC_Lifter_f16":0;
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE; OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FLOAT32:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f32":0;
@@ -650,6 +691,7 @@ int MFCC_Generator(
 			LifterKern = LifterCoeff>0?"MFCC_Lifter_f32":0;
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
+			InItemSize=4; OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			GenTilingError("Data Type %d not known", DataType);
@@ -657,6 +699,7 @@ int MFCC_Generator(
 	}
 	int OutDataSize = DataType==FLOAT32||(OutMelspectrogram && DataType==FIX16)?4:2;
 
+	UserSymbols(1, US_Float("LogOffset", MfccLogOffset));
 	Kernel_T *Kernel = UserKernel(Name,
                 NFrames<0?
                 KernelIterSpace(2, IterFixedSpaceDynBound(D0, 10000, "NFrames"), IterTiledSpace(T0)):
@@ -730,7 +773,7 @@ int MFCC_Generator(
 			     ),
 			(OutMelspectrogram==0)?
 			Call(LogKernel,LOC_LOOP,
-			     Bindings(9,
+			     Bindings(10,
 			     	K_Arg("In_rfft", KER_ARG_TILE),
 			 	(Ndct==0)?K_Arg("Out", KER_ARG_TILE):K_Arg("Buff2", KER_ARG_TILE),
 				Imm(NMelBanks),
@@ -739,7 +782,8 @@ int MFCC_Generator(
 				(DataType==FIX16 || DataType==FIX32)?Imm(Q_Out_FFT):AT_IGNORE_ARG_BINDING,
 				(DataType==FIX16 || DataType==FIX32)?Imm(MFCC_Coeff_Dyn):AT_IGNORE_ARG_BINDING,
 				(DataType==FIX16 || DataType==FIX32)?Imm(MagSquared):AT_IGNORE_ARG_BINDING,
-			       	(DataType==FIX16 || DataType==FIX32)?K_Arg("shift_buff", KER_ARG_TILE):AT_IGNORE_ARG_BINDING)
+			       	(DataType==FIX16 || DataType==FIX32)?K_Arg("shift_buff", KER_ARG_TILE):AT_IGNORE_ARG_BINDING,
+			        (DataType==FIX16 || DataType==FIX32)?Imm(FP2FIX(MfccLogOffset, 30)):BindKExpr("LogOffset"))
 			      ):AT_NO_CALL,
 			((DataType==FIX32 || DataType==FIX16) && (OutMelspectrogram!=0))?
 			Call("norm_clip_32_melspect", LOC_LOOP,
@@ -771,29 +815,29 @@ int MFCC_Generator(
 			     ):AT_NO_CALL
 		),
 		KerArgs(14,
-			KerArg("In",		  KerArgSpace(1,D0), OBJ_IN_DB,		  1, FrameSize, 	DataType==FLOAT32?4:2, FrameSize-FrameStride, 0, 0, "In"),
-			KerArg("Out",		  KerArgSpace(1,D0), OBJ_OUT_DB,	  1, Ndct?Ndct:NMelBanks,OutDataSize, 			  	   0, 0, 0, "Out"),
-			KerArg("In_rfft",	  KerArgSpace(1,T0), O_BUFF|O_NTILED,	  1, Nfft, 		DataType==FLOAT32?4:2,    		   0, 0, 0, ""),
+			KerArg("In",		  KerArgSpace(1,D0), OBJ_IN_DB,		  1, FrameSize, 	  InItemSize,FrameSize-FrameStride, 0, 0, "In"),
+			KerArg("Out",		  KerArgSpace(1,D0), OBJ_OUT_DB,	  1, Ndct?Ndct:NMelBanks,OutItemSize, 			   0, 0, 0, "Out"),
+			KerArg("In_rfft",	  KerArgSpace(1,T0), O_BUFF|O_NTILED,	  1, Nfft, 		InItemSize,    		   	   0, 0, 0, ""),
 			OutFFT?
-			KerArg("FFT_Out",         KerArgSpace(1,D0), OBJ_OUT_DB, 	  1, 2*(Nfft/2+1),	DataType==FLOAT32?4:2,			   0, 0, 0, "FFT_Out"):
-			KerArg("FFT_Out",         KerArgSpace(1,T0), O_BUFF|O_NTILED,     1, 2*(Nfft/2+1),	DataType==FLOAT32?4:2,			   0, 0, 0, ""),
-			KerArg("Buff2",           KerArgSpace(1,T0), O_BUFF|O_NTILED,     1, 2*(Nfft/2+1),	sizeof(int),				   0, 0, 0, ""),
+			KerArg("FFT_Out",         KerArgSpace(1,D0), OBJ_OUT_DB, 	  1, 2*(Nfft/2+1),	OutItemSize,			   0, 0, 0, "FFT_Out"):
+			KerArg("FFT_Out",         KerArgSpace(1,T0), O_BUFF|O_NTILED,     1, 2*(Nfft/2+1),	OutItemSize,			   0, 0, 0, ""),
+			KerArg("Buff2",           KerArgSpace(1,T0), O_BUFF|O_NTILED,     1, 2*(Nfft/2+1),	sizeof(int),			   0, 0, 0, ""),
 			(DataType==FIX16?
 			(OutFFT?
-			KerArg("Shift",		  KerArgSpace(1,D0), OBJ_OUT_DB,	  1, 1,           	sizeof(short int),			   0, 0, 0, "PreempShift"):
-			KerArg("Shift",		  KerArgSpace(1,T0), O_BUFF|O_NTILED,	  1, 1,           	sizeof(short int),			   0, 0, 0, "")):0),
-			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,		DataType==FLOAT32?4:2,			   0, 0, 0, "WinTable"),
+			KerArg("Shift",		  KerArgSpace(1,D0), OBJ_OUT_DB,	  1, 1,           	sizeof(short int),		   0, 0, 0, "PreempShift"):
+			KerArg("Shift",		  KerArgSpace(1,T0), O_BUFF|O_NTILED,	  1, 1,           	sizeof(short int),		   0, 0, 0, "")):0),
+			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,		LUTItemSize,			   0, 0, 0, "WinTable"),
 			UseRadix4?
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 3*(Nfft/2)/4,	DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_fft_int"):
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft/2,     	DataType==FLOAT32?4:2, 			   0, 0, 0, "Twiddles_fft_int"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft/2,      	sizeof(short int),        		   0, 0, 0, "SwapTable_fft"),
-			KerArg("Twiddles_rfft",	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,		DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_rfft"),
-			KerArg("Mel_FilterBank",  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, NMelBanks,		6, /* size of filterbank type */	   0, 0, 0, "Mel_FilterBank"),
-			KerArg("Mel_Coeffs",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, SizeMelCoeff,	DataType==FLOAT32?4:2,		   	   0, 0, 0, "Mel_Coeffs"),
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 3*(Nfft)/4,	LUTItemSize,			   0, 0, 0, "Twiddles_fft_int"):
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft/2,     	LUTItemSize, 			   0, 0, 0, "Twiddles_fft_int"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft/2,      	sizeof(short int),      	   0, 0, 0, "SwapTable_fft"),
+			KerArg("Twiddles_rfft",	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,		LUTItemSize,			   0, 0, 0, "Twiddles_rfft"),
+			KerArg("Mel_FilterBank",  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, NMelBanks,		6, /* size of filterbank type */   0, 0, 0, "Mel_FilterBank"),
+			KerArg("Mel_Coeffs",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, SizeMelCoeff,	LUTItemSize,		   	   0, 0, 0, "Mel_Coeffs"),
 			DataType==FIX16?
-			KerArg("shift_buff",   	  KerArgSpace(1,T0), O_BUFF,    	  1, NMelBanks,		sizeof(signed char),			   0, 0, 0, ""):0,
+			KerArg("shift_buff",   	  KerArgSpace(1,T0), O_BUFF,    	  1, NMelBanks,		sizeof(signed char),		   0, 0, 0, ""):0,
 		  	Ndct?
-		  	KerArg("DCT_Coeff",  	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Ndct*Ndct,         DataType==FLOAT32?4:2, 		           0, 0, 0, "DCT_Coeff"):0
+		  	KerArg("DCT_Coeff",  	  KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Ndct*Ndct,         LUTItemSize, 		           0, 0, 0, "DCT_Coeff"):0
 		)
 	);
 	return 1;
@@ -828,7 +872,7 @@ int RFFT_2D_Generator(
 
 	int OnlyZeroPad = (Nfft > FrameSize) && NoWindow;
 
-	char *PreEmpKernel=0, *WinKernel=0, *RFFT_Kernel=0, *SpectKernel=0, *UserKernType=0, *UserKernPointer=0, DtypeSize=2;
+	char *PreEmpKernel=0, *WinKernel=0, *RFFT_Kernel=0, *SpectKernel=0, *UserKernType=0, *UserKernPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;
 	switch (DataType){
 		case FIX16:
 			PreEmpKernel = SkipPreemp?0:"PreEmphasis";
@@ -837,16 +881,16 @@ int RFFT_2D_Generator(
 			SpectKernel = MagSquared?"CmplxMagSquared_Fix16":"CmplxMag_Fix32";
 			UserKernType = "short int";
 			UserKernPointer = "short int * __restrict__";
-			DtypeSize = 2;
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f16":0;
 			WinKernel = NoWindow?"ZeroPad_f16":(PadType==PAD_RIGHT?"WindowingReal2Real_f16":"WindowingReal2Real_PadCenter_f16");
 			RFFT_Kernel = "RFFT_DIF_Par_f16";
 			SpectKernel = MagSquared?"CmplxMagSquared_f16":"CmplxMag_f16";
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
-			DtypeSize = 2;
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE, OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FIX32:
 			PreEmpKernel = SkipPreemp?0:"PreEmphasis";
@@ -855,7 +899,7 @@ int RFFT_2D_Generator(
 			SpectKernel = MagSquared?"CmplxMagSquared_Fix32_scal":"CmplxMag_Fix32_scal";
 			UserKernType = "short int";
 			UserKernPointer = "short int * __restrict__";
-			DtypeSize = 4;
+			InItemSize=2, OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT32:
 			PreEmpKernel = PreempFactor!=0?"PreEmphasis_f32":0;
@@ -864,7 +908,7 @@ int RFFT_2D_Generator(
 			SpectKernel = MagSquared?"CmplxMagSquared_f32":"CmplxMag_f32";
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
-			DtypeSize = 4;
+			InItemSize=4, OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			GenTilingError("Data Type %d not known", DataType);
@@ -931,9 +975,9 @@ int RFFT_2D_Generator(
 			     ):AT_NO_CALL
 		),
 		KerArgs(10,
-			KerArg("In",		KerArgSpace(1,D0), OBJ_IN_DB,		1, FrameSize, 	DataType==FLOAT32?4:2, FrameSize-FrameStride, 0, 0, "In"),
-			KerArg("Out",		KerArgSpace(1,D0), OBJ_OUT_DB,		1, 2*(Nfft/2+1),DtypeSize, 			   	   0, 0, 0, "Out"),
-			KerArg("In_rfft",	KerArgSpace(1,T0), O_BUFF|O_NTILED,	1, Nfft, 	DtypeSize,    		   		   0, 0, 0, ""),
+			KerArg("In",		KerArgSpace(1,D0), OBJ_IN_DB,		1, FrameSize, 	InItemSize, FrameSize-FrameStride, 0, 0, "In"),
+			KerArg("Out",		KerArgSpace(1,D0), OBJ_OUT_DB,		1, 2*(Nfft/2+1),OutItemSize, 			   	   0, 0, 0, "Out"),
+			KerArg("In_rfft",	KerArgSpace(1,T0), O_BUFF|O_NTILED,	1, Nfft, 	InItemSize,    		   		   0, 0, 0, ""),
 			((DataType==FIX16||DataType==FIX32)&&PreEmpKernel?
 			(OutFFT?
 			KerArg("Shift",		KerArgSpace(1,D0), OBJ_OUT_DB,		1, 1,           sizeof(short int),			   0, 0, 0, "PreempShift"):
@@ -944,12 +988,12 @@ int RFFT_2D_Generator(
 			(OutFFT?
 			KerArg("shift_rfft",	KerArgSpace(1,D0), OBJ_OUT_DB,		1, Nfft,        sizeof(signed char),			   0, 0, 0, "shift_rfft"):
 			KerArg("shift_rfft",	KerArgSpace(1,T0), O_BUFF|O_NTILED,	1, Nfft,        sizeof(signed char),			   0, 0, 0, "")):0),
-			KerArg("WinTable",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	DataType==FLOAT32?4:2,			   0, 0, 0, "WinTable"),
+			KerArg("WinTable",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, FrameSize,	LUTItemSize,				   0, 0, 0, "WinTable"),
 			UseRadix4?
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, 3*(Nfft/2)/4,DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_fft_int"):
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,     	DataType==FLOAT32?4:2, 			   0, 0, 0, "Twiddles_fft_int"),
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, 3*(Nfft)/4,  LUTItemSize,				   0, 0, 0, "Twiddles_fft_int"):
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,     	LUTItemSize,	 			   0, 0, 0, "Twiddles_fft_int"),
 			KerArg("SwapTable_fft",   KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,      sizeof(short int),        		   0, 0, 0, "SwapTable_fft"),
-			KerArg("Twiddles_rfft",	KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_rfft")
+			KerArg("Twiddles_rfft",	KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	LUTItemSize,				   0, 0, 0, "Twiddles_rfft")
 		)
 	);
 	return 1;
@@ -970,32 +1014,32 @@ int IRFFT_2D_Generator(
 	if (__builtin_popcount(Nfft) != 1) GenTilingError("%s, Incorrect FFTDim: %d, it has to be a a power of 2", Name, Nfft);
 	int UseRadix4 = (DataType!=FIX32) && (((__builtin_ctz(Nfft>>1)%2)==0) && ((Nfft>>1)>64));
 
-	char *IRFFT_Kernel=0, *UserKernType=0, *UserKernPointer=0, DtypeSize=2;
+	char *IRFFT_Kernel=0, *UserKernType=0, *UserKernPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;
 	switch (DataType){
 		case FIX16:
 			IRFFT_Kernel = "IRFFT_DIF_Par_Fix16";
 			UserKernType = "short int";
 			UserKernPointer = "short int * __restrict__";
-			DtypeSize = 2;
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			IRFFT_Kernel = "IRFFT_DIF_Par_f16";
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
-			DtypeSize = 2;
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE, OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FIX32:
 			GenTilingError("FLOAT32 Dtype not supported yet for IRFFT");
 			IRFFT_Kernel = "IRFFT_DIF_Par_Fix32_Scal";
 			UserKernType = "short int";
 			UserKernPointer = "short int * __restrict__";
-			DtypeSize = 4;
+			InItemSize=2, OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT32:
 			IRFFT_Kernel = "IRFFT_DIF_Par_f32";
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
-			DtypeSize = 4;
+			InItemSize=4, OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			GenTilingError("Data Type %d not known", DataType);
@@ -1027,15 +1071,14 @@ int IRFFT_2D_Generator(
 			       Imm(1))
 			     )
 		),
-		KerArgs(6,
-			KerArg("In",		KerArgSpace(1,D0), OBJ_IN_DB,		1, 2*(Nfft/2+1),DataType==FLOAT32?4:2, 			   0, 0, 0, "In"),
-			KerArg("Out",		KerArgSpace(1,D0), OBJ_OUT_DB,		1, Nfft,	DtypeSize, 			   	   0, 0, 0, "Out"),
-			KerArg("WinTable",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	DataType==FLOAT32?4:2,			   0, 0, 0, "WinTable"),
+		KerArgs(5,
+			KerArg("In",		KerArgSpace(1,D0), OBJ_IN_DB,		1, 2*(Nfft/2+1),InItemSize, 	   0, 0, 0, "In"),
+			KerArg("Out",		KerArgSpace(1,D0), OBJ_OUT_DB,		1, Nfft,	OutItemSize,	   0, 0, 0, "Out"),
 			UseRadix4?
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, 3*(Nfft/2)/4,DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_fft_int"):
-			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,     	DataType==FLOAT32?4:2, 			   0, 0, 0, "Twiddles_fft_int"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,      sizeof(short int),        		   0, 0, 0, "SwapTable_fft"),
-			KerArg("Twiddles_rfft",	KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	DataType==FLOAT32?4:2,			   0, 0, 0, "Twiddles_rfft")
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, 3*(Nfft)/4,	LUTItemSize,	   0, 0, 0, "Twiddles_fft_int"):
+			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,     	LUTItemSize, 	   0, 0, 0, "Twiddles_fft_int"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,      sizeof(short int), 0, 0, 0, "SwapTable_fft"),
+			KerArg("Twiddles_rfft",	KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,	LUTItemSize,	   0, 0, 0, "Twiddles_rfft")
 		)
 	);
 	return 1;
@@ -1052,7 +1095,7 @@ void FFT_Generator(
 {
 	if (__builtin_popcount(Nfft) != 1) GenTilingError("FFT: %s, Incorrect Nfft: %d, it has to be a a power of 2", Name, Nfft);
 	int UseRadix4 = (!ForceRadix2 && ((__builtin_ctz(Nfft)%2)==0) && (Nfft>64));
-	char *FFTKernel=0, *SwapKernel=0, *InPointer=0, *TwidPointer=0;
+	char *FFTKernel=0, *SwapKernel=0, *InPointer=0, *TwidPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;
 
 	switch (DataType){
 		case FIX16:
@@ -1061,19 +1104,22 @@ void FFT_Generator(
 			SwapKernel  = "SwapSamples_Par";
 			InPointer   = "int16_t * __restrict__";
 			TwidPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		case FIX32:
 			FFTKernel   = IntScal?"Radix2FFT_DIF_INT_Scal_Par":"Radix2FFT_DIF_Par_Fix32";
 			SwapKernel  = IntScal?"SwapSamples_scal":"SwapSamples_Par_Fix32";
 			InPointer   = "int * __restrict__";
 			TwidPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			if (UseRadix4) FFTKernel = "Radix4FFT_DIF_Par_f16";
 			else  	       FFTKernel = "Radix2FFT_DIF_Par_f16";
 			SwapKernel  = "SwapSamples_Par_f16";
-			InPointer   = "f16 * __restrict__";
-			TwidPointer = "f16 * __restrict__";
+			InPointer   = "F16_DSP * __restrict__";
+			TwidPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE, OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FLOAT32:
 			if (UseRadix4) FFTKernel = "Radix4FFT_DIF_Par_f32";
@@ -1081,6 +1127,7 @@ void FFT_Generator(
 			SwapKernel  = "SwapSamples_Par_f32";
 			InPointer   = "float * __restrict__";
 			TwidPointer = "float * __restrict__";
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		default:
 			return GenTilingError("Data Type %d not known", DataType);
@@ -1113,12 +1160,12 @@ void FFT_Generator(
 			     )
 		),
 		KerArgs(4,
-			KerArg("In",              KerArgSpace(1,T0), OBJ_IN_OUT,	  1, 2*Nfft, 	  	    DataType==FLOAT32||DataType==FIX32?4:2,    0, 0, 0, "In"),
+			KerArg("In",              KerArgSpace(1,T0), OBJ_IN_OUT,	  1, 2*Nfft, 	  	    InItemSize,  0, 0, 0, "In"),
 			(DataType==FIX32 && IntScal)?
-			KerArg("shift_fft",       KerArgSpace(1,T0), OBJ_IN_OUT,	  1, Nfft,			  		1,    0, 0, 0, "FFT_Shift_Buff"):AT_NO_KER_ARG,
-			UseRadix4?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   DataType==FLOAT32?4:2,    0, 0, 0, "Twiddles_fft"):
-				  KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       DataType==FLOAT32?4:2,    0, 0, 0, "Twiddles_fft"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,              	                2,    0, 0, 0, "SwapTable_fft")
+			KerArg("shift_fft",       KerArgSpace(1,T0), OBJ_IN_OUT,	  1, Nfft,			      1, 0, 0, 0, "FFT_Shift_Buff"):AT_NO_KER_ARG,
+			UseRadix4?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   LUTItemSize, 0, 0, 0, "Twiddles_fft"):
+				  KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       LUTItemSize, 0, 0, 0, "Twiddles_fft"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,             		      2, 0, 0, 0, "SwapTable_fft")
 		)
 	);
 }
@@ -1134,7 +1181,7 @@ void IFFT_Generator(
 	)
 {
 	int UseRadix4 = (!ForceRadix2 && ((__builtin_ctz(Nfft)%2)==0) && (Nfft>64));
-	char *FFTKernel=0, *SwapKernel=0, *UserKernType=0, *UserKernPointer=0, *ConjugateKernel=0;
+	char *FFTKernel=0, *SwapKernel=0, *UserKernType=0, *UserKernPointer=0, *ConjugateKernel=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;
 
 	switch (DataType){
 		case FIX16:
@@ -1143,6 +1190,7 @@ void IFFT_Generator(
 			SwapKernel = "SwapSamples_Par";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		case FIX32:
 			if (UseRadix4) return GenTilingError("Radix4 FFT Not implemented for FIX32");
@@ -1150,13 +1198,15 @@ void IFFT_Generator(
 			SwapKernel = "SwapSamples_scal";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			if (UseRadix4) FFTKernel = "Radix4FFT_DIF_Par_f16";
 			else	       FFTKernel = "Radix2FFT_DIF_Par_f16";
 			SwapKernel = "SwapSamples_Par_f16";
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE, OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FLOAT32:
 			if (UseRadix4) FFTKernel = "Radix4FFT_DIF_Par_f32";
@@ -1164,6 +1214,7 @@ void IFFT_Generator(
 			SwapKernel = "SwapSamples_Par_f32";
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
+			InItemSize=4, OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			return GenTilingError("Data Type %d not known", DataType);
@@ -1196,12 +1247,12 @@ void IFFT_Generator(
 			     )
 		),
 		KerArgs(4,	
-			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	  1, 2*Nfft, 	  	  	  DataType==FLOAT32?4:2, 0, 0, 0, "In"),
+			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	  1, 2*Nfft,			 InItemSize, 0, 0, 0, "In"),
 			(DataType==FIX32 && IntScal)?
-			KerArg("shift_fft",       KerArgSpace(1,T0), OBJ_IN_OUT,	  1, Nfft,					      1, 0, 0, 0, "FFT_Shift_Buff"):AT_NO_KER_ARG,
-			UseRadix4?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   DataType==FLOAT32?4:2, 0, 0, 0, "Twiddles_fft"):
-				  KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       DataType==FLOAT32?4:2, 0, 0, 0, "Twiddles_fft"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,              	  sizeof(short int),     0, 0, 0, "SwapTable_fft")
+			KerArg("shift_fft",       KerArgSpace(1,T0), OBJ_IN_OUT,	  1, Nfft,			  	  1, 0, 0, 0, "FFT_Shift_Buff"):AT_NO_KER_ARG,
+			UseRadix4?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   	LUTItemSize, 0, 0, 0, "Twiddles_fft"):
+				  KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       	LUTItemSize, 0, 0, 0, "Twiddles_fft"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,                sizeof(short int),     0, 0, 0, "SwapTable_fft")
 		)
 	);
 }
@@ -1221,7 +1272,7 @@ void STFT_Generator(
 	)
 {
 	int fft_bits = 31 - __builtin_clz(Nfft);
-	char *PreEmpKernel=0, *WinKernel=0, *FFTKernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *UserKernType=0, *UserKernPointer=0;
+	char *PreEmpKernel=0, *WinKernel=0, *FFTKernel=0, *SwapKernel=0, *MfccKernel=0, *SpectKernel=0, *LogKernel=0, *DCTKernel=0, *UserKernType=0, *UserKernPointer=0, InItemSize=2, OutItemSize=2, LUTItemSize=2;
 
 	switch (DataType){
 		case FIX16:
@@ -1233,6 +1284,7 @@ void STFT_Generator(
 			SpectKernel = use_power?"MFCC_PowerV2S":"MFCC_Abs";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=2, LUTItemSize=2;
 			break;
 		case FIX32:
 			PreEmpKernel = "MFCC_PreEmphasis";
@@ -1243,6 +1295,7 @@ void STFT_Generator(
 			SpectKernel = use_power?"MFCC_Power":"MFCC_Abs_BFF";
 			UserKernType = "int16_t";
 			UserKernPointer = "int16_t * __restrict__";
+			InItemSize=2, OutItemSize=4, LUTItemSize=2;
 			break;
 		case FLOAT16:
 			PreEmpKernel = "MFCC_PreEmphasis_f16";
@@ -1251,8 +1304,9 @@ void STFT_Generator(
 			else  		     FFTKernel = "Radix2FFT_DIF_Par_f16";
 			SwapKernel = "SwapSamples_Par_f16";
 			SpectKernel = use_power?"MFCC_Power_f16":"MFCC_Abs_f16";
-			UserKernType = "f16";
-			UserKernPointer = "f16 * __restrict__";
+			UserKernType = "F16_DSP";
+			UserKernPointer = "F16_DSP * __restrict__";
+			InItemSize=F16_SIZE, OutItemSize=F16_SIZE, LUTItemSize=F16_SIZE;
 			break;
 		case FLOAT32:
 			PreEmpKernel = "MFCC_PreEmphasis_f32";
@@ -1263,6 +1317,7 @@ void STFT_Generator(
 			SpectKernel = use_power?"MFCC_Power_f32":"MFCC_Abs_f32";
 			UserKernType = "float";
 			UserKernPointer = "float * __restrict__";
+			InItemSize=4, OutItemSize=4, LUTItemSize=4;
 			break;
 		default:
 			return GenTilingError("Data Type %d not known", DataType);
@@ -1334,19 +1389,19 @@ void STFT_Generator(
 				):AT_NO_CALL
 		),
 		KerArgs(9,
-			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	  1, FrameSize, DataType==FLOAT32?4:2,    FrameSize-FrameStride, 0, 0, "In"),
+			KerArg("In",              KerArgSpace(1,D0), OBJ_IN_DB,	  	  1, FrameSize, InItemSize,    FrameSize-FrameStride, 0, 0, "In"),
 			out_fft==0?
-				KerArg("Out",     KerArgSpace(1,D0), OBJ_OUT_DB,   	  1, DataType==FIX32?2*(Nfft/2+1):(Nfft/2+1),		DataType==FLOAT16?2:4, 0, 0, 0, "Out"):
-				KerArg("Out",     KerArgSpace(1,D0), OBJ_OUT_DB,	  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?2:4, 0, 0, 0, "Out"),
-			KerArg("InOut1",          KerArgSpace(1,T0), O_BUFF,   		  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?2:4, 0, 0, 0, ""),
+				KerArg("Out",     KerArgSpace(1,D0), OBJ_OUT_DB,   	  1, DataType==FIX32?2*(Nfft/2+1):(Nfft/2+1),		DataType==FLOAT16?F16_SIZE:4, 0, 0, 0, "Out"):
+				KerArg("Out",     KerArgSpace(1,D0), OBJ_OUT_DB,	  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?F16_SIZE:4, 0, 0, 0, "Out"),
+			KerArg("InOut1",          KerArgSpace(1,T0), O_BUFF,   		  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?F16_SIZE:4, 0, 0, 0, ""),
 			out_fft==0?
-				KerArg("Out_fft", KerArgSpace(1,T0), O_BUFF,	   	  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?2:4, 0, 0, 0, ""):AT_NO_KER_ARG,
+				KerArg("Out_fft", KerArgSpace(1,T0), O_BUFF,	   	  1, (DataType==FLOAT32||DataType==FIX32)?2*Nfft:Nfft,  DataType==FLOAT16?F16_SIZE:4, 0, 0, 0, ""):AT_NO_KER_ARG,
 			KerArg("shift_fft",       KerArgSpace(1,T0), O_BUFF,       	  1, Nfft,						sizeof(signed char),   0, 0, 0, ""),
 			KerArg("Shift",		  KerArgSpace(1,T0), O_BUFF,	          1, 1, 						sizeof(short int),     0, 0, 0, ""),
-			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,						DataType==FLOAT32?4:2,    0, 0, 0, "WinTable"),
-			use_radix_4_fft?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   DataType==FLOAT32?4:2,    0, 0, 0, "Twiddles_fft"):
-					KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       DataType==FLOAT32?4:2,    0, 0, 0, "Twiddles_fft"),
-			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,              	  sizeof(short int),        0, 0, 0, "SwapTable_fft")
+			KerArg("WinTable",        KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,						LUTItemSize,    0, 0, 0, "WinTable"),
+			use_radix_4_fft?KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(3*Nfft/4),   LUTItemSize,		0, 0, 0, "Twiddles_fft"):
+					KerArg("Twiddles_fft", KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, 2*(Nfft),       LUTItemSize,		0, 0, 0, "Twiddles_fft"),
+			KerArg("SwapTable_fft",   KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, Nfft,              	  sizeof(short int),    0, 0, 0, "SwapTable_fft")
 		)
 	);
 }

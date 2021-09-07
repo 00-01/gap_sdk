@@ -67,7 +67,7 @@
  */
 
 /*! @brief Number of FC_Events. */
-#define SOC_EU_NB_FC_EVENTS             (160)
+#define SOC_EU_NB_FC_EVENTS             (168)
 
 /*! @brief UDMA events */
 /* SPIM */
@@ -94,6 +94,8 @@
 /* I2S */
 #define SOC_EVENT_UDMA_I2S_RX(id)       ((UDMA_I2S_ID(id) << UDMA_CHANNEL_NB_EVENTS_LOG2) + UDMA_EVENT_OFFSET_RX)
 #define SOC_EVENT_UDMA_I2S_TX(id)       ((UDMA_I2S_ID(id) << UDMA_CHANNEL_NB_EVENTS_LOG2) + UDMA_EVENT_OFFSET_TX)
+/* MRAM */
+#define SOC_EVENT_UDMA_MRAM_ERASE(id)   ((UDMA_MRAM_ID(id) << UDMA_CHANNEL_NB_EVENTS_LOG2))
 
 /* UDMA EOT & error events. */
 #define SOC_EVENT_UDMA_SPIM_EOT(id)     ((UDMA_SPIM_ID(id) << UDMA_CHANNEL_NB_EVENTS_LOG2) + 3)

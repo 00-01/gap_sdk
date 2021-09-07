@@ -69,35 +69,29 @@
  * Clear event mask.
  * Set IRQ mask.
  * Clear IRQ mask.
- * Wait for event, used for synchro.
- * Wait for event and clear, used for synchro.
  */
-static inline void hal_cl_eu_evt_mask_set(uint32_t mask)
+static inline void hal_cl_eu_event_mask_set(uint32_t mask)
 {
-    //cl_demux_eu_core(0)->event_mask_or = mask;
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_CORE_EVENT_MASK_OR), mask);
+    GAP_WRITE(base, CL_DEMUX_EU_CORE_EVENT_MASK_OR, mask);
 }
 
-static inline void hal_cl_eu_evt_mask_clear(uint32_t mask)
+static inline void hal_cl_eu_event_mask_clear(uint32_t mask)
 {
-    //cl_demux_eu_core(0)->event_mask_and = mask;
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_CORE_EVENT_MASK_AND), mask);
+    GAP_WRITE(base, CL_DEMUX_EU_CORE_EVENT_MASK_AND, mask);
 }
 
 static inline void hal_cl_eu_irq_mask_set(uint32_t mask)
 {
-    //cl_demux_eu_core(0)->irq_mask_or = mask;
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_CORE_IRQ_MASK_OR), mask);
+    GAP_WRITE(base, CL_DEMUX_EU_CORE_IRQ_MASK_OR, mask);
 }
 
 static inline void hal_cl_eu_irq_mask_clear(uint32_t mask)
 {
-    //cl_demux_eu_core(0)->irq_mask_and = mask;
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_CORE_IRQ_MASK_AND), mask);
+    GAP_WRITE(base, CL_DEMUX_EU_CORE_IRQ_MASK_AND, mask);
 }
 
 /**
@@ -113,7 +107,7 @@ static inline void hal_cl_eu_irq_mask_clear(uint32_t mask)
  * \note This register is actually used as a status register for both events and
  *       interrupts, so clearing one will clear the other.
  */
-static inline uint32_t hal_cl_eu_evt_irq_status(void)
+static inline uint32_t hal_cl_eu_event_irq_status(void)
 {
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
     return hal_eu_read32(base, CL_DEMUX_EU_CORE_BUFFER);
@@ -129,7 +123,7 @@ static inline uint32_t hal_cl_eu_evt_irq_status(void)
  *
  * \return               Events received.
  */
-static inline uint32_t hal_cl_eu_evt_status(void)
+static inline uint32_t hal_cl_eu_event_status(void)
 {
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
     return hal_eu_read32(base, CL_DEMUX_EU_CORE_BUFFER_MASKED);
@@ -158,10 +152,10 @@ static inline uint32_t hal_cl_eu_irq_status(void)
  * If the corresponding event line is active in the same cycle where the clear
  * operation gets effective, the bit still does get cleared to 0.
  */
-static inline void hal_cl_eu_evt_clear(uint32_t mask)
+static inline void hal_cl_eu_event_clear(uint32_t mask)
 {
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_CORE_BUFFER_CLEAR), mask);
+    GAP_WRITE(base, CL_DEMUX_EU_CORE_BUFFER_CLEAR, mask);
 }
 
 /**
@@ -173,14 +167,14 @@ static inline void hal_cl_eu_evt_clear(uint32_t mask)
  *
  * \return               Events received.
  */
-static inline uint32_t hal_cl_eu_evt_wait(void)
+static inline uint32_t hal_cl_eu_event_wait(void)
 {
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
     return hal_eu_read32(base, CL_DEMUX_EU_CORE_EVENT_WAIT);
 }
 
 /**
- * \brief Wait and sleep.
+ * \brief Wait and sleep, and clear event.
  *
  * Reading from this register has the same effect as reading from eu_core_event_wait.
  * In addition, the bits of eu_core_buffer that are set to 1 in eu_core_mask
@@ -188,33 +182,78 @@ static inline uint32_t hal_cl_eu_evt_wait(void)
  *
  * \return               Events received.
  */
-static inline uint32_t hal_cl_eu_evt_wait_and_clear(void)
+static inline uint32_t hal_cl_eu_event_wait_and_clear(void)
 {
     uint32_t base = (uint32_t) cl_demux_eu_core(0);
     return hal_eu_read32(base, CL_DEMUX_EU_CORE_EVENT_WAIT_CLEAR);
 }
 
-static inline void hal_cl_eu_evt_mask_wait(uint32_t event_mask)
+/**
+ * \brief Wait and sleep.
+ *
+ * Modify the event mask, put the core to sleep mode until it receives an event,
+ * clears the active events and restore the mask.
+ * This is similar to hal_cl_eu_evt_wait() but the events whose bit is set to 1
+ * in the given mask, are activated in the event mask before going to sleep, and
+ * are cleared when the core is waken-up.
+ *
+ * \param event_mask     Event mask used for activating and deactivating events.
+ *
+ * \return               Events received.
+ */
+static inline uint32_t hal_cl_eu_event_mask_wait(uint32_t event_mask)
 {
-    hal_cl_eu_evt_mask_set(event_mask);
-    uint32_t result = 0;
-    do
-    {
-        result = hal_cl_eu_evt_wait();
-    } while ((result & event_mask) == 0);
-    hal_cl_eu_evt_mask_clear(event_mask);
+    hal_cl_eu_event_mask_set(event_mask);
+    uint32_t result = hal_cl_eu_event_wait();
+    hal_cl_eu_event_mask_clear(event_mask);
+    return result;
 }
 
-static inline void hal_cl_eu_evt_mask_wait_clear(uint32_t event_mask)
+/**
+ * \brief Wait and sleep, and clear event.
+ *
+ * Modify the event mask, put the core to sleep mode until it receives an event,
+ * clears the active events and restore the mask.
+ * This is similar to hal_cl_eu_evt_wait_and_clear() but the events whose bit is set to 1
+ * in the given mask, are activated in the event mask before going to sleep, and
+ * are cleared when the core is waken-up.
+ *
+ * \param event_mask     Event mask used for activating and deactivating events.
+ *
+ * \return               Events received.
+ */
+static inline uint32_t hal_cl_eu_event_mask_wait_and_clear(uint32_t event_mask)
 {
-    hal_cl_eu_evt_mask_set(event_mask);
-    uint32_t result = 0;
-    do
-    {
-        result = hal_cl_eu_evt_wait();
-    } while ((result & event_mask) == 0);
-    hal_cl_eu_evt_clear(event_mask);
-    hal_cl_eu_evt_mask_clear(event_mask);
+    hal_cl_eu_event_mask_set(event_mask);
+    uint32_t result = hal_cl_eu_event_wait_and_clear();
+    hal_cl_eu_event_mask_clear(event_mask);
+    return result;
+}
+/* Compat. */
+#define hal_eu_evt_mask_wait_and_clr hal_cl_eu_event_mask_wait_and_clear
+
+
+/**
+ * \brief EU_SW_Trig.
+ *
+ * Functions to use to trigger a SW IRQ from FC to cluster.
+ *
+ * Trigger a SW IRQ to cores of a given cluster.
+ */
+static inline void hal_cl_eu_glob_sw_event_trigger(uint32_t cluster_id,
+                                                   uint32_t sw_event,
+                                                   uint32_t core_mask)
+{
+    uint32_t base = (uint32_t) cl_glob_eu_sw_evt(cluster_id);
+    GAP_WRITE(base, CL_DEMUX_EU_SW_EVT_TRIGGER + (sw_event << 2), core_mask);
+}
+/* Compat. */
+#define hal_eu_cluster_evt_trig_set(event_num, val) hal_cl_eu_glob_sw_event_trigger(0, event_num, val)
+
+static inline void hal_cl_eu_sw_event_trigger(uint32_t sw_event, uint32_t core_mask)
+{
+    uint32_t base = (uint32_t) cl_demux_eu_sw_evt(0);
+    GAP_WRITE(base, CL_DEMUX_EU_SW_EVT_TRIGGER + (sw_event << 2), core_mask);
 }
 
 
@@ -230,23 +269,20 @@ static inline void hal_cl_eu_evt_mask_wait_clear(uint32_t event_mask)
  */
 static inline void hal_cl_eu_dispatch_fifo_push(uint32_t message)
 {
-    //cl_demux_eu_dispatch(0)->fifo_access = elem;
     uint32_t base = (uint32_t) cl_demux_eu_dispatch(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_DISPATCH_FIFO_ACCESS), message);
+    GAP_WRITE(base, CL_DEMUX_EU_DISPATCH_FIFO_ACCESS, message);
 }
 
 static inline uint32_t hal_cl_eu_dispatch_fifo_pop(void)
 {
-    //cl_demux_eu_dispatch(0)->fifo_access = elem;
     uint32_t base = (uint32_t) cl_demux_eu_dispatch(0);
-    return hal_read32((volatile void *) (base + CL_DEMUX_EU_DISPATCH_FIFO_ACCESS));
+    return GAP_READ(base, CL_DEMUX_EU_DISPATCH_FIFO_ACCESS);
 }
 
 static inline void hal_cl_eu_dispatch_team_config(uint32_t team_mask)
 {
-    //cl_demux_eu_dispatch(0)->team_config = team_mask;
     uint32_t base = (uint32_t) cl_demux_eu_dispatch(0);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_DISPATCH_TEAM_CONFIG), team_mask);
+    GAP_WRITE(base, CL_DEMUX_EU_DISPATCH_TEAM_CONFIG, team_mask);
 }
 
 
@@ -263,38 +299,22 @@ static inline void hal_cl_eu_mutex_init(uint32_t mutex_id)
 {
     uint32_t base = (uint32_t) cl_demux_eu_mutex(mutex_id);
     hal_compiler_barrier();
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_MUTEX_MUTEX), 0);
+    GAP_WRITE(base, CL_DEMUX_EU_HW_MUTEX_MUTEX, 0);
     hal_compiler_barrier();
 }
 
 static inline void hal_cl_eu_mutex_lock(uint32_t mutex_id)
 {
     uint32_t base = (uint32_t) cl_demux_eu_mutex(mutex_id);
-    hal_eu_read32(base, CL_DEMUX_EU_MUTEX_MUTEX);
+    hal_eu_read32(base, CL_DEMUX_EU_HW_MUTEX_MUTEX);
 }
 
 static inline void hal_cl_eu_mutex_unlock(uint32_t mutex_id)
 {
     uint32_t base = (uint32_t) cl_demux_eu_mutex(mutex_id);
     hal_compiler_barrier();
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_MUTEX_MUTEX), 0);
+    GAP_WRITE(base, CL_DEMUX_EU_HW_MUTEX_MUTEX, 0);
     hal_compiler_barrier();
-}
-
-
-/**
- * \brief EU_SW_Trig.
- *
- * Functions to use to trigger a SW IRQ from FC to cluster.
- *
- * Trigger a SW IRQ to cores of a given cluster.
- */
-static inline void hal_cl_eu_glob_sw_trig(uint32_t cluster_id, uint32_t sw_event,
-                                          uint32_t core_mask)
-{
-    uint32_t base = (uint32_t) cl_glob_eu_sw_evt(cluster_id);
-    uint32_t offset = (CL_DEMUX_EU_SW_EVT_TRIGGER + (sw_event << 2));
-    hal_write32((volatile void *) (base + offset), core_mask);
 }
 
 
@@ -310,48 +330,51 @@ static inline void hal_cl_eu_glob_sw_trig(uint32_t cluster_id, uint32_t sw_event
  * Trigger barrier with core_id of core calling func and sleep.
  * Trigger barrier with core_id of core calling func and sleep and clear buffer.
  */
-static inline void hal_cl_eu_barrier_setup(uint32_t barrier_id, uint32_t core_mask)
+static inline uint32_t hal_cl_eu_barrier_addr_get(uint32_t barrier_id)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK), core_mask);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_HW_BARRIER_TARGET_MASK), core_mask);
+    return (uint32_t) cl_demux_eu_barrier(barrier_id);
 }
 
-static inline uint32_t hal_cl_eu_barrier_team_get(uint32_t barrier_id)
+static inline uint32_t hal_cl_eu_barrier_id_get(uint32_t bar_addr)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    uint32_t team_mask = hal_read32((volatile void *) (base + CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK));
+    return CL_DEMUX_EU_HW_BARRIER_ID_GET(bar_addr);
+}
+
+static inline void hal_cl_eu_barrier_setup(uint32_t bar_addr, uint32_t core_mask)
+{
+    GAP_WRITE(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK, core_mask);
+    GAP_WRITE(bar_addr, CL_DEMUX_EU_HW_BARRIER_TARGET_MASK, core_mask);
+}
+
+static inline uint32_t hal_cl_eu_barrier_team_get(uint32_t bar_addr)
+{
+    uint32_t team_mask = GAP_READ(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK);
     return team_mask;
 }
 
-static inline uint32_t hal_cl_eu_barrier_status(uint32_t barrier_id)
+static inline uint32_t hal_cl_eu_barrier_status(uint32_t bar_addr)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    return hal_eu_read32(base, CL_DEMUX_EU_HW_BARRIER_STATUS);
+    return hal_eu_read32(bar_addr, CL_DEMUX_EU_HW_BARRIER_STATUS);
 }
 
-static inline void hal_cl_eu_barrier_trigger(uint32_t barrier_id, uint32_t core_mask)
+static inline void hal_cl_eu_barrier_trigger(uint32_t bar_addr, uint32_t core_mask)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    hal_write32((volatile void *) (base + CL_DEMUX_EU_HW_BARRIER_TRIGGER), core_mask);
+    GAP_WRITE(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER, core_mask);
 }
 
-static inline uint32_t hal_cl_eu_barrier_trigger_self(uint32_t barrier_id)
+static inline uint32_t hal_cl_eu_barrier_trigger_self(uint32_t bar_addr)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    return hal_eu_read32(base, CL_DEMUX_EU_HW_BARRIER_TRIGGER_SELF);
+    return hal_eu_read32(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER_SELF);
 }
 
-static inline uint32_t hal_cl_eu_barrier_trigger_wait(uint32_t barrier_id)
+static inline uint32_t hal_cl_eu_barrier_trigger_wait(uint32_t bar_addr)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    return hal_eu_read32(base, CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT);
+    return hal_eu_read32(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT);
 }
 
-static inline uint32_t hal_cl_eu_barrier_trigger_wait_clear(uint32_t barrier_id)
+static inline uint32_t hal_cl_eu_barrier_trigger_wait_clear(uint32_t bar_addr)
 {
-    uint32_t base = (uint32_t) cl_demux_eu_barrier(barrier_id);
-    return hal_eu_read32(base, CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT_CLEAR);
+    return hal_eu_read32(bar_addr, CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT_CLEAR);
 }
 
 #endif  /* __PMSIS_IMPLEM_HAL_CLUSTER_CLUSTER_EVENT_UNIT_H__ */

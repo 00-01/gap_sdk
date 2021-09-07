@@ -96,6 +96,8 @@ static unsigned short int ExpCoeffLUT[] = {
 
 static inline uint32 sqrt_17_15_internal(uint32 x)
 {
+	if (!x)
+		return 0;
 	unsigned int exponent, y, result, z;
 
 	exponent = (unsigned int) gap_clb ((int) x);
@@ -126,8 +128,6 @@ uint32 sqrt_17_15(uint32 x)
 
 uint32 usqrt_17_15(uint32 x)
 {
-	if (!x)
-		return 0;
 	return sqrt_17_15_internal(x);
 }
 

@@ -15,11 +15,12 @@
 
 import numpy as np
 from bfloat16 import bfloat16
+from quantization.qtype import DTYPE_GAP_CTYPE
 from scipy.special import expit
 
 from .function import Function
-from .symbol import (DTYPES_TO_CTYPES, Constant, Rational, c_headers,
-                     environment, handles, handlesr, nargs)
+from .symbol import (Constant, Rational, c_headers, environment, handles,
+                     handlesr, nargs)
 
 
 @nargs(2)
@@ -157,6 +158,7 @@ class Pos(Function):
         return args[0]
 
 @nargs(1)
+@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
 class Abs(Function):
 
     def _impl(self, *args, **kwargs):
@@ -166,7 +168,7 @@ class Abs(Function):
         return "np.abs(%s)" % args[0]
 
     def _c_expr(self, *args, **kwargs):
-        return "fabs(%s)" % (args[0])
+        return "AbsF(%s)" % (args[0])
 
 @c_headers('"Gap.h"')
 class GapAbs(Abs):
@@ -202,7 +204,7 @@ class Ceil(Function):
 
 
 @nargs(2)
-@c_headers('<math.h>')
+@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
 class Max(Function):
 
     def _impl(self, *args, **kwargs):
@@ -212,7 +214,7 @@ class Max(Function):
         return "np.maximum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"fmax(({args[0]}),({args[1]}))"
+        return f"MaxF(({args[0]}),({args[1]}))"
 
 @c_headers('"Gap.h"')
 class GapMax(Max):
@@ -221,7 +223,7 @@ class GapMax(Max):
 
 
 @nargs(2)
-@c_headers('<math.h>')
+@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
 class Min(Function):
 
     def _impl(self, *args, **kwargs):
@@ -231,7 +233,7 @@ class Min(Function):
         return "np.minimum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"fmin(({args[0]}),({args[1]}))"
+        return f"MinF(({args[0]}),({args[1]}))"
 
 @c_headers('"Gap.h"')
 class GapMin(Min):
@@ -310,10 +312,10 @@ class Pow(Function):
     def _impl(self, *args, **kwargs):
         if any(b < 0 and e < 1 for b, e in np.broadcast(*args)):
             raise ValueError('fractional powers are being passed to a negative base for Pow operator')
-        return np.float_power(args[0], args[1])
+        return np.power(args[0], args[1])
 
     def _py_expr(self, *args, **kwargs):
-        return "np.float_power(%s, %s)" % (args[0], args[1])
+        return f"np.power({args[0]}, {args[1]})"
 
     def _c_expr(self, *args, **kwargs):
         return f"pow(({args[0]}), ({args[1]}))"
@@ -380,7 +382,7 @@ class Cast(Function):
         return "(%s).astype(np.%s)" % (args[0], self.dtype.__name__)
 
     def _c_expr(self, *args, **kwargs):
-        return "((%s)%s)" % (DTYPES_TO_CTYPES[self._cast_dtype], args[0])
+        return "((%s)%s)" % (DTYPE_GAP_CTYPE[self._cast_dtype], args[0])
 
     def __repr__(self) -> str:
         return "Cast(%s, %s)"%(self.contents[0], self._cast_dtype.__name__)

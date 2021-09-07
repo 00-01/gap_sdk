@@ -11,20 +11,14 @@
 #define PRINTF(...) ((void) 0)
 #endif
 
-// spinlock left at the disposal of the os to synchronise printfs with cluster
-spinlock_t cluster_printf_spinlock;
-
 // ----------------------------------
 // Need to be rewritten with OS agnostic symbols
 extern char  __l1_preload_start;
 extern char  __l1_preload_start_inL2;
 extern char  __l1_preload_size;
 
-extern char  __l1FcShared_start;
-extern char  __l1FcShared_size;
-
-extern char  __heapsram_start;
-extern char  __heapsram_size;
+extern char  __l1_heapsram_start;
+extern char  __l1_heapsram_size;
 // ----------------------------------
 
 PI_L1 pi_cl_dma_cmd_t *fifo_first;
@@ -153,8 +147,8 @@ int pi_cluster_open(struct pi_device *device)
     PRINTF("near start: device->config=%p\n",device->config);
     PRINTF("near start: _conf:=%p, device->config->heap_start=%p\n",_conf, _conf->heap_start);
 
-    _conf->heap_start = (void*)&__heapsram_start;
-    _conf->heap_size = (uint32_t)&__heapsram_size;
+    _conf->heap_start = (void*)&__l1_heapsram_start;
+    _conf->heap_size = (uint32_t)&__l1_heapsram_size;
 
     __cluster_start(device);
     mc_fc_delegate_init(NULL);
@@ -307,6 +301,7 @@ static inline void __cluster_free_device_event_func(void *arg)
     //free(device, sizeof(struct pi_device));
 }
 
+extern void reset_handler();
 static inline void __cluster_start(struct pi_device *device)
 {
     PRINTF("__cluster_start: device=%p\n",device);
@@ -319,29 +314,35 @@ static inline void __cluster_start(struct pi_device *device)
     {
         /* Turn cluster power on. */
         __pi_pmu_cluster_power_on();
+        //pi_pmu_power_domain_change(PI_PMU_DOMAIN_CL, PI_PMU_DOMAIN_STATE_ON, 0);
         PRINTF("poweron is done\n");
 
         uint32_t nb_cl_cores = pi_cl_cluster_nb_cores();
-        for (uint32_t core_id = 0; core_id < nb_cl_cores; core_id++)
+        /* Disable cluster CG. */
+        hal_cl_ctrl_clock_gate_enable(ARCHI_CL_CID(0));
+
+        for (uint32_t i = 0; i < pi_cl_cluster_nb_pe_cores(); i++)
         {
-            extern uint8_t __irq_vector_base_m__;
-            hal_cl_ctrl_boot_addr_set(ARCHI_CL_CID(0), core_id, (uint32_t) &__irq_vector_base_m__);
+            hal_cl_ctrl_boot_addr_set(ARCHI_CL_CID(0), i, (uint32_t) reset_handler);
         }
-        hal_cl_ctrl_fetch_enable(ARCHI_CL_CID(0), nb_cl_cores);
+        /* CLuster master core. */
+        hal_cl_ctrl_boot_addr_set(ARCHI_CL_CID(0), ARCHI_CLUSTER_MASTER_CORE,
+                                  (uint32_t) reset_handler);
+        /* Enable cluster icache and fetch. */
+        hal_cl_ctrl_fetch_mask_enable(ARCHI_CL_CID(0), (1 << nb_cl_cores) - 1);
         hal_cl_icache_enable(ARCHI_CL_CID(0));
 
-        /* In case the chip does not support L1 preloading, the initial L1 data are in L2, we need to copy them to L1 */
-        memcpy((char *)GAP_CLUSTER_TINY_DATA(0, (int)&__l1_preload_start), &__l1_preload_start_inL2, (size_t)&__l1_preload_size);
-
-        /* Copy the FC / clusters shared data as the linker can only put it in one section (the cluster one) */
-        memcpy((char *)GAP_CLUSTER_TINY_DATA(0, (int)&__l1FcShared_start), &__l1FcShared_start, (size_t)&__l1FcShared_size);
+        /*
+         * In case the chip does not support L1 preloading,
+         * the initial L1 data are in L2, we need to copy them to L1.
+         */
+        memcpy((char *) &__l1_preload_start, &__l1_preload_start_inL2, (size_t)&__l1_preload_size);
 
         PRINTF("conf:%p, heap_start:%p, heap_size:%lx\n",conf, conf->heap_start, conf->heap_size);
-        pmsis_l1_malloc_init(conf->heap_start,conf->heap_size);
+        pi_cl_l1_malloc_init(conf->heap_start, conf->heap_size);
 
         int32_t *lock_addr = pmsis_l1_malloc(sizeof(int32_t));
         cl_sync_init_spinlock(&data->fifo_access, lock_addr);
-        cl_sync_init_spinlock(&cluster_printf_spinlock, pmsis_l1_malloc(sizeof(uint32_t)));
     }
     data->cluster_is_on++;
     pmsis_mutex_release(&data->powerstate_mutex);
@@ -364,6 +365,7 @@ static inline int __cluster_stop(struct pi_device *device)
 
         /* Turn cluster power off. */
         __pi_pmu_cluster_power_off();
+        //pi_pmu_power_domain_change(PI_PMU_DOMAIN_CL, PI_PMU_DOMAIN_STATE_OFF, 0);
     }
     pmsis_mutex_release(&data->powerstate_mutex);
     return data->cluster_is_on;
@@ -451,12 +453,14 @@ static inline int __pi_send_task_to_cl(struct pi_device *device, struct pi_clust
 
     if (task->nb_cores == 0)
     {
-        task->nb_cores = (uint32_t) pi_cl_cluster_nb_pe_cores();
+        task->nb_cores = (uint32_t) pi_cl_cluster_nb_pe_cores() + 1;
     }
-    task->cluster_team_mask = ((1 << task->nb_cores) - 1);
-    //task->nb_cores = task->nb_cores ? task->nb_cores : ARCHI_CLUSTER_NB_PE;
+    task->cluster_team_mask = ((1 << (task->nb_cores - 1)) - 1);
+    task->cluster_team_mask &= ~(1 << ARCHI_CLUSTER_MASTER_CORE); /* Remove master core from team. */
 
-    PRINTF("task->nb_cores:%lx\n", task->nb_cores);
+    uint32_t team_nb_cores = 0;
+    asm volatile("p.cnt %0, %1" : "=r"(team_nb_cores) : "r"(task->cluster_team_mask));
+    PRINTF("task->nb_cores=%ld, team_nb_cores=%ld\n", task->nb_cores, team_nb_cores);
 
     if (task->stacks == NULL)
     {
@@ -468,7 +472,7 @@ static inline int __pi_send_task_to_cl(struct pi_device *device, struct pi_clust
         {
             task->slave_stack_size = (uint32_t) CL_SLAVE_CORE_STACK_SIZE;
         }
-        uint32_t stack_size = task->slave_stack_size * ((uint32_t) ARCHI_CLUSTER_NB_PE - 1);
+        uint32_t stack_size = task->slave_stack_size * team_nb_cores;
         stack_size += task->stack_size;
         task->stacks = pi_cl_l1_malloc(NULL, stack_size);
         PRINTF("Malloc stack %p %d\n", task->stacks, stack_size);

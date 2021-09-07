@@ -210,7 +210,8 @@ static inline uint32_t hal_udma_uart_error_get(uint32_t device_id)
 /** IRQ_EN. */
 static inline void hal_udma_uart_irq_enable(uint32_t device_id)
 {
-    uint32_t irq = UART_IRQ_EN_RX_MASK | UART_IRQ_EN_ERROR_MASK;
+    //uint32_t irq = UART_IRQ_EN_RX_MASK | UART_IRQ_EN_ERROR_MASK;
+    uint32_t irq = UART_IRQ_EN_ERROR_MASK;
     uart_irq_en_set(device_id, irq);
 }
 

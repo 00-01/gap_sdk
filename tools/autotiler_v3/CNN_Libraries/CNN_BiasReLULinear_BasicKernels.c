@@ -51,7 +51,7 @@ unsigned short int SIGMOID_ACT_LUT_uint16[256] = {
 #define NEAREST
 #endif
 
-int SigmoidLUT(int x){
+static int SigmoidLUT(int x){
 	/* Input x: Q12 [-8:8] range
 
 	   Output y = sig(x) -> Q15
@@ -1209,6 +1209,7 @@ void KerDPLinearLayerReduct_fp(KerDPLinearLayerReduct_fp_T *Arg)
 	int Norm = Arg->Norm;
 	int NormOut = (int) Arg->UB;
 	int Acc = Arg->Bias[0]<<Arg->NormBias;
+
 	for (int i=0; i<gap_ncore(); i++) Acc += In[i];
 	switch (Arg->Oper) {
 		case KACT_HSIGMOID:
@@ -1349,7 +1350,7 @@ void KerParLinearLayerReLU_fp(KerLinearLayerReLU_fp_T *Arg)
 			Acc = gap_sumdotp2(VectIn[2*j], Filt[2*j], Acc);
 			Acc = gap_sumdotp2(VectIn[2*j+1], Filt[2*j+1], Acc);
 		}
-		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2], Filt[InSize/2], Acc);
+		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2-1], Filt[InSize/2-1], Acc);
 		if (InSize&0x1) Acc += In[InSize-1]*Filter[i*InSize+InSize-1];
 		Out[i] = Min(Max(AT_NORM(Acc, Norm), LB), UB);
 	}
@@ -1394,7 +1395,7 @@ void KerParLinearLayerHswish_fp(KerLinearLayerReLU_fp_T *Arg)
 			Acc = gap_sumdotp2(VectIn[2*j], Filt[2*j], Acc);
 			Acc = gap_sumdotp2(VectIn[2*j+1], Filt[2*j+1], Acc);
 		}
-		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2], Filt[InSize/2], Acc);
+		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2-1], Filt[InSize/2-1], Acc);
 		if (InSize&0x1) Acc += In[InSize-1]*Filter[i*InSize+InSize-1];
 		/* Out = (In * ReLU6(In + 3)) / 6 */
 		Acc = AT_NORM(Acc, Norm);
@@ -1441,7 +1442,7 @@ void KerParLinearLayerHsigmoid_fp(KerLinearLayerReLU_fp_T *Arg)
 			Acc = gap_sumdotp2(VectIn[2*j], Filt[2*j], Acc);
 			Acc = gap_sumdotp2(VectIn[2*j+1], Filt[2*j+1], Acc);
 		}
-		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2], Filt[InSize/2], Acc);
+		if (InSize&0x2) Acc = gap_sumdotp2(VectIn[InSize/2-1], Filt[InSize/2-1], Acc);
 		if (InSize&0x1) Acc += In[InSize-1]*Filter[i*InSize+InSize-1];
 
 		Acc = gap_max(0, gap_min(AT_NORM(Acc, Norm)+C1, UB));
@@ -1997,7 +1998,7 @@ static void KerReductIO_Compact_fps(char *__restrict__ To, char *__restrict__ Fr
         }
 }
 
-static void KerReductIO_Compact_fp(short int *__restrict__ To, short int *__restrict__ From, int Size, int TotalSize)
+static void KerReductIO_Compact_fp(char *__restrict__ To, char *__restrict__ From, int Size, int TotalSize)
 
 {
         unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
@@ -2007,12 +2008,11 @@ static void KerReductIO_Compact_fp(short int *__restrict__ To, short int *__rest
                 From += Size*2; To += Size;
 
                 int *pFrom = (int *) (From+First), *pTo = (int *) (To+First);
-                for (int j=0; j<Iter/4; j++) {
+                for (int j=0; j<Iter/8; j++) {
                         int V0 = pFrom[2*j], V1 = pFrom[2*j+1];
                         pTo[2*j] = V0; pTo[2*j+1] = V1;
                 }
-				//This first should not happen with shorts
-                //if (Iter & 0x4) *((int *) (To + First + B_CLR(Iter, 3))) = *((int *) (From + First + B_CLR(Iter, 3)));
+                if (Iter & 0x4) *((int *) (To + First + B_CLR(Iter, 3))) = *((int *) (From + First + B_CLR(Iter, 3)));
                 if (Iter & 0x2) *((short int *) (To + First + B_CLR(Iter, 2))) = *((short int *) (From + First + B_CLR(Iter, 2)));
                 if (Iter & 0x1) *((signed char *) (To + First + Iter - 1)) = *((signed char *) (From + First + Iter - 1));
                 gap_waitbarrier(0);
@@ -2055,25 +2055,7 @@ void KerDP_IO_fp(KerDP_fp_T *Arg)
 	gap_waitbarrier(0);
 	/* Now this is the reduction phase */
 
-	KerReductIO_Compact_fp((short int *__restrict__)In, (short int *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
+	KerReductIO_Compact_fp((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
 }
 
 void KerDP_IO_hsigmoid_fp(KerDP_fp_T *Arg)
@@ -2120,25 +2102,7 @@ void KerDP_IO_hsigmoid_fp(KerDP_fp_T *Arg)
 	gap_waitbarrier(0);
 	/* Now this is the reduction phase */
 
-	KerReductIO_Compact_fp((short int *__restrict__)In, (short int *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
+	KerReductIO_Compact_fp((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
 }
 
 void KerDP_IO_sigmoid_fp(KerDP_fp_T *Arg)
@@ -2243,25 +2207,7 @@ void KerDP_IO_hswish_fp(KerDP_fp_T *Arg)
 	gap_waitbarrier(0);
 	/* Now this is the reduction phase */
 
-	KerReductIO_Compact_fp((short int *__restrict__)In, (short int *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
+	KerReductIO_Compact_fp((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
 }
 
 void KerDP_IO_leakyrelu_fp(KerDP_fp_T *Arg)
@@ -2300,25 +2246,7 @@ void KerDP_IO_leakyrelu_fp(KerDP_fp_T *Arg)
 	gap_waitbarrier(0);
 	/* Now this is the reduction phase */
 
-	KerReductIO_Compact_fp((short int *__restrict__)In, (short int *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
+	KerReductIO_Compact_fp((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
 }
 
 void KerDPMulBiasScalar_IO_fp(KerDP_fp_T *Arg)
@@ -2360,25 +2288,7 @@ void KerDPMulBiasScalar_IO_fp(KerDP_fp_T *Arg)
 	gap_waitbarrier(0);
 	/* Now this is the reduction phase */
 
-	KerReductIO_Compact_fp((short int *__restrict__)In, (short int *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
+	KerReductIO_Compact_fp((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
 }
 
 void KerDPMulBias_IO_fp(KerDP_fp_T *Arg)
@@ -2423,25 +2333,6 @@ void KerDPMulBias_IO_fp(KerDP_fp_T *Arg)
 	/* Now this is the reduction phase */
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, S*ChunkCell, S*Feat);
-#if 0
-	ChunkCell *= S;
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			short int *__restrict__ OOs = ((short int *)In+(A*CoreId+B)*ChunkCell);
-			short int *__restrict__ IIs = ((short int *)In+(2*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<(Size/4);i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/4)*4); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 
 void KerDP_fps(KerDP_fps_T *Arg)
@@ -2884,24 +2775,6 @@ void KerDP_IO_hsigmoid_fps(KerDP_fps_T *Arg)
 	gap_waitbarrier(0);
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			signed char *__restrict__ OOs = ((signed char *)In+(A*CoreId+B)*ChunkCell);
-			signed char *__restrict__ IIs = ((signed char *)In+((sizeof(DP_fps_T)/sizeof(signed char))*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<Size/8;i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/8)*8); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 
 void KerDP_IO_sigmoid_fps(KerDP_fps_T *Arg)
@@ -2960,24 +2833,6 @@ void KerDP_IO_sigmoid_fps(KerDP_fps_T *Arg)
 	gap_waitbarrier(0);
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			signed char *__restrict__ OOs = ((signed char *)In+(A*CoreId+B)*ChunkCell);
-			signed char *__restrict__ IIs = ((signed char *)In+((sizeof(DP_fps_T)/sizeof(signed char))*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<Size/8;i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/8)*8); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 
 void KerDP_IO_leakyrelu_fps(KerDP_fps_T *Arg)
@@ -3016,24 +2871,6 @@ void KerDP_IO_leakyrelu_fps(KerDP_fps_T *Arg)
 	gap_waitbarrier(0);
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			signed char *__restrict__ OOs = ((signed char *)In+(A*CoreId+B)*ChunkCell);
-			signed char *__restrict__ IIs = ((signed char *)In+((sizeof(DP_fps_T)/sizeof(signed char))*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<Size/8;i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/8)*8); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 
 void KerDPMulBiasScalar_IO_fps(KerDP_fps_T *Arg)
@@ -3076,24 +2913,6 @@ void KerDPMulBiasScalar_IO_fps(KerDP_fps_T *Arg)
 	gap_waitbarrier(0);
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, ChunkCell, S);
-#if 0
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			signed char *__restrict__ OOs = ((signed char *)In+(A*CoreId+B)*ChunkCell);
-			signed char *__restrict__ IIs = ((signed char *)In+((sizeof(DP_fps_T)/sizeof(signed char))*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<Size/8;i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/8)*8); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 
 void KerDPMulBias_IO_fps(KerDP_fps_T *Arg)
@@ -3139,24 +2958,5 @@ void KerDPMulBias_IO_fps(KerDP_fps_T *Arg)
 	gap_waitbarrier(0);
 
 	KerReductIO_Compact_fps((signed char *__restrict__)In, (signed char *__restrict__)In, Size*ChunkCell, Size*S);
-#if 0
-	ChunkCell *= Size;
-	U = gap_ncore()/2; Log2Core = gap_fl1(gap_ncore()); A = 2; B = 1;
-	for (k=0; k<Log2Core; k++) {
-		if (CoreId<U) {
-			signed char *__restrict__ OOs = ((signed char *)In+(A*CoreId+B)*ChunkCell);
-			signed char *__restrict__ IIs = ((signed char *)In+((sizeof(DP_fps_T)/sizeof(signed char))*(A*CoreId+B))*ChunkCell);
-			int *__restrict__ II = (int *) IIs;
-			int *__restrict__ OO = (int *) OOs;
-			for (i=0;i<Size/8;i++) {
-				int V0 = II[2*i], V1 = II[2*i+1];
-				OO[2*i] = V0; OO[2*i+1] = V1;
-			}
-			for (i=((Size/8)*8); i<Size; i++) OOs[i] = IIs[i];
-		}
-		U = U/2; A = A*2; B = B*2;
-		gap_waitbarrier(0);
-	}
-#endif
 }
 #pragma GCC diagnostic pop

@@ -43,12 +43,9 @@
 #ifndef __PMSIS_TARGETS_H__
 #define __PMSIS_TARGETS_H__
 
-#include "pmsis/targets/vega_periph.h"
-#include "cores/TARGET_RISCV_32/core_gap.h"
-#include "cores/TARGET_RISCV_32/core_gap_cluster.h"
-#include "cores/TARGET_RISCV_32/core_utils.h"
 /* Include builtins accessors. */
 #include "periph/gap_utils.h"
+#include "pmsis/targets/vega_periph.h"
 
 /**
  *  Compiler barriers: essential to make sure that read/writes are all flushed
@@ -133,7 +130,7 @@ static inline uint32_t pi_cl_cluster_nb_pe_cores(void)
 
 static inline int pi_cl_cluster_nb_cores()
 {
-    return __builtin_pulp_CoreCount();
+    return __builtin_pulp_CoreCount() + 1;
 }
 
 /*******************************************************************************
@@ -147,10 +144,13 @@ static inline int pi_cl_cluster_nb_cores()
  */
 
 // PULP OS
-#define pulp_read32        hal_read32
-#define pulp_write32       hal_write32
+#define pulp_read32                     hal_read32
+#define pulp_write32                    hal_write32
 
 #define hal_itc_wait_for_event_noirq    hal_itc_wait_for_event_no_irq
 #define hal_itc_wait_for_event          hal_itc_wait_for_event_no_irq
+
+#define archi_write32(addr, value)      hal_write32((volatile void *) (addr), (uint32_t) (value))
+#define archi_read32(addr)              hal_read32((volatile void *) (addr))
 
 #endif  /* __PMSIS_TARGETS_H__ */

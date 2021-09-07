@@ -17,6 +17,10 @@
 #ifndef __PMSIS_CHIPS_VEGA_PMU_H__
 #define __PMSIS_CHIPS_VEGA_PMU_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * \ingroup groupChips
  */
@@ -64,4 +68,7 @@ typedef enum
  * \}
  */
 
+#ifdef __cplusplus
+}
+#endif
 #endif  /* __PMSIS_CHIPS_VEGA_PAD_H__ */

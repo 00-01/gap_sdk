@@ -49,7 +49,7 @@
 /* Maximum Log2(Multiplier) */
 #define LOG2_MAXM       (LOG2_MAXDCO - LOG2_REFCLK)
 
-#define FLL_REF_CLK (1<<LOG2_REFCLK)
+#define FLL_REF_CLK     (1 << LOG2_REFCLK)
 
 /*******************************************************************************
  * Driver data
@@ -66,13 +66,13 @@ static pi_freq_cb_t *g_freq_cb = NULL;
 static uint32_t __pi_fll_mult_div_from_frequency_get(uint32_t freq, uint32_t *mult,
                                                      uint32_t *div)
 {
-    unsigned int fref = 1 << LOG2_REFCLK;
-    unsigned int Log2M = __FL1(freq) - __FL1(fref);
+    uint32_t fref = (uint32_t) FLL_REF_CLK;
+    uint32_t Log2M = __FL1(freq) - __FL1(fref);
     uint32_t D =  __MAX(1, (LOG2_MAXM - Log2M)>>1);
-    uint32_t M = (freq<<D)/fref;
+    uint32_t M = ((freq << D) / fref);
     *mult = M;
-    *div  = D;
-    uint32_t fres = (((FLL_REF_CLK)*M) / (1 << (D-1)));//(M << (LOG2_REFCLK - (D-1)));
+    *div  = (D + 1);
+    uint32_t fres = (((fref * M) + (1 << (D - 1))) >> D); /* Rounding. */
     //printf("Set freq: mult=%lx, div=%lx, real_freq=%ld, freq=%ld\n", *mult, *div, fres, freq);
     return fres;
 }
@@ -80,8 +80,8 @@ static uint32_t __pi_fll_mult_div_from_frequency_get(uint32_t freq, uint32_t *mu
 static uint32_t __pi_fll_frequency_from_mult_div_get(uint32_t mult, uint32_t div)
 {
     /* FreqOut = Fref * Mult/2^(Div-1)    With Mult on 16 bits and Div on 4 bits */
-    uint32_t fref = (uint32_t) ARCHI_FLL_REF_CLOCK;
-    uint32_t fres = (mult << (LOG2_REFCLK - (div - 1)));
+    uint32_t fref = (uint32_t) FLL_REF_CLK;
+    uint32_t fres = ((fref * mult) >> (div - 1));
     //printf("Get freq: mult=%lx, div=%lx, real_freq=%ld\n", mult, div, fres);
     return fres;
 }
@@ -92,69 +92,73 @@ static uint32_t __pi_fll_frequency_from_mult_div_get(uint32_t mult, uint32_t div
 
 void pi_fll_init(uint8_t fll_id, uint32_t frequency)
 {
-
-    //if (fll_id == FLL_ID_PERIPH)
-    //{
-    //    g_fll_frequency[FLL_ID_PERIPH] = 160000000;
-    //    return;
-    //} 
     uint32_t mult = 0, div = 0;
     fll_ctrl_conf1_t conf1 = {0};
     fll_ctrl_conf2_t conf2 = {0};
     conf1.raw = hal_fll_conf1_get(fll_id);
+
+    /* Special setting to assign periph FLL to periph domain and FC FLL to FC domain. */
+    if (fll_id == FLL_ID_FC)
+    {
+        hal_soc_ctrl_clk_sel_set(FLL_ID_FC, FLL_ID_CL);
+    }
 
     /* Don't set the gain and integrator in case it has already been set by the boot code */
     /* as it totally blocks the fll on the RTL platform. */
     /* The boot code is anyway setting the same configuration. */
     if (conf1.mode == 0)
     {
-        conf2.loop_gain = 0x7;
-        conf2.de_assert_cycles = 0x10;
+        conf2.raw = hal_fll_conf2_get(fll_id);
+        //conf2.loop_gain = 0x7;
+        //conf2.de_assert_cycles = 0x10;
         conf2.assert_cycles = 0x6;
         conf2.lock_tolerance = 0x50;
-        conf2.config_clock_sel = 0x0;
-        conf2.open_loop = 0x0;
-        conf2.dithering = 0x1;
+        //conf2.config_clock_sel = 0x0;
+        //conf2.open_loop = 0x0;
+        //conf2.dithering = 0x1;
         hal_fll_conf2_mask_set(fll_id, conf2.raw);
 
         /* We are in open loop, prime the fll forcing dco input, approx 50 MHz */
         /* Set int part to 332 */
-        fll_ctrl_integrator_t integrator = {0};
+        fll_ctrl_integrator_t integrator = { .raw = hal_fll_integrator_get(fll_id) };
         integrator.int_part = 332;
         hal_fll_integrator_set(fll_id, integrator.raw);
+
+        /* Lock FLL. */
+        conf1.output_lock_enable = 1;
+        conf1.mode = 1;
+        hal_fll_conf1_mask_set(fll_id, conf1.raw);
     }
 
     /* Set frequency. */
     pi_fll_frequency_set(fll_id, frequency, 0);
 }
 
+void pi_fll_frequency_value_update(uint8_t fll_id, uint32_t freq)
+{
+    g_fll_frequency[fll_id] = freq;
+}
+
 int32_t pi_fll_frequency_set(uint8_t fll_id, uint32_t frequency, uint8_t check)
 {
     uint32_t irq =  __disable_irq();
-    /* TODO : Voltage check. */
 
     uint32_t mult = 0, div = 0;
     fll_ctrl_conf1_t conf1 = {0};
-    fll_ctrl_conf2_t conf2 = {0};
 
     /* Frequency calculation from theory */
     uint32_t real_freq = __pi_fll_mult_div_from_frequency_get(frequency, &mult, &div);
-    conf1.raw = 0x0;
     conf1.mult_factor = mult;
     conf1.clock_out_divider = div;
-    conf1.mode = 0x1;
+    hal_fll_conf1_mult_div_update(fll_id, mult, div);
 
-    hal_fll_conf1_mask_set(fll_id, conf1.raw);
-
-    mult = hal_fll_status_mult_factor_get(fll_id);
-    div = hal_fll_conf1_div_get(fll_id);
-    real_freq = __pi_fll_frequency_from_mult_div_get(mult, div);
+    real_freq = pi_fll_frequency_get(fll_id, 1);
     g_fll_frequency[fll_id] = frequency;
 
     if (fll_id == FLL_ID_FC)
     {
         system_core_clock_update(frequency);
-        pi_freq_callback_exec();
+        //pi_freq_callback_exec();
     }
     __restore_irq(irq);
 
@@ -164,23 +168,22 @@ int32_t pi_fll_frequency_set(uint8_t fll_id, uint32_t frequency, uint8_t check)
 uint32_t pi_fll_frequency_get(uint8_t fll_id, uint8_t real)
 {
     uint32_t real_freq = 0;
-#if 1
+
     if (real)
     {
         /* Frequency calculation from real world */
         uint32_t mult = hal_fll_status_mult_factor_get(fll_id);
         uint32_t div = hal_fll_conf1_div_get(fll_id);
         real_freq = __pi_fll_frequency_from_mult_div_get(mult, div);
-        //printf("Get freq: mult=%lx, div=%lx, real_freq=%ld\n", mult, div, real_freq);
+        /* printf("Get freq: domain=%d @ %lx mult=%lx, div=%lx, real_freq=%ld\n", */
+        /*        fll_id, fll(fll_id), mult, div, real_freq); */
         /* Update Frequency */
-        g_fll_frequency[fll_id] = real_freq;
+        pi_fll_frequency_value_update(fll_id, real_freq);
     }
     else
-//#else
     {
         real_freq = g_fll_frequency[fll_id];
     }
-#endif
     return real_freq;
 }
 
@@ -261,4 +264,9 @@ void pi_freq_callback_exec(void)
         temp_cb->function(temp_cb->args);
         temp_cb = temp_cb->next;
     }
+}
+
+void pi_freq_set_value(uint8_t fll_id, uint32_t freq)
+{
+    g_fll_frequency[fll_id] = freq;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -28,170 +28,223 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PI_HAL_SOC_EVENT_UNIT_H__
-#define __PI_HAL_SOC_EVENT_UNIT_H__
+#pragma once
 
 #include "pmsis/targets/target.h"
 
-/*!
- * @addtogroup soc_eu
- * @{
- */
-/*******************************************************************************
- * Definitions
- ******************************************************************************/
-/* FC SOC domain events, all delegated by FC_SOC_EVENT_IRQn = 27 */
-#define    UDMA_EVENT_LVDS_RX              0
-#define    UDMA_EVENT_LVDS_TX              1
-#define    UDMA_EVENT_SPIM0_RX             2
-#define    UDMA_EVENT_SPIM0_TX             3
-#define    UDMA_EVENT_SPIM1_RX             4
-#define    UDMA_EVENT_SPIM1_TX             5
-#define    UDMA_EVENT_HYPERBUS_RX          6
-#define    UDMA_EVENT_HYPERBUS_TX          7
-#define    UDMA_EVENT_UART_RX              8
-#define    UDMA_EVENT_UART_TX              9
-#define    UDMA_EVENT_I2C0_RX              10
-#define    UDMA_EVENT_I2C0_TX              11
-#define    UDMA_EVENT_I2C1_RX              12
-#define    UDMA_EVENT_I2C1_TX              13
-#define    UDMA_EVENT_DMACPY_RX            14
-#define    UDMA_EVENT_DMACPY_TX            15
-#define    UDMA_EVENT_SAI_CH0              16
-#define    UDMA_EVENT_SAI_CH1              17
-#define    UDMA_EVENT_CPI_RX               18
-#define    UDMA_EVENT_RESERVED0            19
 
-#define    UDMA_EVENT_LVDS_GEN0            20
-#define    UDMA_EVENT_LVDS_GEN1            21
-#define    UDMA_EVENT_SPIM0_EOT            22
-#define    UDMA_EVENT_SPIM1_EOT            23
-#define    UDMA_EVENT_HYPERBUS_RESERVED    24
-#define    UDMA_EVENT_UART_RESERVED        25
-#define    UDMA_EVENT_I2C0_ERROR           26
-#define    UDMA_EVENT_I2C1_ERROR           27
-#define    UDMA_EVENT_I2S_RESERVED         28
-#define    UDMA_EVENT_CAM_RESERVED         29
-#define    UDMA_EVENT_RESERVED1            30
+/* Number of SOC events. */
+/* 256 events, 32/regs. */
+#define SOC_EVENTS_NB_LOG2                   ( 0x8 )
+#define SOC_EVENTS_NB                        ( 0x1 << SOC_EVENTS_NB_LOG2 )
+#define SOC_EVENTS_NB_REGS_LOG2              ( 0x3 )
+#define SOC_EVENTS_NB_REGS                   ( 0x1 << SOC_EVENTS_NB_REGS_LOG2 )
+#define SOC_EVENTS_NB_EVENTS_PER_REG_LOG2    ( SOC_EVENTS_NB_LOG2 - SOC_EVENTS_NB_REGS_LOG2 )
+#define SOC_EVENTS_NB_EVENTS_PER_REG         ( 0x1 << SOC_EVENTS_NB_EVENTS_PER_REG_LOG2 )
+#define SOC_EVENTS_NB_EVENTS_PER_REG_MASK    ( SOC_EVENTS_NB_EVENTS_PER_REG - 1 )
 
-#define    PMU_EVENT_CLUSTER_POWER_ON      31
-#define    PMU_EVENT_CLUSTER_RESERVED0     32
-#define    PMU_EVENT_CLUSTER_RESERVED1     33
-#define    PMU_EVENT_CLUSTER_RESERVED2     34
-#define    PMU_EVENT_CLUSTER_CLOCK_GATING  35
-#define    PMU_DLC_EVENT_BRIDGE_PICL_OK    36
-#define    PMU_DLC_EVENT_BRIDGE_SCU_OK     37
-#define    PMU_EVENTS_NUM                  7
+#define SOC_EVENTS_EVENT_REG_OFFSET_GET(evt) ( (evt) >> SOC_EVENTS_NB_EVENTS_PER_REG_LOG2 )
+#define SOC_EVENTS_EVENT_POS_OFFSET_GET(evt) ( (evt) & SOC_EVENTS_NB_EVENTS_PER_REG_MASK )
 
-#define    PWM0_EVENT                      38
-#define    PWM1_EVENT                      39
-#define    PWM2_EVENT                      40
-#define    PWM3_EVENT                      41
-#define    GPIO_EVENT                      42              /**< GPIO group interrupt */
-#define    RTC_APB_EVENT                   43
-#define    RTC_EVENT                       44
-#define    EVENT_RESERVED0                 45
-#define    EVENT_RESERVED1                 46
-#define    EVENT_RESERVED2                 47
 
-#define    SOC_SW_EVENT0                   48              /**< VEGA SOC SW Event0 */
-#define    SOC_SW_EVENT1                   49              /**< VEGA SOC SW Event1 */
-#define    SOC_SW_EVENT2                   50              /**< VEGA SOC SW Event2 */
-#define    SOC_SW_EVENT3                   51              /**< VEGA SOC SW Event3 */
-#define    SOC_SW_EVENT4                   52              /**< VEGA SOC SW Event4 */
-#define    SOC_SW_EVENT5                   53              /**< VEGA SOC SW Event5 */
-#define    SOC_SW_EVENT6                   54              /**< VEGA SOC SW Event6 */
-#define    SOC_SW_EVENT7                   55              /**< VEGA SOC SW Event7 */
-#define    REF32K_CLK_RISE_EVENT           56              /**< VEGA SOC EU SW Event Reference 32K Clock event */
-
-/*******************************************************************************
- * APIs
- ******************************************************************************/
-
-#if defined(__cplusplus)
-extern "C" {
-#endif /* __cplusplus */
-
-static inline void hal_soc_eu_set_fc_mask(int event_num)
+/** FC|PR|CL_MASK. */
+static inline void soc_eu_mask_set(uint32_t reg_offset, uint32_t reg_id,
+                                   uint32_t mask)
 {
-
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->FC_MASK[index] &= ~(1 << bit);
+    uint32_t base = (uint32_t) soc_eu;
+    uint32_t offset = reg_offset + (reg_id << 2);
+    GAP_WRITE(base, offset, mask);
 }
 
-static inline void hal_soc_eu_reset_pr_mask() 
+static inline uint32_t soc_eu_mask_get(uint32_t reg_offset, uint32_t reg_id)
 {
-    for (int index = 0; index < SOC_EVENTS_NUM; index++)
+    uint32_t base = (uint32_t) soc_eu;
+    uint32_t offset = reg_offset + (reg_id << 2);
+    return GAP_READ(base, offset);
+}
+
+static inline void soc_eu_mask_event_set(uint32_t reg_offset, uint32_t event_num)
+{
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t mask = soc_eu_mask_get(reg_offset, reg_id);
+    mask = __BITCLR_R(mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, mask);
+}
+
+static inline void soc_eu_mask_event_clear(uint32_t reg_offset, uint32_t event_num)
+{
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t mask = soc_eu_mask_get(reg_offset, reg_id);
+    mask = __BITSET_R(mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, mask);
+}
+
+/** TIMER_SEL. */
+static inline void soc_eu_timer_sel_set(uint32_t reg_id, uint32_t mask)
+{
+    uint32_t base = (uint32_t) soc_eu;
+    uint32_t offset = (uint32_t) SOC_EU_TIMER1_SEL_HI_OFFSET + reg_id;
+    GAP_WRITE(base, offset, mask);
+}
+
+
+/* SW event trigger. */
+static inline uint32_t hal_soc_eu_event_get(void)
+{
+    uint32_t base = (uint32_t) soc_eu;
+    return soc_eu_sw_event_get(base);
+}
+
+static inline void hal_soc_eu_event_mask_set(uint32_t mask)
+{
+    uint32_t base = (uint32_t) soc_eu;
+    soc_eu_sw_event_set(base, mask);
+}
+
+
+/* Set FC_MASK. */
+static inline void hal_soc_eu_fc_mask_reset(void)
+{
+    uint32_t reg_offset = (uint32_t) SOC_EU_FC_MASK_0_OFFSET;
+    uint32_t reset_mask = 0xFFFFFFFF;
+    for (uint32_t offset=0; offset<(uint32_t) SOC_EVENTS_NB_REGS; offset++)
     {
-        SOCEU->PR_MASK[index] = 0xFFFFFFFF;
+        soc_eu_mask_set(reg_offset, offset, reset_mask);
     }
 }
 
-static inline void hal_soc_eu_set_pr_mask(int event_num)
+static inline void hal_soc_eu_fc_mask_set(uint32_t event_num)
 {
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->PR_MASK[index] &= ~(1 << bit);
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_FC_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t fc_mask = soc_eu_mask_get(reg_offset, reg_id);
+    fc_mask = __BITCLR_R(fc_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, fc_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_FC_MASK_0_OFFSET;
+    soc_eu_mask_event_set(reg_offset, event_num);
+    #endif
 }
 
-static inline void hal_soc_eu_reset_cl_mask()
+static inline void hal_soc_eu_fc_mask_clear(uint32_t event_num)
 {
-    for (int index = 0; index < SOC_EVENTS_NUM; index++)
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_FC_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t fc_mask = soc_eu_mask_get(reg_offset, reg_id);
+    fc_mask = __BITSET_R(fc_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, fc_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_FC_MASK_0_OFFSET;
+    soc_eu_mask_event_clear(reg_offset, event_num);
+    #endif
+}
+
+
+/* Set CL_MASK. */
+static inline void hal_soc_eu_cl_mask_reset(void)
+{
+    uint32_t reg_offset = (uint32_t) SOC_EU_CL_MASK_0_OFFSET;
+    uint32_t reset_mask = 0xFFFFFFFF;
+    for (uint32_t offset=0; offset<(uint32_t) SOC_EVENTS_NB_REGS; offset++)
     {
-        SOCEU->CL_MASK[index] = 0xFFFFFFFF;
+        soc_eu_mask_set(reg_offset, offset, reset_mask);
     }
 }
 
-static inline void hal_soc_eu_set_cl_mask(int clusterId, int event_num)
+static inline void hal_soc_eu_cl_mask_set(uint32_t event_num)
 {
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->CL_MASK[index] &= ~(1 << bit);
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_CL_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t cl_mask = soc_eu_mask_get(reg_offset, reg_id);
+    cl_mask = __BITCLR_R(cl_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, cl_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_CL_MASK_0_OFFSET;
+    soc_eu_mask_event_set(reg_offset, event_num);
+    #endif
 }
 
-static inline void hal_soc_eu_clear_fc_mask(int event_num)
+static inline void hal_soc_eu_cl_mask_clear(uint32_t event_num)
 {
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->FC_MASK[index] |= (1 << bit);
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_CL_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t cl_mask = soc_eu_mask_get(reg_offset, reg_id);
+    cl_mask = __BITSET_R(cl_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, cl_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_CL_MASK_0_OFFSET;
+    soc_eu_mask_event_clear(reg_offset, event_num);
+    #endif
 }
 
-static inline void hal_soc_eu_clear_pr_mask(int event_num)
+
+/* Set PR_MASK. */
+static inline void hal_soc_eu_pr_mask_reset(void)
 {
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->PR_MASK[index] |= (1 << bit);
+    uint32_t reg_offset = (uint32_t) SOC_EU_PR_MASK_0_OFFSET;
+    uint32_t reset_mask = 0xFFFFFFFF;
+    for (uint32_t offset=0; offset<(uint32_t) SOC_EVENTS_NB_REGS; offset++)
+    {
+        soc_eu_mask_set(reg_offset, offset, reset_mask);
+    }
 }
 
-static inline void hal_soc_eu_clear_cl_mask(int clusterId, int event_num)
+static inline void hal_soc_eu_pr_mask_set(uint32_t event_num)
 {
-    int index = (event_num >> 5);
-    int bit   = (event_num & 0x1F);
-
-    SOCEU->CL_MASK[index] |= (1 << bit);
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_PR_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t pr_mask = soc_eu_mask_get(reg_offset, reg_id);
+    pr_mask = __BITCLR_R(pr_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, pr_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_PR_MASK_0_OFFSET;
+    soc_eu_mask_event_set(reg_offset, event_num);
+    #endif
 }
 
-
-static inline void hal_soc_eu_set_mask(uint32_t mask)
+static inline void hal_soc_eu_pr_mask_clear(uint32_t event_num)
 {
-    SOCEU->EVENT = mask;
+    #if 0
+    uint32_t reg_offset = (uint32_t) SOC_EU_PR_MASK_0_OFFSET;
+    uint32_t reg_id = SOC_EVENTS_EVENT_REG_OFFSET_GET(event_num);
+    uint32_t reg_pos = SOC_EVENTS_EVENT_POS_OFFSET_GET(event_num);
+    uint32_t pr_mask = soc_eu_mask_get(reg_offset, reg_id);
+    pr_mask = __BITSET_R(pr_mask, 1, reg_pos);
+    soc_eu_mask_set(reg_offset, reg_id, pr_mask);
+    #else
+    uint32_t reg_offset = (uint32_t) SOC_EU_PR_MASK_0_OFFSET;
+    soc_eu_mask_event_clear(reg_offset, event_num);
+    #endif
 }
-/* static inline int SOC_EU_ReserveConfig(int cluster, int event) { */
-/*   if (_bitfield_reserve(&soc_events_mask, event)) return -1; */
-/*   SOC_EU_Configure(cluster, event, 1); */
-/*   return 0; */
-/* } */
 
-#if defined(__cplusplus)
+
+/* Set Timer propagtion event. */
+static inline void hal_soc_eu_timer_event_set(uint32_t timer_id, uint8_t is_lo,
+                                              uint32_t event)
+{
+    uint32_t reg_id = (timer_id << 3) + (is_lo << 2);
+    uint32_t mask = SOC_EU_TIMER1_SEL_HI_EVT(event);
+    mask = SOC_EU_TIMER1_SEL_HI_ENA_SET(mask, 1);
+    soc_eu_timer_sel_set(reg_id, mask);
 }
-#endif /* __cplusplus */
 
-/* @} */
 
-#endif  /* __PI_HAL_SOC_EVENT_UNIT_H__ */
+/* Compat. */
+#define hal_soc_eu_set_fc_mask   hal_soc_eu_fc_mask_set
+#define hal_soc_eu_clear_fc_mask hal_soc_eu_fc_mask_clear
+#define hal_soc_eu_set_cl_mask   hal_soc_eu_cl_mask_set
+#define hal_soc_eu_clear_cl_mask hal_soc_eu_cl_mask_clear
+#define hal_soc_eu_set_pr_mask   hal_soc_eu_pr_mask_set
+#define hal_soc_eu_clear_pr_mask hal_soc_eu_pr_mask_clear

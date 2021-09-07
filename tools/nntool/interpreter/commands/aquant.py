@@ -31,7 +31,7 @@ from stats.activation_ranges_collector import ActivationRangesCollector
 
 LOG = logging.getLogger('nntool.'+__name__)
 
-QUANTIZATION_SCHEMES = ['SQ8', 'POW2']
+QUANTIZATION_SCHEMES = ['SQ8', 'POW2', 'FLOAT']
 
 
 class AquantCommand(NNToolShellBase):

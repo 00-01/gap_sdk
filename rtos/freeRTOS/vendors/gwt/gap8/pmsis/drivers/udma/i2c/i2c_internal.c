@@ -184,7 +184,7 @@ static void __pi_i2c_handler(void *arg)
             {
                 if (channel == RX_CHANNEL)
                 {
-                    driver_data->hw_buffer[TX_CHANNEL] = driver_data->hw_buffer[RX_CHANNEL];
+                    driver_data->hw_buffer[TX_CHANNEL/TX_CHANNEL] = driver_data->hw_buffer[RX_CHANNEL];
                     driver_data->hw_buffer[RX_CHANNEL] = NULL;
                 }
                 __pi_i2c_send_stop_cmd(driver_data);
@@ -234,7 +234,7 @@ static void __pi_i2c_hw_fifo_enqueue(struct i2c_itf_data_s *driver_data,
 {
     uint32_t irq = __disable_irq();
     /* Enqueue task in hw_buffer[channel] to signal the slot is used. */
-    driver_data->hw_buffer[channel] = task;
+    driver_data->hw_buffer[channel/TX_CHANNEL] = task;
     __restore_irq(irq);
 }
 

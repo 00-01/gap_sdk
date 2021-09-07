@@ -45,19 +45,21 @@ class BilinearResizerFloat32(KernelBase):
         wstep = (w_in - 1) / w_out
         hstep = (h_in - 1) / h_out
         out_tensor = np.empty((h_out, w_out, c_out))
+        out_dtype = qrec.out_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
         for i in range(h_out):
             y_l, y_h = math.floor(hstep * i), math.ceil(hstep * i)
-            hc = (hstep * i) - y_l
+            hc = out_dtype((hstep * i) - y_l)
             for j in range(w_out):
                 x_l, x_h = math.floor(wstep * j), math.ceil(wstep * j)
-                wc = (wstep * j) - x_l
+                wc = out_dtype((wstep * j) - x_l)
                 P1 = in_tensor[y_l, x_l, :]
                 P2 = in_tensor[y_l, x_h, :]
                 P3 = in_tensor[y_h, x_l, :]
                 P4 = in_tensor[y_h, x_h, :]
-                out_tensor[i, j, :] = P1 * (1 - wc) * (1 - hc) \
-                    + P2 * wc * (1 - hc) \
-                    + P3 * (1 - wc) * hc \
+                out_tensor[i, j, :] = P1 * (out_dtype(1) - wc) * (out_dtype(1) - hc) \
+                    + P2 * wc * (out_dtype(1) - hc) \
+                    + P3 * (out_dtype(1) - wc) * hc \
                     + P4 * wc * hc
 
         out_tensor = out_tensor.transpose(

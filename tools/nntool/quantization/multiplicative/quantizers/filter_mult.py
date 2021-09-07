@@ -36,8 +36,11 @@ LOG = logging.getLogger('nntool.' + __name__)
 
 AT_SW_KER_IN_ORDER = [['c', 'h', 'w'], ['out_c', 'in_c', 'h', 'w'], ['out_c']]
 AT_SW_KER_OUT_ORDER = [['c', 'h', 'w']]
-AT_NE16_KER_IN_ORDER = [['h', 'w', 'c'], [
+AT_SW_KER_HWC_IN_ORDER = [['h', 'w', 'c'], [
     'out_c', 'h', 'w', 'in_c'], ['out_c']]
+AT_SW_KER_HWC_OUT_ORDER = [['h', 'w', 'c']]
+AT_NE16_KER_IN_ORDER = [['h', 'w', 'c'], [
+    'out_c', 'in_c', 'h', 'w'], ['out_c']]
 AT_NE16_KER_OUT_ORDER = [['h', 'w', 'c']]
 
 def can_ne16(fusion, params):
@@ -55,7 +58,7 @@ def can_ne16(fusion, params):
         #     return False
         if (params.is_depthwise_conv() and (params.filter.w != 3 or params.filter.h != 3)):
             return False
-        if (params.stride.size() != 1 and params.stride.shape != [2, 2]):
+        if (params.stride.size() != 1 and params.stride.shape != [2, 2]) and not ((params.filter.w == 1 or params.filter.h == 1)):
             return False
     return True
 
@@ -75,7 +78,7 @@ def check_filter_options(is_ne16, input_size, output_size):
             return is_ne16
         if not opts.get('use_ne16'):
             return not is_ne16
-        return is_ne16 and can_ne16(fusion, params)
+        return is_ne16 == can_ne16(fusion, params)
     return check_options
 
 
@@ -133,6 +136,12 @@ def check_filter_options(is_ne16, input_size, output_size):
         'help': 'number of bits to use for output features',
         'choices': [8, 16],
         'default': 8
+    },
+    {
+        'name': 'hwc',
+        'type': bool,
+        'help': 'Use HWC kernel',
+        'default': False
     }
 )
 # pylint: disable=abstract-method
@@ -206,13 +215,9 @@ class FilterMultBase(MultQuantizionHandler):
         return min_val, max_val
 
 
-@params_type(FcParameters, Conv2DParameters)
-@in_qs_constraint({'dtype': np.int8})
-@out_qs_constraint({'dtype': np.int8})
-@option_constraint(check_filter_options(False, input_size=set([8, None]), output_size=set([8, None])))
-class FilterMult(FilterMultBase):
+class FilterSWMultBase(FilterMultBase):
     @classmethod
-    def _quantize(cls, params, in_qs, stats, **kwargs):
+    def _quantize_sw(cls, params, in_qs, stats, in_out_dtype, **kwargs):
         # copy in_qs because we may modify it
         in_qs = in_qs.copy()
         opts = kwargs['opts']
@@ -223,30 +228,16 @@ class FilterMult(FilterMultBase):
         G = kwargs['G']
         in_q = in_qs[0]
 
-        # check input quantization and int8 type
-        # if not padded we can scale asymmetric
-        if in_q.dtype == np.uint8:
-            # handle NE16
-            cls.check_valid_ranges(params, stats, idx=0, dirs='in')
-            # allow asymmetric if not padded
-            if isinstance(params, Conv2DParameters) and params.padding.has_padding:
-                in_q = QType.from_min_max_sq(stats['range_in'][0]['min'], stats['range_in'][0]['max'],
-                                             dtype=np.int8,
-                                             forced=True)
-            else:
-                in_q = QType.from_min_max_sq(stats['range_in'][0]['min'], stats['range_in'][0]['max'],
-                                             dtype=np.int8,
-                                             zero_point=in_q.zero_point - 128)
-        elif (isinstance(params, Conv2DParameters) and not in_q.is_symmetric and params.padding.has_padding):
+        if (isinstance(params, Conv2DParameters) and not in_q.symmetric and params.padding.has_padding):
             cls.check_valid_ranges(params, stats, idx=0, dirs='in')
             in_q = QType.from_min_max_sq(stats['range_in'][0]['min'], stats['range_in'][0]['max'],
-                                         dtype=np.int8)
+                                         dtype=in_out_dtype)
         # if not forced we can try asymmetric
         elif (opts['allow_asymmetric'] and isinstance(params, Conv2DParameters) and not in_q.forced and
-              in_q.is_symmetric and not params.padding.has_padding):
+              in_q.symmetric and not params.padding.has_padding):
             cls.check_valid_ranges(params, stats, idx=0, dirs='in')
             in_q = QType.from_min_max_sq(stats['range_in'][0]['min'], stats['range_in'][0]['max'],
-                                         dtype=np.int8,
+                                         dtype=in_out_dtype,
                                          asymmetric=True)
 
         if opts['weight_bits'] != 8:
@@ -264,16 +255,16 @@ class FilterMult(FilterMultBase):
 
         if force_out_q:
             o_q = force_out_q
-            # can't be forced to something not np.int8
-            if o_q.dtype != np.int8:
+            # can't be forced to something not in_out_dtype
+            if o_q.dtype != in_out_dtype:
                 return None
             LOG.warning('node %s output forced to range %s/%s - actual range %s/%s %s',
                         params.name, o_q.min, o_q.max, min_val, max_val,
-                        "asymmetric" if o_q.is_asymmetric else "symmetric")
+                        "asymmetric" if o_q.asymmetric else "symmetric")
         else:
             o_q = QType.from_min_max_sq(min_val=min_val,
                                         max_val=max_val,
-                                        dtype=out_dtype,
+                                        dtype=in_out_dtype,
                                         asymmetric=opts['allow_asymmetric'])
         biases_q = QType(
             dtype=np.int32, scale=weights_q.scale * in_q.scale)
@@ -284,7 +275,7 @@ class FilterMult(FilterMultBase):
 
         # calculate bias offset - this will be added to the bias in the kernel
         # it is already in quantized form
-        biases_q.offset = FilterMult.calculate_bias_offset(
+        biases_q.offset = FilterSWMultBase.calculate_bias_offset(
             params, in_q, weights_node, weights_q, o_q)
 
         if not (opts['allow_asymmetric'] or force_out_q or biases_q.offset is None):
@@ -296,7 +287,10 @@ class FilterMult(FilterMultBase):
         if isinstance(params, Conv2DParameters) and params.padding.has_padding:
             in_q.set_forced(flags=['zero_point'])
 
-        cls.check_order(params, AT_SW_KER_IN_ORDER, AT_SW_KER_OUT_ORDER)
+        if opts['hwc']:
+            cls.check_order(params, AT_SW_KER_HWC_IN_ORDER, AT_SW_KER_HWC_OUT_ORDER)
+        else:
+            cls.check_order(params, AT_SW_KER_IN_ORDER, AT_SW_KER_OUT_ORDER)
         return QRec.scaled(in_qs=[in_q, weights_q, biases_q],
                            out_qs=[o_q],
                            acc_q=biases_q,
@@ -309,7 +303,7 @@ class FilterMult(FilterMultBase):
             stats['range_in'][idx]['min'],
             stats['range_in'][idx]['max'],
             dtype=np.int8,
-            asymmetric=in_qs[idx].is_asymmetric and cls.can_handle_asymmetric_input(params, **kwargs))
+            asymmetric=in_qs[idx].asymmetric and cls.can_handle_asymmetric_input(params, **kwargs))
             if dim is not None else None
             for idx, dim in enumerate(params.in_dims)]
 
@@ -319,6 +313,24 @@ class FilterMult(FilterMultBase):
             return True
         return not params.padding.has_padding
 
+
+@params_type(FcParameters, Conv2DParameters)
+@in_qs_constraint({'dtype': np.int8})
+@out_qs_constraint({'dtype': np.int8})
+@option_constraint(check_filter_options(False, input_size={8, None}, output_size={8, None}))
+class FilterSWMult8x8(FilterSWMultBase):
+    @classmethod
+    def _quantize(cls, params, in_qs, stats, **kwargs):
+        return cls._quantize_sw(params, in_qs, stats, np.int8, **kwargs)
+
+@params_type(FcParameters, Conv2DParameters)
+@in_qs_constraint({'dtype': np.int16})
+@out_qs_constraint({'dtype': np.int16})
+@option_constraint(check_filter_options(False, input_size={16, None}, output_size={16, None}))
+class FilterSWMult16x8(FilterSWMultBase):
+    @classmethod
+    def _quantize(cls, params, in_qs, stats, **kwargs):
+        return cls._quantize_sw(params, in_qs, stats, np.int16, **kwargs)
 
 class FilterMultNE16Base(FilterMultBase):
     @classmethod
@@ -337,8 +349,8 @@ class FilterMultNE16Base(FilterMultBase):
                                         quantized_dimension=cls.get_quantized_dimension(
                                             params, opts),
                                         dtype=np.uint8,
-                                        ne16_order=True,
                                         narrow_range=True,
+                                        bit_pack=opts['weight_bits'],
                                         bits=opts['weight_bits'])
 
         in_q = in_qs[0]
@@ -377,7 +389,7 @@ class FilterMultNE16Base(FilterMultBase):
 
         # calculate bias offset - this will be added to the bias in the kernel
         # it is already in quantized form
-        biases_q.offset = FilterMult.calculate_bias_offset(
+        biases_q.offset = FilterMultNE16Base.calculate_bias_offset(
             params, in_q, weights_node, weights_q, o_q)
         # returning the new weights and biases qs will force backprop
 

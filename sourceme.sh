@@ -11,7 +11,7 @@ else
     export GAP_SDK_HOME="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 fi
 
-EXCLUDE="ai_deck.sh common.sh gap8.sh gap8_v2.sh gap8_v3.sh gap9.sh jlink.sh openocd.sh"
+EXCLUDE="clean.sh ai_deck.sh common.sh gap8.sh gap8_v2.sh gap8_v3.sh gap9.sh jlink.sh openocd.sh"
 EXCLUDE_FILES=
 for i in $EXCLUDE
 do

@@ -140,12 +140,9 @@ class ConstantInputParameters(InputBaseParameters):
         self.value = value
         del self.at_options.valid_options['FIXED_ORDER']
         self.at_options.valid_options['RESET_NAME'] = str
-        self.at_options.valid_options['GENERATE_VALUE'] = bool
         self._adjust_transpose = adjust_transpose
         self._is_mutated = is_mutated
         self._is_intermediate = is_intermediate
-        self._concated_nodes = []
-        self.generate_value = True
         self._is_constant = True
         self._is_global = True
         self._always_copy = always_copy
@@ -164,6 +161,10 @@ class ConstantInputParameters(InputBaseParameters):
         if self.value is None:
             problems.append(f'constant node {self.name} has no value')
         return problems
+
+    @property
+    def generator_options(self):
+        return self._generator_options
 
     @property
     def graph_anon_label(self):
@@ -223,10 +224,6 @@ class ConstantInputParameters(InputBaseParameters):
         return qtype.quantize(self.dqvalue) if qtype else self.dqvalue
 
     @property
-    def concated_nodes(self):
-        return self._concated_nodes
-
-    @property
     def always_copy(self):
         return self._always_copy
 
@@ -241,14 +238,6 @@ class ConstantInputParameters(InputBaseParameters):
     @reset_name.setter
     def reset_name(self, val):
         self.at_options.reset_name = val
-
-    @property
-    def generate_value(self):
-        return self.at_options.generate_value
-
-    @generate_value.setter
-    def generate_value(self, val):
-        self.at_options.generate_value = val
 
     @property
     def adjust_transpose(self):

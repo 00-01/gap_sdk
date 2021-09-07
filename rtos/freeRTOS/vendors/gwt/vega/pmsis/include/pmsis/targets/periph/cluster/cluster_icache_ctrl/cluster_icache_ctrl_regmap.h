@@ -29,10 +29,12 @@ typedef struct
 {
     volatile uint32_t enable; /**< Cluster instruction cache unit enable configuration register. */
     volatile uint32_t flush; /**< Cluster instruction cache unit flush command register. */
-    volatile uint32_t sel_flush_status; /**< Cluster instruction cache unit selective flush command register.
+    volatile uint32_t flush_l1; /**< Cluster level 0 instruction cache unit flush command register. */
+    volatile uint32_t flush_sel; /**< Cluster instruction cache unit selective flush command register.
 Write : flush cache for selected cores.
 R : pending transactions. */
-    volatile uint32_t l0_flush; /**< Cluster level 0 instruction cache unit flush command register. */
+    volatile uint32_t cnts_clear;
+    volatile uint32_t cnts_enable;
 } cluster_icache_ctrl_t;
 
 
@@ -56,21 +58,19 @@ R : pending transactions. */
 #define CLUSTER_ICACHE_CTRL_FLUSH_FLUSH(val)                         (((uint32_t)(((uint32_t)(val)) << CLUSTER_ICACHE_CTRL_FLUSH_FLUSH_SHIFT)) & CLUSTER_ICACHE_CTRL_FLUSH_FLUSH_MASK)
 
 
-/*! @name SEL_FLUSH_STATUS */
-/* Cluster instruction cache selective flush address configuration bitfield. */
-#define CLUSTER_ICACHE_CTRL_SEL_FLUSH_STATUS_ADDR_MASK               (0xffffffff)
-#define CLUSTER_ICACHE_CTRL_SEL_FLUSH_STATUS_ADDR_SHIFT              (0)
-#define CLUSTER_ICACHE_CTRL_SEL_FLUSH_STATUS_ADDR(val)               (((uint32_t)(((uint32_t)(val)) << CLUSTER_ICACHE_CTRL_SEL_FLUSH_STATUS_ADDR_SHIFT)) & CLUSTER_ICACHE_CTRL_SEL_FLUSH_STATUS_ADDR_MASK)
-
-
-/*! @name L0_FLUSH */
+/*! @name FLUSH_L1 */
 /* Cluster level 0 instruction cache full flush command.  */
-#define CLUSTER_ICACHE_CTRL_L0_FLUSH_L0_FLUSH_MASK                   (0x1)
-#define CLUSTER_ICACHE_CTRL_L0_FLUSH_L0_FLUSH_SHIFT                  (0)
-#define CLUSTER_ICACHE_CTRL_L0_FLUSH_L0_FLUSH(val)                   (((uint32_t)(((uint32_t)(val)) << CLUSTER_ICACHE_CTRL_L0_FLUSH_L0_FLUSH_SHIFT)) & CLUSTER_ICACHE_CTRL_L0_FLUSH_L0_FLUSH_MASK)
+#define CLUSTER_ICACHE_CTRL_FLUSH_L1_FLUSH_L1_MASK                   (0x1)
+#define CLUSTER_ICACHE_CTRL_FLUSH_L1_FLUSH_L1_SHIFT                  (0)
+#define CLUSTER_ICACHE_CTRL_FLUSH_L1_FLUSH_L1(val)                   (((uint32_t)(((uint32_t)(val)) << CLUSTER_ICACHE_CTRL_FLUSH_L1_FLUSH_L1_SHIFT)) & CLUSTER_ICACHE_CTRL_FLUSH_L1_FLUSH_L1_MASK)
 
 
-/*! @name IS_PRIVATE */
+/*! @name FLUSH_SEL */
+/* Cluster instruction cache selective flush address configuration bitfield. */
+#define CLUSTER_ICACHE_CTRL_FLUSH_SEL_ADDR_MASK                      (0xffffffff)
+#define CLUSTER_ICACHE_CTRL_FLUSH_SEL_ADDR_SHIFT                     (0)
+#define CLUSTER_ICACHE_CTRL_FLUSH_SEL_ADDR(val)                      (((uint32_t)(((uint32_t)(val)) << CLUSTER_ICACHE_CTRL_FLUSH_SEL_ADDR_SHIFT)) & CLUSTER_ICACHE_CTRL_FLUSH_SEL_ADDR_MASK)
+
 
 /*! @name ENABLE */
 typedef union
@@ -96,7 +96,7 @@ typedef union
     uint32_t word;
 } cluster_icache_ctrl_flush_t;
 
-/*! @name SEL_FLUSH_STATUS */
+/*! @name FLUSH_SEL */
 typedef union
 {
     struct
@@ -105,18 +105,18 @@ typedef union
         uint32_t addr:32;
     } field;
     uint32_t word;
-} cluster_icache_ctrl_sel_flush_status_t;
+} cluster_icache_ctrl_flush_sel_status_t;
 
-/*! @name L0_FLUSH */
+/*! @name FLUSH_L1 */
 typedef union
 {
     struct
     {
         /* Cluster level 0 instruction cache full flush command.  */
-        uint32_t l0_flush:1;
+        uint32_t flush_l1:1;
     } field;
     uint32_t word;
-} cluster_icache_ctrl_l0_flush_t;
+} cluster_icache_ctrl_flush_l1_t;
 
 
 #endif /* __CLUSTER_ICACHE_CTRL_PERIPH_H__ */

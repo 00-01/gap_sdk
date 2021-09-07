@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -29,8 +29,6 @@
  */
 
 #include "pmsis.h"
-#include "pmsis/implem/drivers/fc_event/fc_event.h"
-#include "pmsis/implem/hal/hal.h"
 
 /*******************************************************************************
  * Definitions
@@ -41,45 +39,67 @@
  ******************************************************************************/
 
 /*******************************************************************************
+ * Function declaration
+ ******************************************************************************/
+
+/*******************************************************************************
  * API implementation
  ******************************************************************************/
 
 int pi_pmu_voltage_set(pi_pmu_domain_e domain, uint32_t voltage)
 {
-    int32_t status = -1;
-    PMU_TRACE("Power domain id=%d, setting voltage=%ld\n", domain, voltage);
-    status = __pi_pmu_voltage_set(domain, voltage);
-    return status;
+    return 0;
 }
 
-int pi_pmu_state_get(pi_pmu_domain_e domain)
+void pi_pmu_mram_poweron(void)
 {
-    int32_t status = -1;
-    status = __pi_pmu_state_get(domain);
-    PMU_TRACE("Power domain id=%d state=%d\n", domain, status);
-    return status;
+    #if !defined(__PLATFORM_FPGA__)
+    /* Re set mask in case. */
+    /* uint32_t mask = (POWER_MANAGER_DLCPD_IMR_ICU_OK_M(1) | */
+    /*                  POWER_MANAGER_DLCPD_IMR_ICU_DLY_M(1) | */
+    /*                  POWER_MANAGER_DLCPD_IMR_ICU_DEN_M(1) | */
+    /*                  POWER_MANAGER_DLCPD_IMR_ICU_UPD_M(1) | */
+    /*                  POWER_MANAGER_DLCPD_IMR_SCU_FL_M(1)); */
+    
+    //hal_pmu_irq_flag_clear(0xFF);
+    //hal_pmu_irq_mask_set(0x13F);
+    int irq = disable_irq();
+    __pi_pmu_state_apply(PI_PMU_MRAM_ID, PI_PMU_STATE_ON, 0);
+    __pi_pmu_wait_end_of_sequence(PI_PMU_MRAM_ID);
+    restore_irq(irq);
+    #endif  /* __PLATFORM_FPGA__ */
 }
 
-int pi_pmu_boot_state_get(pi_pmu_domain_e domain)
+void pi_pmu_mram_poweroff(void)
 {
-    int32_t status = -1;
-    status = __pi_pmu_boot_state_get(domain);
-    PMU_TRACE("Power domain id=%d state=%x\n", domain, status);
-    return status;
+    #if !defined(__PLATFORM_FPGA__)
+    __pi_pmu_state_apply(PI_PMU_MRAM_ID, PI_PMU_STATE_OFF, 0);
+    #endif  /* __PLATFORM_FPGA__ */
 }
 
-int pi_pmu_sleep_mode_set(pi_pmu_domain_e domain, struct pi_pmu_sleep_conf_s *conf)
+void pi_pmu_power_domain_change(pi_pmu_domain_e pd, pi_pmu_domain_state_e state,
+                                uint32_t flags)
 {
-    int32_t status = -1;
-    PMU_TRACE("Power domain id=%d, setting sleep mode\n", domain);
-    status = __pi_pmu_sleep_mode_set(domain, conf);
-    return status;
-}
+    uint8_t power_domain = 0;
+    switch (pd)
+    {
+    case PI_PMU_DOMAIN_FC :
+        power_domain = (uint8_t) PI_PMU_CHIP_ID;
+        break;
 
-int pi_pmu_sleep_mode_enable(pi_pmu_domain_e domain)
-{
-    int32_t status = -1;
-    PMU_TRACE("Power doman id=%d, enable sleep mode\n", domain);
-    status = __pi_pmu_sleep_mode_enable(domain);
-    return status;
+    case PI_PMU_DOMAIN_CL :
+        power_domain = (uint8_t) PI_PMU_CLUSTER_ID;
+        break;
+
+    /* case PI_PMU_DOMAIN_MRAM : */
+    /*     power_domain = (uint8_t) PI_PMU_MRAM_ID; */
+    /*     break; */
+
+    default :
+        break;
+        //power_domain = 0;
+    }
+    //printf("PMU on pd=%x, power_domain=%x\n", pd, power_domain);
+    //power_domain=0;
+    __pi_pmu_state_apply(power_domain, state, flags);
 }

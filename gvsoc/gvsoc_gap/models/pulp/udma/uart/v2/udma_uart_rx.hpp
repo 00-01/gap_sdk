@@ -40,8 +40,9 @@ class Uart_rx_fsm {
          *
          * \param top pointer to udma core
          * \param periph pointer to the uart periph
+         * \param itf_name name of the uart interface
          */
-        Uart_rx_fsm(udma* top, Uart_periph* periph);
+        Uart_rx_fsm(udma* top, Uart_periph* periph, std::string itf_name);
 
         /**
          * \brief used to receive bits on UART RX

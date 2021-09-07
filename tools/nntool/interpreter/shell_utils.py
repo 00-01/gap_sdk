@@ -71,7 +71,7 @@ def input_options(parser):
                         type=int, default=None,
                         help="adjust image width this value")
     parser.add_argument('-T', '--transpose',
-                        action="store_true", help='Swap W and H')
+                        action="store_true", help='Used only on images, it swap the channels position (from CHW to HWC or viceversa)')
     parser.add_argument('-F', '--nptype',
                         choices=np.sctypeDict.keys(), default=None,
                         help='interpret pixels as this numpy type')

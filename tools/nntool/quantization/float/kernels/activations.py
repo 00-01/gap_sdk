@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from utils.sigmoid_tanh_lut import sigmoid_lut_float, tanh_lut_float
 import numpy as np
 from graph.types import (HSigmoidActivationParameters,
                          HSwishActivationParameters, LeakyActivationParameters,
@@ -35,7 +36,9 @@ class HSwishFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
-        return qrec.get_outputs(params, [in_tensor * np.minimum(np.maximum(in_tensor + 3, 0), 6) / 6], ktype="float")
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        return qrec.get_outputs(params, [in_tensor * np.minimum(np.maximum(in_tensor + in_dtype(3), in_dtype(0)), in_dtype(6)) / in_dtype(6)], ktype="float")
 
 
 @params_type(HSigmoidActivationParameters)
@@ -50,7 +53,9 @@ class HSigmoidFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
-        return qrec.get_outputs(params, [np.minimum(np.maximum(in_tensor + params.offset, 0), 6) / 6], ktype="float")
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        return qrec.get_outputs(params, [np.minimum(np.maximum(in_tensor + params.offset, in_dtype(0)), in_dtype(6)) / in_dtype(6)], ktype="float")
 
 
 @params_type(SigmoidActivationParameters)
@@ -65,7 +70,12 @@ class SigmoidFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
-        return qrec.get_outputs(params, [1 / (1 + np.exp(-in_tensor))], ktype="float")
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+                'float') else np.float32
+        if in_dtype == np.float32:
+            return qrec.get_outputs(params, [in_dtype(1) / (in_dtype(1) + np.exp(-in_tensor).astype(in_dtype))], ktype="float")
+        else:
+            return qrec.get_outputs(params, [sigmoid_lut_float(in_tensor, in_dtype)], ktype="float")
 
 @params_type(TanHActivationParameters)
 @qrec_type('float')
@@ -79,7 +89,12 @@ class TanHFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
-        return qrec.get_outputs(params, [np.tanh(in_tensor)], ktype="float")
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+                'float') else np.float32
+        if in_dtype == np.float32:
+            return qrec.get_outputs(params, [np.tanh(in_tensor).astype(in_dtype)], ktype="float")
+        else:
+            return qrec.get_outputs(params, [tanh_lut_float(in_tensor, in_dtype)], ktype="float")
 
 @params_type(HTanHActivationParameters)
 @qrec_type('float')
@@ -93,7 +108,9 @@ class HTanHFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
-        return qrec.get_outputs(params, [np.minimum(np.maximum(in_tensor, -1.0), 1.0)], ktype="float")
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        return qrec.get_outputs(params, [np.minimum(np.maximum(in_tensor, in_dtype(-1.0)), in_dtype(1.0))], ktype="float")
 
 # Not used currently - need a way to select this
 
@@ -121,15 +138,15 @@ class ReluFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
         if params.upper_bound is None:
             return qrec.get_outputs(params,
-                                    [np.maximum(in_tensor,
-                                                params.lower_bound)],
+                                    [np.maximum(in_tensor, in_dtype(params.lower_bound))],
                                     ktype="float")
         return qrec.get_outputs(params,
-                                [np.minimum(np.maximum(in_tensor,
-                                                       params.lower_bound),
-                                            params.upper_bound)],
+                                [np.minimum(np.maximum(in_tensor, in_dtype(params.lower_bound)),
+                                            in_dtype(params.upper_bound))],
                                 ktype="float")
 
 
@@ -145,6 +162,9 @@ class LeakyFloat32(KernelBase):
         if qrec is None:
             qrec = AllFloatQRec()
         in_tensor = qrec.prepare_inputs(params, in_tensors, ktype="float")[0]
+        in_dtype = qrec.in_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        leak_factor = in_dtype(params.leak_factor)
         output = in_tensor * (in_tensor > 0) + in_tensor * \
-            params.leak_factor * (in_tensor < 0)
+            leak_factor * (in_tensor < 0)
         return qrec.get_outputs(params, [output], ktype="float")

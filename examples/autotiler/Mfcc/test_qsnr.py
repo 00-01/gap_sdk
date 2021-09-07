@@ -61,6 +61,7 @@ def main():
     with open("MfccConfig.json", "r") as f:
         config = json.load(f)
 
+    print(config)
     dtype = config.get('dtype', "int")
     frame_size = config['frame_size']
     frame_step = config['frame_step']
@@ -94,8 +95,12 @@ def main():
         GAP_Shift           = {"Matcher": re.compile(r"Shift\s=\s(?P<value_list>[-0-9]+)")                  , "values": []}
         GAP_out_preemph     = {"Matcher": re.compile(r"out_preemph_c = \[\t*(?P<value_list>[^\)\]]+)]\)")   , "values": []}
         GAP_out_window      = {"Matcher": re.compile(r"out_window_c = \[\t*(?P<value_list>[^\)\]]+)]\)")    , "values": []}
-        GAP_out_fft         = {"Matcher": re.compile(r"out_rfft = \[\t*(?P<value_list>[^\)\]]+)]\)") , "values": []}
-        GAP_out_fft_shift   = {"Matcher": re.compile(r"out_fft_shift = \[\t*(?P<value_list>[^\)\]]+)]\)"), "values": []}
+        if dtype == 'fix32_scal':
+            GAP_out_fft         = {"Matcher": re.compile(r"out_swapped_fft = \[\t*(?P<value_list>[^\)\]]+)]\)") , "values": []}
+            GAP_out_fft_shift   = {"Matcher": re.compile(r"out_fft_shift = \[\t*(?P<value_list>[^\)\]]+)]\)"), "values": []}    
+        else:
+            GAP_out_fft         = {"Matcher": re.compile(r"out_rfft = \[\t*(?P<value_list>[^\)\]]+)]\)") , "values": []}
+            GAP_out_fft_shift   = {"Matcher": re.compile(r"out_fft_shift = \[\t*(?P<value_list>[^\)\]]+)]\)"), "values": []}
         if not use_power:
             GAP_out_spect   = {"Matcher": re.compile(r"out_mag = \[\t*(?P<value_list>[^\)\]]+)]\)") , "values": []}
         else:
@@ -157,7 +162,10 @@ def main():
             if not high_prec:
                 QMEL = QSPECT + 15 - melspect_shift_buff
             else:
-                QMEL = 15 - 2 + 2*Shift[:,np.newaxis] - melspect_shift_buff
+                if use_power:
+                    QMEL = 15 - 2 + 2*Shift[:,np.newaxis] - melspect_shift_buff
+                else:
+                    QMEL = 30 - melspect_shift_buff
 
             #QLOG = 15
             QLOG_NORM = 15 - Norm

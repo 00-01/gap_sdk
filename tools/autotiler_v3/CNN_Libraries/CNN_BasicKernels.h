@@ -20,8 +20,10 @@
 #define __CNN_BASIC_KERNELS_H__
 #include "Gap.h"
 #include "CNN_Defines.h"
-#include "CNN_CopyBasicKernels.h"
+#include "CNN_Copy.h"
 #include "../CNN_Libraries_SQ8/CNN_AT_Misc.h"
+#include "../CNN_Libraries/CNN_Copy.h"
+
 
 #define MAXDPPREC
 #ifdef MAXDPPREC
@@ -30,7 +32,10 @@
 #define DP_fps_T short int
 #endif
 
+#ifndef Prec
 #define Prec 	(10)
+#endif
+
 /******************************************************************************************************************************/
 /******************* Autotiler Internal calls *********************************************************************************/
 /******************************************************************************************************************************/

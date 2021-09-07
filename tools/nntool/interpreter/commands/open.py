@@ -22,6 +22,7 @@ from importer.common.handler_options import HandlerOptions
 from importer.importer import create_graph
 from interpreter.nntool_shell_base import NNToolShellBase
 from quantization.cross_layer_range_eq import weight_equalization
+from graph.matches.matchers.fuse_pad import MatchFusePad
 
 LOG = logging.getLogger("nntool")
 
@@ -94,6 +95,9 @@ class OpenCommand(NNToolShellBase):
                      graph_file, opts['load_quantization'])
 
             G = create_graph(graph_file, opts=opts)
+            G.add_dimensions()
+            pad_fuser = MatchFusePad()
+            pad_fuser.match(G)
             G.add_dimensions()
             self.G = G
             self.graph_file = graph_file

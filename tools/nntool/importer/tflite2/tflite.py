@@ -245,7 +245,7 @@ class TFLiteImporter(ImporterBase):
                                      node.custom_op_name)
 
             params = handler.handle(
-                node, all_nodes=all_nodes, G=G, opts=opts, importer=self)
+                node, all_nodes=all_nodes, G=G, opts=opts, importer=self, outputs=outputs)
             if params is None:
                 continue
             for idx, out_tensor in enumerate(node.output):

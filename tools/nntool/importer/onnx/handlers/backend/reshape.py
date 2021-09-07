@@ -15,6 +15,7 @@
 
 import numpy as np
 from numpy.core.fromnumeric import prod
+from functools import reduce
 from graph.dim import Dim
 from graph.types import ConstantInputParameters, NNEdge, ReshapeParameters
 from importer.common.provisional_dim import ProvisionalDim
@@ -43,12 +44,13 @@ class Reshape(ConstantMixin, BackendHandler):
         input_shape = np.array(inputs[0][2].shape)
         shape = [dim if dim != 0 else input_shape[idx] for idx, dim in enumerate(shape)]
         if -1 in shape:
-            wild_index = shape.index(-1)
+            new_shape_size = reduce(lambda x, y: x * 1 if y is None or y == -1 else x * y, shape, 1)
+            inp_size = reduce(lambda x, y: x * y if y is not None else x, input_shape, 1)
             in_size = prod([1 if dim is None else dim for dim in input_shape])
-            shape_size = prod([1 if dim is None or dim <= 0 else dim for dim in shape])
+            shape_size = prod([1 if dim is None else dim for dim in shape])
             if in_size % shape_size != 0:
                 raise ValueError('invalid reshape')
-            shape[wild_index] = in_size // shape_size
+            shape[shape.index(-1)] = inp_size // new_shape_size
         shape = np.array(shape)
 
         if cls.is_constant(inputs[0]):

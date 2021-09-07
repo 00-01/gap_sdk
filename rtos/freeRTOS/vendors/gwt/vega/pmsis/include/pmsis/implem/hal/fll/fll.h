@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -28,48 +28,48 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PMSIS_IMPLEM_HAL_FLL_H__
-#define __PMSIS_IMPLEM_HAL_FLL_H__
+#pragma once
 
 #include "pmsis/targets/target.h"
 
 
+/* STATUS register. */
 static inline uint32_t fll_ctrl_status_get(uint32_t base)
 {
-    return hal_read32((volatile void *) (base + FLL_CTRL_STATUS_OFFSET));
+    return GAP_READ(base, FLL_CTRL_STATUS_OFFSET);
 }
 
-
+/* CONF1 register. */
 static inline uint32_t fll_ctrl_conf1_get(uint32_t base)
 {
-    return hal_read32((volatile void *) (base + FLL_CTRL_CONF1_OFFSET));
+    return GAP_READ(base, FLL_CTRL_CONF1_OFFSET);
 }
 
 static inline void fll_ctrl_conf1_set(uint32_t base, uint32_t value)
 {
-    hal_write32((volatile void *) (base + FLL_CTRL_CONF1_OFFSET), value);
+    GAP_WRITE(base, FLL_CTRL_CONF1_OFFSET, value);
 }
 
-
+/* CONF2 register. */
 static inline uint32_t fll_ctrl_conf2_get(uint32_t base)
 {
-    return hal_read32((volatile void *) (base + FLL_CTRL_CONF2_OFFSET));
+    return GAP_READ(base, FLL_CTRL_CONF2_OFFSET);
 }
 
 static inline void fll_ctrl_conf2_set(uint32_t base, uint32_t value)
 {
-    hal_write32((volatile void *) (base + FLL_CTRL_CONF2_OFFSET), value);
+    GAP_WRITE(base, FLL_CTRL_CONF2_OFFSET, value);
 }
 
-
+/* INTEGRATOR register. */
 static inline uint32_t fll_ctrl_integrator_get(uint32_t base)
 {
-    return hal_read32((volatile void *) (base + FLL_CTRL_INTEGRATOR_OFFSET));
+    return GAP_READ(base, FLL_CTRL_INTEGRATOR_OFFSET);
 }
 
 static inline void fll_ctrl_integrator_set(uint32_t base, uint32_t value)
 {
-    hal_write32((volatile void *) (base + FLL_CTRL_INTEGRATOR_OFFSET), value);
+    GAP_WRITE(base, FLL_CTRL_INTEGRATOR_OFFSET, value);
 }
 
 
@@ -104,7 +104,6 @@ static inline void hal_fll_conf1_mask_set(uint8_t fll_id, uint32_t conf1)
 
 static inline uint32_t hal_fll_conf1_mult_get(uint8_t fll_id)
 {
-    //return READ_FLL_CTRL_CONF1_MULTI_FACTOR(conf1);
     fll_ctrl_conf1_t conf1 = {0};
     conf1.raw = hal_fll_conf1_get(fll_id);
     return conf1.mult_factor;
@@ -112,22 +111,10 @@ static inline uint32_t hal_fll_conf1_mult_get(uint8_t fll_id)
 
 static inline uint32_t hal_fll_conf1_div_get(uint8_t fll_id)
 {
-    //return READ_FLL_CTRL_CONF1_CLK_OUT_DIV(conf1);
     fll_ctrl_conf1_t conf1 = {0};
     conf1.raw = hal_fll_conf1_get(fll_id);
     return conf1.clock_out_divider;
 }
-
-#if 0
-static inline void hal_fll_conf1_mult_div_update(uint8_t fll_id, uint16_t mult,
-                                                 uint8_t div)
-{
-    uint32_t conf1 = hal_fll_conf1_get(fll_id);
-    conf1 &= ~(FLL_CTRL_CONF1_MULTI_FACTOR_MASK | FLL_CTRL_CONF1_CLK_OUT_DIV_MASK);
-    conf1 |= (FLL_CTRL_CONF1_MULTI_FACTOR(mult) | FLL_CTRL_CONF1_CLK_OUT_DIV(div));
-    hal_fll_conf1_mask_set(fll_id, conf1);
-}
-#endif
 
 static inline void hal_fll_conf1_mult_div_update(uint8_t fll_id, uint16_t mult,
                                                  uint8_t div)
@@ -192,5 +179,3 @@ static inline void hal_fll_integrator_int_fract_set(uint8_t fll_id,
     integrator.fract_part = fract;
     hal_fll_integrator_set(fll_id, integrator.raw);
 }
-
-#endif  /* __PMSIS_IMPLEM_HAL_FLL_H__ */

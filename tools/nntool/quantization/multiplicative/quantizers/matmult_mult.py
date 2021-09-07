@@ -115,11 +115,11 @@ class MatMultMult(MultQuantizionHandler):
         if force_out_q:
             o_q = force_out_q
             # can't be forced to something not np.int8
-            if o_q.dtype != np.int8 or o_q.is_asymmetric:
+            if o_q.dtype != np.int8 or o_q.asymmetric:
                 return None
             LOG.warning('node %s output forced to range %s/%s - actual range %s/%s %s',
                         params.name, o_q.min, o_q.max, min_val, max_val,
-                        "asymmetric" if o_q.is_asymmetric else "symmetric")
+                        "asymmetric" if o_q.asymmetric else "symmetric")
         else:
             o_q = QType.from_min_max_sq(min_val=min_val,
                                         max_val=max_val,

@@ -28,18 +28,109 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PMSIS_IMPLEM_HAL_PMU_PMU_H__
+#pragma once
 
-/*! @brief Voltage regulator and power states. */
-#define PI_PMU_DCDC_OPER_POINTS    (4)
+#include "pmsis/targets/target.h"
 
-#define PI_PMU_DCDC_DEFAULT_NV     (1200)
-#define PI_PMU_DCDC_DEFAULT_MV     (1200)
-#define PI_PMU_DCDC_DEFAULT_LV     (1000)
-#define PI_PMU_DCDC_DEFAULT_RET    (800)
-#define PI_PMU_DCDC_RANGE          (5)
-#define PI_PMU_DCDC_RANGE_MASK     (0x1F)
-#define PI_PMU_DCDC_BASE_VALUE     (550)
-#define PI_PMU_DCDC_STEP           (50)
+/* Boot mode. */
+#define COLD_BOOT                  ( 0 )   /* SoC cold boot, from Flash usually */
+#define DEEP_SLEEP_BOOT            ( 1 )   /* Reboot from deep sleep state, state has been lost, somehow equivalent to COLD_BOOT */
+#define RETENTIVE_BOOT             ( 2 )   /* Reboot from Retentive state, state has been retained, should bypass flash reload */
 
-#define PI_PMU_MAX_DCDC_VARIATION  ((int32_t) (0.1*32767))
+/* Domain ID. */
+#define PI_PMU_SWU_ID              ( 0 )
+#define PI_PMU_MRAM_ID             ( 1 )
+#define PI_PMU_CSI_ID              ( 2 )
+#define PI_PMU_CLUSTER_ID          ( 3 )
+#define PI_PMU_CHIP_ID             ( 4 )
+
+/* PMU state. */
+#define PI_PMU_STATE_OFF           ( 0 )
+#define PI_PMU_STATE_ON            ( 1 )
+
+/* Retentive mode flags. */
+#define PI_PMU_FLAGS_NO_RET        ( 0 )
+#define PI_PMU_FLAGS_RET           ( 1 )
+#define PI_PMU_FLAGS_PADS_OFF      ( 0 )
+#define PI_PMU_FLAGS_PADS_ON       ( 2 )
+
+/* Maestro internal events */
+#define PI_PMU_MAESTRO_EVENT_ICU_OK              ( 1 << 0 )
+#define PI_PMU_MAESTRO_EVENT_ICU_DELAYED         ( 1 << 1 )
+#define PI_PMU_MAESTRO_EVENT_MODE_CHANGED        ( 1 << 2 )
+#define PI_PMU_MAESTRO_EVENT_PICL_OK             ( 1 << 3 )
+#define PI_PMU_MAESTRO_EVENT_SCU_OK              ( 1 << 4 )
+
+/**
+ * PICL_CTRL = DATA[31:16] | DIR | PICL_ADDR[14:1] | START
+ *
+ * DIR = READ(1) | WRITE(0)
+ * PICL_ADDR = CHIP_SEL_ADDR | REG_ADDR
+ * * CHIP_SEL_ADDR[6:0] PICL block selection offset, MSB-part
+ * * REG_ADDR[4:0] PICL sub-block register offset, LSB-part
+ * START = 1
+ */
+#define PI_PMU_PICL_DIR_WRITE              ( 0 )
+#define PI_PMU_PICL_DIR_READ               ( 1 )
+
+#define PI_PMU_PICL_ADDR_CHIP_SEL_OFFSET   ( 5 )
+#define PI_PMU_PICL_ADDR_REG_OFFSET        ( 0 )
+
+#define PI_PMU_PICL_ADDR(island, addr)     (((island) << PI_PMU_PICL_ADDR_CHIP_SEL_OFFSET) | \
+                                            ((addr) << PI_PMU_PICL_ADDR_REG_OFFSET))
+//#define PI_PMU_DLC_PACK(data, dir, paddr)  (((state) << 16) | (dir) | ((paddr) << 1) | 0x1);
+
+#define PMU_WRITE(offset, value) IP_WRITE(pmu, offset, value)
+#define PMU_READ(offset) IP_READ(pmu, offset)
+
+
+static inline void maestro_picl_write(uint32_t island, uint32_t addr,
+                                      uint32_t data)
+{
+    uint32_t base = (uint32_t) pmu;
+    uint32_t paddr = PI_PMU_PICL_ADDR(island, addr);
+    maestro_dlc_pctrl_t pctrl_val = { .raw = 0 };
+    pctrl_val.pwdata = data;
+    pctrl_val.dir    = PI_PMU_PICL_DIR_WRITE;
+    pctrl_val.paddr  = paddr;
+    pctrl_val.start  = 1;
+    maestro_dlc_pctrl_set(base, pctrl_val.raw);
+}
+
+
+static inline void hal_pmu_maestro_sequence_trigger(uint32_t seq)
+{
+    // Compute the right register ID / bit shift as each WIU IFR register is 8 bits wide
+    uint32_t reg_id = MAESTRO_WIU_IFR_0_OFFSET + (seq >> 3);
+    uint32_t seq_id = seq & 0x7;
+    maestro_picl_write(MAESTRO_WIU_OFFSET, reg_id, (1 << seq_id));
+}
+
+
+/*! MAESTRO_DLC_IMR */
+/* Enable IRQ. */
+static inline void hal_pmu_irq_mask_set(uint32_t mask)
+{
+    uint32_t base = (uint32_t) pmu;
+    uint32_t irq_mask = maestro_dlc_imr_get(base);
+    irq_mask |= mask;
+    maestro_dlc_imr_set(base, mask);
+}
+
+/* Disable IRQ. */
+static inline void hal_pmu_irq_mask_clear(uint32_t mask)
+{
+    uint32_t base = (uint32_t) pmu;
+    uint32_t irq_mask = maestro_dlc_imr_get(base);
+    irq_mask &= ~mask;
+    maestro_dlc_imr_set(base, mask);
+}
+
+
+/*! MAESTRO_DLC_IFR */
+/* Acknowledge IRQ. */
+static inline void hal_pmu_irq_flag_clear(uint32_t flag)
+{
+    uint32_t base = (uint32_t) pmu;
+    maestro_dlc_ifr_set(base, flag);
+}

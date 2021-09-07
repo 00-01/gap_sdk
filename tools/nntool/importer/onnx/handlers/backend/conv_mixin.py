@@ -14,6 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+from copy import deepcopy
 import numpy as np
 from graph.dim import Conv2DFilterDim, DilationDim, Dim, StrideDim
 from graph.types.base import NNEdge
@@ -43,6 +44,11 @@ class ConvMixin(BroadcastMixin, PadMixin, ConstantMixin):
         x = inputs[0]
         x_rank = len(x[2].shape)
         x_shape = x[2].shape
+        real_in_shape = deepcopy(x_shape)
+        #conv_shape = [x if idx > 0 and x is not None else 1 for idx, x in enumerate(x_shape)]
+        conv_shape = x_shape
+        if None in x_shape:
+            real_in_shape.remove(None)
         spatial_size = x_rank - 2
         assert spatial_size == 2 or spatial_size == 1, "only 1D and 2D convolutions supported"
 
@@ -52,7 +58,7 @@ class ConvMixin(BroadcastMixin, PadMixin, ConstantMixin):
         weights = cls.get_constant(inputs[1])
         out_c = weights.shape[0]
         group = node.attrs.get("group", 1)
-        in_c = x_shape[1]
+        in_c = conv_shape[-spatial_size-1] if conv_shape[-spatial_size-1] is not None else 1
         filt_in_c = in_c // group
         if in_c != weights.shape[1] * group:
             raise ValueError(f'node {valid_name} has incorrect input channel '
@@ -69,8 +75,8 @@ class ConvMixin(BroadcastMixin, PadMixin, ConstantMixin):
         else:
             filt_h = weights.shape[-2]
             filt_w = weights.shape[-1]
-        h = 1 if spatial_size == 1 else x_shape[-2]
-        w = x_shape[-1]
+        h = 1 if spatial_size == 1 else (conv_shape[-2] if conv_shape[-2] is not None else 1)
+        w = conv_shape[-1] if conv_shape[-1] is not None else 1
 
         filt_dim = Conv2DFilterDim(filt_h, filt_w,
                                    out_c, in_c=filt_in_c)
@@ -113,6 +119,19 @@ class ConvMixin(BroadcastMixin, PadMixin, ConstantMixin):
                           to_node=params, from_idx=0, to_idx=1))
         G.add_edge(NNEdge(from_node=biases_node,
                           to_node=params, from_idx=0, to_idx=2))
+        if conv_shape != real_in_shape:
+            # insert reshape from [xx,None,xx,xx] -> [None, xx, xx, xx]
+            rbatch_params = ReshapeParameters(f'{valid_name}_reshape_batchdim',
+                                          old_shape=Dim.unnamed(conv_shape),
+                                          shape=Dim.unnamed(real_in_shape))
+            G.add_edge(
+                NNEdge(from_node=x[0], to_node=rbatch_params, from_idx=x[1], to_idx=0))
+            prev_node = rbatch_params
+            prev_idx = 0
+        else:
+            prev_node = x[0]
+            prev_idx = x[1]
+
         if spatial_size == 1:
             oned_in_shape = [in_c, w]
             twod_in_shape = [in_c, 1, w]
@@ -124,17 +143,17 @@ class ConvMixin(BroadcastMixin, PadMixin, ConstantMixin):
                                           old_shape=out_dims[0],
                                           shape=Dim.unnamed(oned_out_shape))
             G.add_edge(
-                NNEdge(from_node=x[0], to_node=r1_params, from_idx=x[1], to_idx=0))
+                NNEdge(from_node=prev_node, to_node=r1_params, from_idx=prev_idx, to_idx=0))
             G.add_edge(NNEdge(from_node=r1_params,
                               to_node=params, from_idx=0, to_idx=0))
             G.add_edge(NNEdge(from_node=params,
                               to_node=r2_params, from_idx=0, to_idx=0))
-            pout_dims = ProvisionalDim([x_shape[0]] + oned_out_shape)
+            pout_dims = ProvisionalDim([conv_shape[0]] + oned_out_shape)
             all_nodes[node.output[0]] = (r2_params, 0, pout_dims)
             return r2_params
         else:
-            pout_dims = ProvisionalDim([x_shape[0]] + out_dims[0].shape)
+            pout_dims = ProvisionalDim([conv_shape[0]] + out_dims[0].shape)
             G.add_edge(
-                NNEdge(from_node=x[0], to_node=params, from_idx=x[1], to_idx=0))
+                NNEdge(from_node=prev_node, to_node=params, from_idx=prev_idx, to_idx=0))
             all_nodes[node.output[0]] = (params, 0, pout_dims)
             return params

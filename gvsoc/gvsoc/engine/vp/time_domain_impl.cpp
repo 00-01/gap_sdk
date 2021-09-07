@@ -84,7 +84,7 @@ int time_domain::build()
     }
     else
     {
-        this->new_component("sys", this->get_js_config()->get("**/target"));
+        this->new_component("", this->get_js_config()->get("**/target"));
     }
     return 0;
 }
@@ -194,7 +194,7 @@ void vp::time_engine::run()
 
 void vp::time_engine::quit(int status)
 {
-    this->stop_engine(status, true);
+    this->stop_engine(status, true, true);
 }
 
 

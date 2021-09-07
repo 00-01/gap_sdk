@@ -161,10 +161,10 @@ source config/gapuino_v3.sh
 ~~~~~
 
 If you directly source the board config, you need to source the appropriate
-config file for the board that you have. The SDK supports 3 boards (gapuino, 
-gapoc_a and gapoc_b) and each of them can use version 1/2/3 of the GAP8 chip. 
-Boards bought before 10/2019 contains GAP8 version 1 and use a USB B plug for 
-JTAG while the ones bought after contains version 2/3 and use a USB micro B 
+config file for the board that you have. The SDK supports 3 boards (gapuino,
+gapoc_a and gapoc_b) and each of them can use version 1/2/3 of the GAP8 chip.
+Boards bought before 10/2019 contains GAP8 version 1 and use a USB B plug for
+JTAG while the ones bought after contains version 2/3 and use a USB micro B
 for JTAG.
 
 Once the proper config file is sourced, you can proceed with the SDK build.
@@ -196,7 +196,7 @@ pip3 install -r doc/requirements.txt
 
 First, use the following command to configure the shell environment correctly
 for the GAP SDK.
-It must be done for each terminal session**:
+It must be done for each terminal session:
 
 ~~~~~shell
 cd ~/gap_sdk
@@ -210,13 +210,29 @@ Tip: You can add an "alias" command as follows in your .bashrc file:
 alias GAP_SDK='cd ~/gap_sdk && source sourceme.sh'
 ~~~~~
 
-Typing GAP_SDK will now change to the gap_sdk directory and execute the source
+Typing `GAP_SDK` will now change to the gap_sdk directory and execute the source
 command.
 
-Then, compile the minimal set of dependencies to run examples:
-
+Once in the SDK, run `make help` to get commands and get SDK ready to use.
 ~~~~~shell
-make minimal_sdk
+$ make help
+=================== GAP SDK ===================
+
+Main targets:
+ - clean       : clean the SDK
+ - all         : build the whole SDK with all tools
+ - minimal     : get latest sources for all rtos and libs
+ - gvsoc       : build GVSOC simulation platform
+ - openocd.all : build OpenOCD tools to run simulation on boards
+~~~~~
+
+Then, compile the minimal set of dependencies to run examples on either GVSOC or boards:
+~~~~~shell
+make minimal
+# Build GVSOC simulation platform
+make gvsoc
+# Build openocd tools to flash and run simulation on boards
+make openocd.all
 ~~~~~
 
 ### Helloworld
@@ -229,9 +245,10 @@ cd examples/pmsis/helloworld
 make clean all run PMSIS_OS=freertos platform=board
 ~~~~~
 
-In details: PMSIS_OS allows us to choose an OS (freertos/pulpos), platform
-allows to choose the runner (board/gvsoc) and io choose the default output
-for printf (host/uart).
+In details, `PMSIS_OS`, `platform`, `io` are used to configure the RTOS to run the example on, specify the runner, and select the output for printf.
+* PMSIS_OS : RTOS (freertos/pulpos)
+* platform : board gvsoc rtl fpga (defult if not set is gvsoc)
+* io       : disable host(semihosting) uart rtl (defult if not set is semihosting)
 
 After the build you should see an output resembling:
 
@@ -340,9 +357,29 @@ make clean all run platform=gvsoc PMSIS_OS=freertos/pulpos
 ### Using the virtual platform with profiler
 
 #### Using GAP Profiler
-You can open the doc : gap_sdk/doc/_build/html/index.html and find Tools -> Profiler
 
-In the doc, we will show you how to install and use the profiler step by step. 
+Install the profiler:
+
+~~~~~shell
+make profiler
+~~~~~
+
+For further information, you can open the doc : gap_sdk/doc/_build/html/index.html
+and find Tools -> Profiler
+
+In the doc, we will show you how to install and use the profiler step by step.
+
+Note:
+1. If you are using Anaconda in Ubuntu 20.04, Anaconda has default qt version: 5.9.7,
+    which is not align to the default version in Ubuntu 20.04 (5.12.8)
+    Solution: use only the one from system (5.12.8):
+
+~~~~~shell
+             export PATH=/usr/lib/qt5/bin:$PATH
+~~~~~
+
+2. Profiler build process doesn't support GCC-10+ for now.
+Solution: switch to gcc-9
 
 #### Using VCD traces with GTKWave
 You can also generate VCD traces to see more details about the execution:
@@ -397,8 +434,8 @@ flash. Be careful that this is a permanent operation, even though it will still
 be possible to boot from JTAG. This will just always boot from flash when you
 power-up the board or reset it.
 
-To program the efuses, please read the [README](./tools/gap_fuser/README.md) and 
-use the fuser tool to program your efuse. 
+To program the efuses, please read the [README](./tools/gap_fuser/README.md) and
+use the fuser tool to program your efuse.
 
 ## Console IO via uart
 

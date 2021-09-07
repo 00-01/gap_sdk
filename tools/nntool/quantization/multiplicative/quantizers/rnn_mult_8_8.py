@@ -66,10 +66,16 @@ LOG = logging.getLogger('nntool.' + __name__)
         'help': 'scales filter weights with a representation of both 1 and -1 (i.e. -127 - 127 in 8 bits)',
         'default': True
     },
+    {
+        'name': 'use_ne16',
+        'type': bool,
+        'help': 'Use NE16 for this layer',
+        'default': False
+    },
 )
 @in_qs_constraint({'dtype': np.int8})
 @out_qs_constraint({'dtype': np.int8})
-@option_constraint(force_external_size={8, None})
+@option_constraint(force_external_size={8, None}, use_ne16={False, None})
 class RNNMultMult8x8(RescaleConstantMixin, MultQuantizionHandler):
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):
@@ -99,12 +105,21 @@ class RNNMultMult8x8(RescaleConstantMixin, MultQuantizionHandler):
             params.rnn_same_inout_scale = True
             G.node_options[NodeId(params)] = params.at_options
 
-        for weight_name in ['i_2_i_w', 'r_2_i_w']:
-            w_q = in_qs[names[weight_name]]
-            in_qs[names[weight_name]] = QType.from_min_max_sq(
-                w_q.min_val, w_q.max_val,
-                dtype=np.int8, bits=opts['weight_bits'],
-                narrow_range=opts.get('narrow_weights', True))
+
+        edges = G.indexed_in_edges(params.name)
+        w_q = in_qs[names['i_2_i_w']]
+        in_qs[names['i_2_i_w']] = QType.from_min_max_sq(
+            w_q.min_val, w_q.max_val,
+            dtype=np.int8, bits=opts['weight_bits'],
+            narrow_range=opts.get('narrow_weights', True),
+            dont_generate_value = True)
+
+        w_q = in_qs[names['r_2_i_w']]
+        in_qs[names['r_2_i_w']] = QType.from_min_max_sq(
+            w_q.min_val, w_q.max_val,
+            dtype=np.int8, bits=opts['weight_bits'],
+            narrow_range=opts.get('narrow_weights', True),
+            concatenated_nodes=[edges[names['i_2_i_w']].from_node.name])
 
         w_scales = np.maximum(
             in_qs[names['i_2_i_w']].scale, in_qs[names['r_2_i_w']].scale)

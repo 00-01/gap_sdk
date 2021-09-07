@@ -32,6 +32,9 @@
 #include "pmsis.h"
 #include "gap_common.h"
 
+__attribute__((noinline)) void __io_lock();
+__attribute__((noinline)) void __io_unlock();
+
 #if defined(FEATURE_CLUSTER)
 #include "pmsis/cluster/cluster_sync/cl_synchronisation.h"
 #include "pmsis/cluster/cluster_sync/fc_to_cl_delegate.h"
@@ -256,16 +259,7 @@ static void __semihost_printf_flush(char c)
 
 static void __stdout_putc(char c)
 {
-    #if defined(FEATURE_CLUSTER)
-    if (!__native_is_fc())
-    {
-        CLUSTER_STDOUT->PUTC[__core_ID() << 1] = c;
-    }
-    else
-    #endif  /* FEATURE_CLUSTER */
-    {
-        FC_STDOUT->PUTC[__core_ID() << 1] = c;
-    }
+    hal_stdout_putc_set(pi_cluster_id(), pi_core_id(), c);
 }
 #endif  /* PRINTF_RTL */
 #endif  /* PRINTF_UART */

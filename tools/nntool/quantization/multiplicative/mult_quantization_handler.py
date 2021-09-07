@@ -51,7 +51,7 @@ class MultQuantizionHandler(QuantizionHandler):
                 res_qs.append(in_q)
                 continue
             update = False
-            if in_q.is_asymmetric:
+            if in_q.asymmetric:
                 # you need to change scale to change zero point
                 if in_q.forced_zero_point or in_q.forced_scale:
                     return None

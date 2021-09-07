@@ -358,8 +358,8 @@ def search_down_for_reverse(G, visited_edges, node, in_idx, transpose, done_edge
         extra_actions = [
             SetReshapeAction(
                 node,
-                in_shape=node.old_shape.calc_transpose(transpose),
-                out_shape=node.shape.calc_transpose(new_transpose)
+                in_shape=node.old_shape.calc_transpose(reverse_transpose(transpose)),
+                out_shape=node.shape.calc_transpose(reverse_transpose(new_transpose))
             ),
             SetHintAction(node, 'in', in_idx,
                           transpose=reverse_transpose(transpose))

@@ -206,7 +206,7 @@ class BackendHandler(Handler):
     @classmethod
     def convert_to_symmetric(cls, qtypes):
         return [QType.from_min_max_sq(qtype.min_val, qtype.max_val)
-                if qtype is not None and (qtype.is_asymmetric or not qtype.signed) else qtype for qtype in qtypes]
+                if qtype is not None and (qtype.asymmetric or not qtype.signed) else qtype for qtype in qtypes]
 
     @classmethod
     def load_tf_quantization(cls, input_tensors, output_tensors, in_qs=None, out_qs=None, qrec_class=None):

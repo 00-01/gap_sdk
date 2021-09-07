@@ -100,7 +100,9 @@ class RnnFloat32Mixin():
         assert in_tensor.shape[1] == params.n_inputs, "input shape incorrect - n_inputs"
         if params.revert:
             in_tensor = np.flip(in_tensor, axis=0)
-        out_tensor = np.zeros([params.n_output_cells, params.n_states])
+        out_dtype = qrec.out_qs[0].dtype if qrec.ktype.startswith(
+            'float') else np.float32
+        out_tensor = np.zeros([params.n_output_cells, params.n_states], dtype=out_dtype)
         out_idx = 0
         if details is not None:
             init_stats(
@@ -170,17 +172,25 @@ class RNNFloat32(RnnFloat32Mixin, KernelBase):
                     **kwargs):
 
         del kwargs
-        input_gate_scratch = args['i_b'].copy()
 
         # These two sections could be combined by stacking the weights horizontally
         # and the input and state vertically
 
         # For each cell: compute input_weight * input if there is an input
         if idx < params.n_input_cells:
-            input_gate_scratch += args['i_2_i_w'].dot(input_tensor[idx])
+            input_gate_scratch = args['i_2_i_w'].dot(input_tensor[idx])
+            DiagCollector.record(
+                'input_dot', input_gate_scratch, node=params)
 
         # For each cell: compute recurrent_weight * output_state
-        input_gate_scratch += args['r_2_i_w'].dot(args['i_state'])
+        state_scratch = args['r_2_i_w'].dot(args['i_state'])
+        DiagCollector.record(
+            'state_dot', state_scratch, node=params)
+
+        input_gate_scratch = args['i_b'].copy() + state_scratch + input_gate_scratch
+
+        DiagCollector.record(
+            'before_act', input_gate_scratch, node=params)
 
         input_gate_scratch = ACTIVATIONS[params.activation](input_gate_scratch)
         DiagCollector.record(

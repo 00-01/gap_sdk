@@ -77,9 +77,7 @@
 #define ARCHI_REF_CLOCK_LOG2        (15)
 #define ARCHI_REF_CLOCK             (1 << ARCHI_REF_CLOCK_LOG2) // 32kHz, 32768
 #define ARCHI_FLL_REF_CLOCK_LOG2    (ARCHI_REF_CLOCK_LOG2)
-//#define ARCHI_REF_CLOCK             (1 << 15) // 32kHz, 32768 // used for RTC
-#define ARCHI_FLL_REF_CLOCK         (24576063) // 24Mhz
-#define ARCHI_FAST_REF_CLOCK_INIT   (6000000) // 6Mhz
+#define ARCHI_FLL_REF_CLOCK         (ARCHI_REF_CLOCK) // 32KHz
 
 /* FLL */
 #if defined( __PLATFORM_FPGA__)
@@ -88,9 +86,11 @@
 #define ARCHI_FREQ_INIT             (50000000)
 #endif
 #define ARCHI_NB_FLL                (3) // But one struct
-#define FLL_ID_PERIPH               (1)
-#define FLL_ID_FC                   (0)
+#define FLL_ID_PERIPH               (0)
+#define FLL_ID_FC                   (1)
 #define FLL_ID_CL                   (2)
+#define FLL_AREA_SIZE_LOG2          (0x4)
+#define FLL_AREA_SIZE               (1 << FLL_AREA_SIZE_LOG2)
 
 /* TIMER */
 #define ARCHI_NB_TIMER_FC           (2)
@@ -215,71 +215,6 @@
 #define CL_DMA_OFFSET               (0x00001800)
 #define CL_DECOMP_OFFSET            (0x00002000)
 #define CL_DEMUX_PERIPH_OFFSET      (0x00004000)
-
-
-/*! Event_Unit Demux offset */
-#define CLUSTER_DEMUX_EU_CORE_OFFSET              ( 0x00000000 )
-#define CLUSTER_DEMUX_EU_LOOP_OFFSET              ( 0x00000060 )
-#define CLUSTER_DEMUX_EU_DISPATCH_OFFSET          ( 0x00000080 )
-#define CLUSTER_DEMUX_EU_HW_MUTEX_OFFSET          ( 0x000000C0 )
-#define CLUSTER_DEMUX_EU_SW_EVENT_OFFSET          ( 0x00000100 )
-#define CLUSTER_DEMUX_EU_HW_BARRIER_OFFSET        ( 0x00000200 )
-
-
-/*! Event_Unit Core Demux */
-#define CL_DEMUX_EU_CORE_EVENT_MASK               ( 0x00 )
-#define CL_DEMUX_EU_CORE_EVENT_MASK_AND           ( 0x04 )
-#define CL_DEMUX_EU_CORE_EVENT_MASK_OR            ( 0x08 )
-#define CL_DEMUX_EU_CORE_IRQ_MASK                 ( 0x0C )
-#define CL_DEMUX_EU_CORE_IRQ_MASK_AND             ( 0x10 )
-#define CL_DEMUX_EU_CORE_IRQ_MASK_OR              ( 0x14 )
-#define CL_DEMUX_EU_CORE_STATUS                   ( 0x18 )
-#define CL_DEMUX_EU_CORE_BUFFER                   ( 0x1C )
-#define CL_DEMUX_EU_CORE_BUFFER_MASKED            ( 0x20 )
-#define CL_DEMUX_EU_CORE_BUFFER_IRQ_MASKED        ( 0x24 )
-#define CL_DEMUX_EU_CORE_BUFFER_CLEAR             ( 0x28 )
-#define CL_DEMUX_EU_CORE_SW_EVT_MASK              ( 0x2C )
-#define CL_DEMUX_EU_CORE_SW_EVT_MASK_AND          ( 0x30 )
-#define CL_DEMUX_EU_CORE_SW_EVT_MASK_OR           ( 0x34 )
-#define CL_DEMUX_EU_CORE_EVENT_WAIT               ( 0x38 )
-#define CL_DEMUX_EU_CORE_EVENT_WAIT_CLEAR         ( 0x3C )
-#define CL_DEMUX_EU_CORE_SEC_IRQ_MASK             ( 0x40 )
-#define CL_DEMUX_EU_CORE_SEC_IRQ_MASK_AND         ( 0x44 )
-#define CL_DEMUX_EU_CORE_SEC_IRQ_MASK_OR          ( 0x48 )
-
-/*! Event_Unit Loop Demux */
-#define CL_DEMUX_EU_LOOP_STATE                    ( 0x00 )
-#define CL_DEMUX_EU_LOOP_START                    ( 0x04 )
-#define CL_DEMUX_EU_LOOP_END                      ( 0x08 )
-#define CL_DEMUX_EU_LOOP_INCR                     ( 0x0C )
-#define CL_DEMUX_EU_LOOP_CHUNK                    ( 0x10 )
-#define CL_DEMUX_EU_LOOP_EPOCH                    ( 0x14 )
-#define CL_DEMUX_EU_LOOP_SINGLE                   ( 0x18 )
-
-/*! Event_Unit Dispatch Demux */
-#define CL_DEMUX_EU_DISPATCH_FIFO_ACCESS          ( 0x00 )
-#define CL_DEMUX_EU_DISPATCH_TEAM_CONFIG          ( 0x04 )
-
-/*! Event_Unit Mutex Demux */
-#define CL_DEMUX_EU_HW_MUTEX_MUTEX                ( 0x00 )
-
-/*! Event_Unit SW_Events Demux */
-#define CL_DEMUX_EU_SW_EVT_TRIGGER                ( 0x00 )
-#define CL_DEMUX_EU_SW_EVT_TRIGGER_WAIT           ( 0x40 )
-#define CL_DEMUX_EU_SW_EVT_TRIGGER_WAIT_CLEAR     ( 0x80 )
-
-/*! Event_Unit HW Barrier Demux */
-#define CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK       ( 0x00 )
-#define CL_DEMUX_EU_HW_BARRIER_STATUS             ( 0x04 )
-#define CL_DEMUX_EU_HW_BARRIER_STATUS_SUMMARY     ( 0x08 )
-#define CL_DEMUX_EU_HW_BARRIER_TARGET_MASK        ( 0x0C )
-#define CL_DEMUX_EU_HW_BARRIER_TRIGGER            ( 0x10 )
-#define CL_DEMUX_EU_HW_BARRIER_TRIGGER_SELF       ( 0x14 )
-#define CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT       ( 0x18 )
-#define CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT_CLEAR ( 0x1C )
-
-#define CL_DEMUX_EU_HW_BARRIER_SIZE               ( 0x20 )
-
 
 /* Cluster demux peripherals.*/
 #define CL_DEMUX_EU_CORE_OFFSET         (CL_DEMUX_PERIPH_OFFSET + CLUSTER_DEMUX_EU_CORE_OFFSET)

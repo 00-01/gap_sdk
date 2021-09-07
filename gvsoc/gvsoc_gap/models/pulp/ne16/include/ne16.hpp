@@ -68,9 +68,10 @@
 #define NE16_NB_REG 24
 
 #define NE16_SPECIAL_TRACE_REG NE16_NB_REG
-#define DEFAULT_TRACE_LEVEL L0_JOB_START_END
+#define DEFAULT_TRACE_LEVEL L0_CONFIG
 
 enum Ne16State {
+    IDLE,
     START,
     START_STREAMIN,
     STREAMIN_LOAD,
@@ -86,9 +87,9 @@ enum Ne16State {
 };
 
 enum Ne16TraceLevel {
-    L0_JOB_START_END,
-    L1_CONFIG,
-    L2_ACTIV_INOUT,
+    L0_CONFIG,
+    L1_ACTIV_INOUT,
+    L2_DEBUG,
     L3_ALL
 };
 
@@ -193,6 +194,8 @@ public:
     vp::io_req io_req;
     vp::trace trace;
     vp::io_master out;
+    vp::reg_32 state;
+    vp::reg_8 activity;
     Ne16TraceLevel trace_level;
 
 private:
@@ -220,6 +223,7 @@ private:
     // DEBUG settings
     bool fsm_traces;
     bool accum_traces;
+    bool accum_traces_poststreamin;
     bool accum_traces_postmatrixvec;
     bool accum_traces_normquant;
     bool accum_traces_streamout;
@@ -240,7 +244,7 @@ private:
     // MAIN FSM and LOOP
     int  fsm();
     void fsm_loop();
-    Ne16State state;
+    //Ne16State state;
 
     // REGISTER FILE member functions
     int  regfile_rd(int);
@@ -259,6 +263,8 @@ private:
     int  job_pending;
     int  job_state;
     unsigned char job_id;
+    unsigned char cxt_job_id[2];
+    int  job_running;
 
     // REGISTER FILE configuration parameters
     int weights_ptr;

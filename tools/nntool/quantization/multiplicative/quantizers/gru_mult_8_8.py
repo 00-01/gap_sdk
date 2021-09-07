@@ -81,13 +81,21 @@ class GRUMult8x8(RescaleConstantMixin, MultQuantizionHandler):
                                     dtype=out_dtype)
 
         names = {val: idx for idx, val in enumerate(GRUParameters.INPUT_NAMES)}
+        edges = kwargs['G'].indexed_in_edges(params.name)
 
-        for weight_name in ['w_2_z_w', 'w_2_r_w', 'w_2_h_w', 'r_2_z_w', 'r_2_r_w', 'r_2_h_w']:
-            w_q = in_qs[names[weight_name]]
-            in_qs[names[weight_name]] = QType.from_min_max_sq(
+        for gate in ['r', 'z', 'h']:
+            w_q = in_qs[names[f'w_2_{gate}_w']]
+            in_qs[names[f'w_2_{gate}_w']] = QType.from_min_max_sq(
                 w_q.min_val, w_q.max_val,
                 dtype=np.int8, bits=opts['weight_bits'],
-                narrow_range=opts.get('narrow_weights', True))
+                narrow_range=opts.get('narrow_weights', True),
+                dont_generate_value = True)
+            w_q = in_qs[names[f'r_2_{gate}_w']]
+            in_qs[names[f'r_2_{gate}_w']] = QType.from_min_max_sq(
+                w_q.min_val, w_q.max_val,
+                dtype=np.int8, bits=opts['weight_bits'],
+                narrow_range=opts.get('narrow_weights', True),
+                concatenated_nodes=[edges[names[f'w_2_{gate}_w']].from_node.name])
 
         if params.rnn_same_inout_scale:
             wWz_scale = rWz_scale = np.maximum(

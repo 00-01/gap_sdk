@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, GreenWaves Technologies, Inc.
+ * Copyright (c) 2021, GreenWaves Technologies, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without modification,
@@ -28,8 +28,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PMSIS_IMPLEM_HAL_CLUSTER_CLUSTER_ICACHE_CTRL_H__
-#define __PMSIS_IMPLEM_HAL_CLUSTER_CLUSTER_ICACHE_CTRL_H__
+#pragma once
 
 #include <stdint.h>
 #include "pmsis/targets/target.h"
@@ -38,19 +37,16 @@
 /*! Cache enable. */
 static inline void hal_cl_icache_enable(uint32_t device_id)
 {
-    uint32_t base = (uint32_t) cl_glob_icache_ctrl(device_id);
+    uint32_t base = (uint32_t) cl_glob_icache(device_id);
     uint32_t offset = CL_ICACHE_CTRL_ENABLE;
     uint32_t enable = 0xFFFFFFFF;
-    hal_write32((volatile void *) (base + offset), enable);
+    GAP_WRITE(base, offset, enable);
 }
 
 static inline void hal_cl_icache_disable(uint32_t device_id)
 {
-    uint32_t base = (uint32_t) cl_glob_icache_ctrl(device_id);
+    uint32_t base = (uint32_t) cl_glob_icache(device_id);
     uint32_t offset = CL_ICACHE_CTRL_ENABLE;
     uint32_t enable = 0;
-    hal_write32((volatile void *) (base + offset), enable);
+    GAP_WRITE(base, offset, enable);
 }
-
-
-#endif  /* __PMSIS_IMPLEM_HAL_CLUSTER_CLUSTER_ICACHE_CTRL_H__ */

@@ -52,6 +52,12 @@ static inline void pos_team_offload(int nb_cores, void (*entry)(void *), void *a
     eu_dispatch_push((int)arg);
 }
 
+static inline void pos_team_offload_preset(void (*entry)(void *), void *arg)
+{
+    eu_dispatch_push((int)entry);
+    eu_dispatch_push((int)arg);
+}
+
 static inline void pos_team_offload_wait()
 {
     pos_team_cc_barrier();
@@ -156,6 +162,23 @@ static inline void pi_cluster_pe_piped_task_push(pi_cluster_pe_task_t *task, pi_
 
 #endif
 
+
+static inline void pi_cl_team_prepare_fork(int nb_cores)
+{
+    pos_team_config_offload(nb_cores);
+}
+
+
+static inline void pi_cl_team_preset_fork(void (*entry)(void *), void *arg)
+{
+    pos_team_offload_preset(entry, arg);
+
+#ifndef ARCHI_CC_CORE_ID
+    entry(arg);
+#endif
+
+    pos_team_offload_wait();
+}
 
 static inline void pi_cl_team_fork(int nb_cores, void (*entry)(void *), void *arg)
 {

@@ -62,10 +62,11 @@
 #include "pmsis/implem/drivers/udma/udma_core/udma_util.h"
 #include "pmsis/implem/drivers/udma/hyperbus/hyperbus_internal.h"
 #include "pmsis/implem/drivers/udma/i2c/i2c_internal.h"
+#include "pmsis/implem/drivers/udma/i2s/i2s_internal.h"
+#include "pmsis/implem/drivers/udma/mram/mram_internal.h"
 #include "pmsis/implem/drivers/udma/uart/uart_internal.h"
 //#include "pmsis/implem/drivers/udma/cpi/cpi_internal.h"
 //#include "pmsis/implem/drivers/udma/dmacpy/dmacpy_internal.h"
-//#include "pmsis/implem/drivers/udma/i2s/i2s_internal.h"
 //#include "pmsis/implem/drivers/pwm/pwm_internal.h"
 //#include "pmsis/implem/drivers/rtc/rtc_internal.h"
 

@@ -99,4 +99,4 @@ class Conv2D(FilterMixin, BackendHandler):
             NNEdge(from_node=x[0], to_node=params, from_idx=x[1], to_idx=0))
         oparams = cls.fuse_activation(node_opts, node.name, params, **kwargs)
         all_nodes[node.output[0]] = (oparams, 0, pout_dims)
-        return params
+        return oparams

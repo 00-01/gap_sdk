@@ -42,9 +42,9 @@
 #define CLUSTER_DEMUX_EU_CORE_OFFSET              ( 0x00000000 )
 #define CLUSTER_DEMUX_EU_LOOP_OFFSET              ( 0x00000060 )
 #define CLUSTER_DEMUX_EU_DISPATCH_OFFSET          ( 0x00000080 )
-#define CLUSTER_DEMUX_EU_MUTEX_OFFSET             ( 0x000000C0 )
+#define CLUSTER_DEMUX_EU_HW_MUTEX_OFFSET          ( 0x000000C0 )
 #define CLUSTER_DEMUX_EU_SW_EVENT_OFFSET          ( 0x00000100 )
-#define CLUSTER_DEMUX_EU_BARRIER_OFFSET           ( 0x00000200 )
+#define CLUSTER_DEMUX_EU_HW_BARRIER_OFFSET        ( 0x00000200 )
 
 
 
@@ -83,14 +83,14 @@
 #define CL_DEMUX_EU_DISPATCH_TEAM_CONFIG          ( 0x04 )
 
 /*! Event_Unit Mutex Demux */
-#define CL_DEMUX_EU_MUTEX_MUTEX                   ( 0x00 )
+#define CL_DEMUX_EU_HW_MUTEX_MUTEX                ( 0x00 )
 
 /*! Event_Unit SW_Events Demux */
 #define CL_DEMUX_EU_SW_EVT_TRIGGER                ( 0x00 )
 #define CL_DEMUX_EU_SW_EVT_TRIGGER_WAIT           ( 0x40 )
 #define CL_DEMUX_EU_SW_EVT_TRIGGER_WAIT_CLEAR     ( 0x80 )
 
-/*! Event_Unit Barrier Demux */
+/*! Event_Unit HW Barrier Demux */
 #define CL_DEMUX_EU_HW_BARRIER_TRIGGER_MASK       ( 0x00 )
 #define CL_DEMUX_EU_HW_BARRIER_STATUS             ( 0x04 )
 #define CL_DEMUX_EU_HW_BARRIER_STATUS_SUMMARY     ( 0x08 )
@@ -101,6 +101,11 @@
 #define CL_DEMUX_EU_HW_BARRIER_TRIGGER_WAIT_CLEAR ( 0x1C )
 
 #define CL_DEMUX_EU_HW_BARRIER_SIZE               ( 0x20 )
+#define CL_DEMUX_EU_HW_BARRIER_SIZE_LOG2          ( 5 )
+
+
+#define CL_DEMUX_EU_HW_BARRIER_AREA_SIZE          (CL_NB_HW_BARRIER << CL_DEMUX_EU_HW_BARRIER_SIZE_LOG2)
+#define CL_DEMUX_EU_HW_BARRIER_ID_GET(bar_addr)   (((bar_addr) & (CL_DEMUX_EU_HW_BARRIER_AREA_SIZE - 1)) >> CL_DEMUX_EU_HW_BARRIER_SIZE_LOG2)
 
 
 #endif  /* __ARCHI_CLUSTER_EVENT_UNIT_OFFSET_H__ */

@@ -886,5 +886,5 @@ void pi_mram_conf_init(struct pi_mram_conf *conf)
 {
     conf->flash.api = &mram_api;
     conf->itf = 0;
-    conf->baudrate = 25000000;
+    conf->baudrate = 15000000;
 }

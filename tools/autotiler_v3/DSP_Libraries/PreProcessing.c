@@ -1,7 +1,5 @@
 #include "Gap.h"
-#include "PreProcessing.h"
-#include <stdio.h>
-#include <string.h>
+#include "DSP_Lib.h"
 
 #ifndef abs
 #define abs(a)  (((a)<0) ? (-(a)) : (a))
@@ -106,15 +104,14 @@ void PreEmphasis(PreEmphasis_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void PreEmphasis_f16(PreEmphasis_f16_T *Arg)
 {
-        f16 * __restrict__ Frame = (f16 *__restrict__) Arg->Frame;
-        f16 * __restrict__ Out =   (f16 *__restrict__) Arg->Out;
+        F16_DSP * __restrict__ Frame = (F16_DSP *__restrict__) Arg->Frame;
+        F16_DSP * __restrict__ Out =   (F16_DSP *__restrict__) Arg->Out;
         int FrameSize = Arg->FrameSize;
-        f16 PreempFactor = (f16) Arg->PreempFactor;
-        f16 S;
-        f16 Sprev;
+        F16_DSP PreempFactor = (F16_DSP) Arg->PreempFactor;
+        F16_DSP S;
+        F16_DSP Sprev;
 
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
         Chunk = ChunkSize(FrameSize);
@@ -138,7 +135,6 @@ void PreEmphasis_f16(PreEmphasis_f16_T *Arg)
         gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void PreEmphasis_f32(PreEmphasis_f32_T *Arg)
 {
@@ -233,12 +229,11 @@ void WindowingReal2Cmplx_Fix32(Windowing_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void WindowingReal2Cmplx_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        v2h *__restrict__ OutFrame  = (v2h*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16V_DSP *__restrict__ OutFrame  = (F16V_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
@@ -246,12 +241,12 @@ void WindowingReal2Cmplx_f16(Windowing_T *Arg)
         First = CoreId*Chunk; Last = Min(First + Chunk, FrameSize);
 
         for (i=First; i<Last; i++) {
-                OutFrame[i] = (v2h) {Frame[i] * Window[i], 0};
+                OutFrame[i] = (F16V_DSP) {Frame[i] * Window[i], 0};
         }
         // 0 padding
         Chunk = ChunkSize(FFT_Dim-FrameSize);
         First = FrameSize + CoreId*Chunk; Last = Min(First + Chunk, FFT_Dim);
-        for (i=First; i<Last;i++) OutFrame[i] = (v2h) {0,0};
+        for (i=First; i<Last;i++) OutFrame[i] = (F16V_DSP) {0,0};
 
         gap_waitbarrier(0);
 
@@ -261,7 +256,6 @@ void WindowingReal2Cmplx_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void WindowingReal2Cmplx_f32(Windowing_T *Arg)
 {
@@ -373,12 +367,11 @@ void WindowingReal2Cmplx_PadCenter_Fix32(Windowing_T *Arg)
 }
 
 
-#ifdef __gap9__
 void WindowingReal2Cmplx_PadCenter_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        v2h *__restrict__ OutFrame  = (v2h*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16V_DSP *__restrict__ OutFrame  = (F16V_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         int PadSize = FFT_Dim-FrameSize;
@@ -387,17 +380,17 @@ void WindowingReal2Cmplx_PadCenter_f16(Windowing_T *Arg)
         // 0 padding
         Chunk = ChunkSize(PadSize>>1);
         First = FrameSize + CoreId*Chunk; Last = Min(First + Chunk, (PadSize>>1));
-        for (i=First; i<Last;i++) OutFrame[i] = (v2h) {0,0};
+        for (i=First; i<Last;i++) OutFrame[i] = (F16V_DSP) {0,0};
 
         Chunk = ChunkSize(FrameSize);
         First = (PadSize>>1)+CoreId*Chunk; Last = Min(First + Chunk, (PadSize>>1)+FrameSize);
         for (i=First; i<Last; i++) {
-                OutFrame[i] = (v2h) {Frame[i] * Window[i-(PadSize>>1)], 0};
+                OutFrame[i] = (F16V_DSP) {Frame[i] * Window[i-(PadSize>>1)], 0};
         }
         // 0 padding
         Chunk = ChunkSize(PadSize-(PadSize>>1));
         First = (PadSize>>1)+FrameSize + CoreId*Chunk; Last = Min(First + Chunk, FFT_Dim);
-        for (i=First; i<Last;i++) OutFrame[i] = (v2h) {0,0};
+        for (i=First; i<Last;i++) OutFrame[i] = (F16V_DSP) {0,0};
 
         gap_waitbarrier(0);
 
@@ -407,7 +400,6 @@ void WindowingReal2Cmplx_PadCenter_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void WindowingReal2Cmplx_PadCenter_f32(Windowing_T *Arg)
 {
@@ -508,12 +500,11 @@ void WindowingReal2Real_Fix32(Windowing_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void WindowingReal2Real_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        f16 *__restrict__ OutFrame  = (f16*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16_DSP *__restrict__ OutFrame  = (F16_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
@@ -536,7 +527,6 @@ void WindowingReal2Real_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void WindowingReal2Real_f32(Windowing_T *Arg)
 {
@@ -643,12 +633,11 @@ void WindowingReal2Real_PadCenter_Fix32(Windowing_T *Arg)
 }
 
 
-#ifdef __gap9__
 void WindowingReal2Real_PadCenter_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        f16 *__restrict__ OutFrame  = (f16*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16_DSP *__restrict__ OutFrame  = (F16_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         int PadSize = FFT_Dim-FrameSize;
@@ -677,7 +666,6 @@ void WindowingReal2Real_PadCenter_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void WindowingReal2Real_PadCenter_f32(Windowing_T *Arg)
 {
@@ -775,12 +763,11 @@ void ZeroPad_Fix32(Windowing_T *Arg)
 #endif
 }
 
-#ifdef __gap9__
 void ZeroPad_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        f16 *__restrict__ OutFrame  = (f16*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16_DSP *__restrict__ OutFrame  = (F16_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         unsigned int i, Chunk, First, Last, CoreId=gap_coreid();
@@ -803,7 +790,6 @@ void ZeroPad_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void ZeroPad_f32(Windowing_T *Arg)
 {
@@ -910,12 +896,11 @@ void ZeroPadCenter_Fix32(Windowing_T *Arg)
 }
 
 
-#ifdef __gap9__
 void ZeroPadCenter_f16(Windowing_T *Arg)
 {
-        f16 *__restrict__ Frame     = (f16*) Arg->Frame;
-        f16 *__restrict__ OutFrame  = (f16*) Arg->OutFrame;
-        f16 *__restrict__ Window    = (f16*) Arg->Window;
+        F16_DSP *__restrict__ Frame     = (F16_DSP*) Arg->Frame;
+        F16_DSP *__restrict__ OutFrame  = (F16_DSP*) Arg->OutFrame;
+        F16_DSP *__restrict__ Window    = (F16_DSP*) Arg->Window;
         int               FrameSize = Arg->FrameSize;
         int               FFT_Dim   = Arg->FFT_Dim;
         int PadSize = FFT_Dim-FrameSize;
@@ -944,7 +929,6 @@ void ZeroPadCenter_f16(Windowing_T *Arg)
         } gap_waitbarrier(0);
 #endif
 }
-#endif
 
 void ZeroPadCenter_f32(Windowing_T *Arg)
 {

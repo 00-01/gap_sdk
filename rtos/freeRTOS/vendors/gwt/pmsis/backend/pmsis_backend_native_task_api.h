@@ -7,6 +7,10 @@
 #include "pmsis_gcc.h"
 #include "pmsis_backend_native_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct pi_task_delayed_s
 {
     struct pi_task *fifo_head;
@@ -170,7 +174,7 @@ static inline void *__os_native_api_create_user_task(pi_task_entry_t entry,
 {
     TaskHandle_t task_handle = NULL;
     BaseType_t task_ret = pdFALSE;
-    pi_user_task_arg_t *user_arg = pi_fc_l1_malloc(sizeof(pi_user_task_arg_t));
+    pi_user_task_arg_t *user_arg = (pi_user_task_arg_t *) pi_fc_l1_malloc(sizeof(pi_user_task_arg_t));
     user_arg->entry = entry;
     user_arg->arg = arg;
     task_ret = xTaskCreate(system_usermode_entry,name,stack_size,user_arg,
@@ -260,4 +264,7 @@ static inline int pi_platform(void)
 
 #define rt_platform pi_platform
 
+#ifdef __cplusplus
+}
+#endif
 #endif

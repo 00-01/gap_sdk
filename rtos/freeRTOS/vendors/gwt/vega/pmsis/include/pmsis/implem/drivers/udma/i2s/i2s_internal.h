@@ -28,48 +28,65 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __I2S_INTERNAL_H__
-#define __I2S_INTERNAL_H__
+#pragma once
 
 #include "pmsis.h"
 
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
+/* CLK_SEL. */
+#define PI_I2S_OPT_CLK_SRC_SEL_SHIFT ( 13 )
+#define PI_I2S_OPT_CLK_MST_OFFSET    ( 0 )
+#define PI_I2S_OPT_CLK_SLV_OFFSET    ( 1 )
+
+#define PI_I2S_OPT_CLK_SRC_MST ( PI_I2S_OPT_CLK_MST_OFFSET << PI_I2S_OPT_CLK_SRC_SEL_SHIFT ) /*!< Clock source is from master pin. */
+#define PI_I2S_OPT_CLK_SRC_SLV ( PI_I2S_OPT_CLK_SLV_OFFSET << PI_I2S_OPT_CLK_SRC_SEL_SHIFT ) /*!< Clock source is from slave pin. */
+
+/* DUAL PHYS CHAN. */
+#define PI_I2S_OPT_DUAL_MODE_SHIFT ( 14 )
+/*!< Activate dual channel mode, using both SDI0 and SDI1 or SDO0 and SDO1. */
+#define PI_I2S_OPT_DUAL_MODE_ENA   ( 1 << PI_I2S_OPT_DUAL_MODE_SHIFT )
+
+
+/**
+ * pi_task :
+ * task->data[0] = l2_buf;
+ * task->data[1] = size;
+ * task->data[2] = channel;
+ * task->data[3] = udma_cfg;
+ * task->data[4] = device_id;
+ * task->data[5] = use_dbl_buf;
+ */
+
+typedef struct pi_ring_buff_s
+{
+    void **buffer;
+    uint32_t nb_elem;
+    uint32_t head;
+    uint32_t tail;
+} pi_ring_buff_t;
 
 struct i2s_itf_data_s
 {
-    /* Best to use only one queue since both RX & TX can be used at the same time. */
-    struct pi_task *fifo_head;  /* Head of SW fifo waiting transfers. */
-    struct pi_task *fifo_tail;  /* Tail of SW fifo waiting transfers. */
-    uint32_t device_id;
+    pi_udma_fifo_t udma_chan;
+    //struct pi_task *fifo_head;  /* Head of fifo. */
+    //struct pi_task *fifo_tail;  /* Tail of fifo. */
+    //void *pingpong_buffers[2];  /* Pingpong buffers. */
+    pi_ring_buff_t ring_buffer; /* Ring buffers. */
     uint32_t nb_open;
-    uint32_t frequency;
-    uint32_t frame_clk_freq;
-    uint32_t udma_cfg;
-    uint32_t pending_size;
-    size_t block_size;
-    uint8_t i2s_id;
-    uint16_t pdm_decimation;
-    int8_t pdm_shift;
-    uint8_t pdm_filter_ena;
-    //uint8_t shift;
-    uint8_t word_size;
-    uint8_t channels;
-    uint8_t clk;
-    uint8_t cur_buffer;
-    uint8_t cur_read_buffer;
-    uint8_t nb_ready_buffer;
-    uint8_t reenqueue;
-    pi_i2s_fmt_t format;
-    pi_i2s_opt_t options;
-    void *pending_buffer;
-    void *pingpong_buffers[2];
-    void **ring_buffer;
-    uint32_t ring_buffer_nb_elem;
-    uint32_t ring_buffer_head;
-    uint32_t ring_buffer_tail;
-    pi_mem_slab_t *mem_slab;
+    uint32_t flags;             /*!< Options for i2s(rx/tx/fdx/clk_sel/msb). */
+    uint32_t frequency;         /*!< i2s frequency(based on frame_rate, channels, wordsize). */
+    uint32_t clk_setup;         /*!< Clock setup(MST, SLV, PDM). */
+    uint32_t block_size;        /*!< Size of a block. */
+    uint32_t nb_ready_buffer;
+    uint16_t pdm_decimation;    /*!< Decimation factor, in log2. */
+    uint8_t device_id;          /*!< Periph ID. */
+    uint8_t i2s_id;             /*!< i2s ID(two i2s periph per device(RX and TX)). */
+    uint8_t word_size;          /*!< Width of samples (8, 16, 32 bits). */
+    uint8_t channels;           /*!< Number of channels used(mono/stereo). */
+    uint8_t pdm;                /*!< PDM enable. */
+    //uint8_t ;
 };
 
 /*******************************************************************************
@@ -101,14 +118,14 @@ int32_t __pi_i2s_open(struct pi_i2s_conf *conf, struct i2s_itf_data_s **device_d
 /**
  * \brief Close i2s device.
  *
- * \param i2s_id         ID of i2s interface.
+ * \param itf_data       Pointer to driver data.
  */
 void __pi_i2s_close(struct i2s_itf_data_s *itf_data);
 
 /**
  * \brief Ioctl function.
  *
- * \param i2s_id         ID of i2s interface.
+ * \param itf_data       Pointer to driver data.
  * \param cmd            Ioctl command.
  * \param arg            Ioctl argument.
  *
@@ -118,7 +135,7 @@ void __pi_i2s_close(struct i2s_itf_data_s *itf_data);
 int32_t __pi_i2s_ioctl(struct i2s_itf_data_s *itf_data, uint32_t cmd, void *arg);
 
 /**
- * \brief Load data from micro.
+ * \brief Write data into memory.
  *
  * \param itf_data       Pointer to driver data.
  * \param task           Pointer to struct pi_task.
@@ -126,7 +143,7 @@ int32_t __pi_i2s_ioctl(struct i2s_itf_data_s *itf_data, uint32_t cmd, void *arg)
 int32_t __pi_i2s_read_async(struct i2s_itf_data_s *itf_data, pi_task_t *task);
 
 /**
- * \brief Return status.
+ * \brief Return status of current transfer(data to memory).
  *
  * \param task           Pointer to struct pi_task.
  * \param mem_block      Pointer to data buffer.
@@ -135,10 +152,22 @@ int32_t __pi_i2s_read_async(struct i2s_itf_data_s *itf_data, pi_task_t *task);
 int32_t __pi_i2s_read_status(pi_task_t *task, void **mem_block, size_t *size);
 
 /**
- * \brief Setup misc flags.
+ * \brief Send data from memory.
  *
- * \param flags          Flags to set.
+ * \param itf_data       Pointer to driver data.
+ * \param buffer         Pointer to data buffer.
+ * \param size           Size of data buffer.
+ * \param task           Pointer to struct pi_task.
  */
-void __pi_i2s_setup(uint32_t flags);
+int32_t __pi_i2s_write_async(struct i2s_itf_data_s *itf_data, void *buffer,
+                             size_t size, struct pi_task *task);
 
-#endif  /* __I2S_INTERNAL_H__ */
+/**
+ * \brief Return status of current transfer(data to memory).
+ *
+ * \param task           Pointer to struct pi_task.
+ *
+ * \retval 0             If transfer is done.
+ * \retval Value         Size of remaining data to completion.
+ */
+int32_t __pi_i2s_write_status(struct pi_task *task);

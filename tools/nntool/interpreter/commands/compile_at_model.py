@@ -13,10 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import argparse
 import distutils.ccompiler as compiler
 
-from attr import define
 from graph.types.others import QuantizeParameters
 import logging
 import os

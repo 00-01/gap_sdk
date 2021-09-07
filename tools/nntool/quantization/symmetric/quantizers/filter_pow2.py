@@ -63,7 +63,7 @@ class FilterPow2(Pow2QuantizionHandler):
         weights_node, biases_node = cls.get_weights_and_biases_nodes(
             G, fusion if fusion else params)
 
-        range_acc = stats['range_acc']
+        range_acc = stats.get('range_acc', stats['range_out'][0])
         conv_active = fusion and fusion.fusion_type in [
             'conv_active_pool', 'conv_active']
         int_dtype = np.int32
