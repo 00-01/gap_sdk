@@ -114,6 +114,8 @@ class RnnFloat32Mixin():
                     details,
                     'range_cell',
                 )
+            elif isinstance(params, GRUParameters):
+                DiagCollector.active_set('__rnn_quant')
 
         new_c_state = None
         for idx in range(params.n_cells):
@@ -132,25 +134,42 @@ class RnnFloat32Mixin():
                 if isinstance(params, LSTMParameters):
                     record_stat(details, 'range_cell', args['c_state'])
         
-        if details is not None and isinstance(params, LSTMParameters):
-            DiagCollector.store_ranges(
-                details,
-                '__rnn_quant',
-                'i_gate_i',
-                'c_gate_i',
-                'f_gate_i',
-                'o_gate_i',
-                'i_gate_r',
-                'c_gate_r',
-                'f_gate_r',
-                'o_gate_r',
-                'i_gate',
-                'c_gate',
-                'f_gate',
-                'o_gate',
-            )
-            DiagCollector.deactivate()
-            DiagCollector.clear(set_name='__rnn_quant')
+        if details is not None:
+            if isinstance(params, LSTMParameters):
+                DiagCollector.store_ranges(
+                    details,
+                    '__rnn_quant',
+                    'i_gate_i',
+                    'c_gate_i',
+                    'f_gate_i',
+                    'o_gate_i',
+                    'i_gate_r',
+                    'c_gate_r',
+                    'f_gate_r',
+                    'o_gate_r',
+                    'i_gate',
+                    'c_gate',
+                    'f_gate',
+                    'o_gate',
+                )
+                DiagCollector.deactivate()
+                DiagCollector.clear(set_name='__rnn_quant')
+            elif isinstance(params, GRUParameters):
+                DiagCollector.store_ranges(
+                    details,
+                    '__rnn_quant',
+                    'z_gate_inp',
+                    'r_gate_inp',
+                    'h_gate_inp',
+                    'z_gate_state',
+                    'r_gate_state',
+                    'h_gate_state',
+                    'z_gate',
+                    'r_gate',
+                    'h_gate',
+                )
+                DiagCollector.deactivate()
+                DiagCollector.clear(set_name='__rnn_quant')
 
         if params.revert:
             out_tensor = np.flip(out_tensor, axis=0)
@@ -215,8 +234,8 @@ class GRUFloat32(RnnFloat32Mixin, KernelBase):
         del kwargs
         DiagCollector.record('h_state', args['h_state'], node=params)
         DiagCollector.record('input', input_tensor[idx], node=params)
-        z_gate_scratch = args['z_b'].copy()
-        r_gate_scratch = args['r_b'].copy()
+        z_gate_scratch = 0
+        r_gate_scratch = 0
 
         DiagCollector.record('z_weigths', args['w_2_z_w'], node=params)
         if idx < params.n_input_cells:
@@ -226,12 +245,16 @@ class GRUFloat32(RnnFloat32Mixin, KernelBase):
             DiagCollector.record('r_gate_inp', r_gate_scratch, node=params)
 
         # zt = f(Xt*(Wz^T) + Ht-1*(Rz^T) + Wbz + Rbz)
-        z_gate_scratch += args['r_2_z_w'].dot(args['h_state'])
+        z_gate_state = args['r_2_z_w'].dot(args['h_state'])
+        DiagCollector.record('z_gate_state', z_gate_state, node=params)
+        z_gate_scratch += z_gate_state + args['z_b'].copy()
         DiagCollector.record('z_gate', z_gate_scratch, node=params)
         z_gate_scratch = sigmoid(z_gate_scratch)
         DiagCollector.record('z_gate_sigmoid', z_gate_scratch, node=params)
         # rt = f(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
-        r_gate_scratch += args['r_2_r_w'].dot(args['h_state'])
+        r_gate_state = args['r_2_r_w'].dot(args['h_state'])
+        DiagCollector.record('r_gate_state', r_gate_state, node=params)
+        r_gate_scratch += r_gate_state + args['r_b'].copy()
         DiagCollector.record('r_gate', r_gate_scratch, node=params)
         r_gate_scratch = sigmoid(r_gate_scratch)
         DiagCollector.record('r_gate_sigmoid', r_gate_scratch, node=params)
@@ -265,7 +288,7 @@ class GRUFloat32(RnnFloat32Mixin, KernelBase):
         if idx < params.n_input_cells:
             h_gate_input += args['w_2_h_w'].dot(input_tensor[idx])
         DiagCollector.record(
-            'h_gate_input', h_gate_input,
+            'h_gate_inp', h_gate_input,
             node=params)
         h_gate_scratch += h_gate_input
         DiagCollector.record(

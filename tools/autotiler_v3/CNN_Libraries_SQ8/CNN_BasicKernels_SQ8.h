@@ -791,11 +791,11 @@ extern void KerConvDWNxMDxDyStrideSxSyB32_SQ8(KerConv_SQ8_T *Arg);
 
 extern unsigned short int SIGMOID_LUT_uint16[];
 
-int SigmoidLUT(int x, unsigned short int * table);
-int TanhLUT(int x, unsigned short int * table);
+int SigmoidTable(int x, unsigned short int * table);
+int TanhTable(int x, unsigned short int * table);
 
-#define Tanh(__x) TanhLUT((__x), SIGMOID_LUT_uint16)
-#define Sigmoid(__x) SigmoidLUT((__x), SIGMOID_LUT_uint16)
+#define Tanh(__x) TanhTable((__x), SIGMOID_LUT_uint16)
+#define Sigmoid(__x) SigmoidTable((__x), SIGMOID_LUT_uint16)
 
 /*
  * Input Scaling and reduction to 8b then channel centric activation, Out location != In location. Features are evaluated in parallel

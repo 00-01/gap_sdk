@@ -313,7 +313,7 @@ def gen_project(G, settings, project_folder, script_commands, overwrite=False, p
         for params in G.outputs():
             outp = qoutput_tensors[params.step_idx][0]
             qoutputs.append(outp)
-        for params in G.input_nodes():
+        for i, params in enumerate(G.input_nodes()):
             inp = qoutput_tensors[params.step_idx][0]
             input_tensors.append(inp)
             if save_inputs:

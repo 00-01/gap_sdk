@@ -66,11 +66,17 @@ WEIGHTS_DTYPE = np.int8
         'help': 'scales state in Q14 so that 1 <-> -1 can be represented',
         'default': True
     },
+    {
+        'name': 'use_ne16',
+        'type': bool,
+        'help': 'Use NE16 for this layer',
+        'default': False
+    }
 )
 @params_type(GRUParameters)
 @in_qs_constraint({'dtype': np.int16})
 @out_qs_constraint({'dtype': np.int16})
-@option_constraint(force_external_size=16)
+@option_constraint(force_external_size=16, use_ne16={None, False})
 class GRUMult16x8(RescaleConstantMixin, MultQuantizionHandler):
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):

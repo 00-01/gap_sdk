@@ -63,7 +63,7 @@ def tune_float(G, nodes, float_type):
     all_nodes = get_nodes_and_fusion_nodes(nodes)
     force_scheme = {node: 'FLOAT' for node in all_nodes}
     force_options = {node: {'float_type': float_type} for node in all_nodes}
-    quantizer = UnifiedQuantizer.from_quantized_graph(G, extra_schemes=['FLOAT'])
+    quantizer = UnifiedQuantizer.from_quantized_graph(G)
     quantizer.quantize(
         G, start_nodes=nodes, force_scheme=force_scheme, force_options=force_options)
     RemoveUnnecessaryQuantizeOperators().match(G)
@@ -82,7 +82,7 @@ def get_nodes_and_fusion_nodes(nodes):
 def tune_scaled(G, nodes):
     all_nodes = get_nodes_and_fusion_nodes(nodes)
     force_scheme = {node: 'SQ8' for node in all_nodes}
-    quantizer = UnifiedQuantizer.from_quantized_graph(G, extra_schemes=['SQ8'])
+    quantizer = UnifiedQuantizer.from_quantized_graph(G)
     quantizer.quantize(G, start_nodes=nodes, force_scheme=force_scheme)
     RemoveUnnecessaryQuantizeOperators().match(G)
     G.add_dimensions()
@@ -93,7 +93,7 @@ def tune_pow2(G, nodes, pow2_type):
     force_scheme = {node: 'POW2' for node in all_nodes}
     force_options = {node: {'bits': 16 if pow2_type == 'int16' else 8}
                      for node in all_nodes}
-    quantizer = UnifiedQuantizer.from_quantized_graph(G, extra_schemes=['POW2'])
+    quantizer = UnifiedQuantizer.from_quantized_graph(G)
     quantizer.quantize(
         G, start_nodes=nodes, force_scheme=force_scheme, force_options=force_options)
     RemoveUnnecessaryQuantizeOperators().match(G)

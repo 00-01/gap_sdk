@@ -157,7 +157,7 @@ class BasicKernel():
             name = name_type[0]
             shape = self.shapes[name]
             kinfos.append("{0}(Name, \"{1}\", {2}, {3}, {4})".format(
-                "AddKernelArgDim" if name_type[1] == 'F16' or name_type[1] == 'float' else "AddKernelFloatArgDim",
+                "AddKernelFloatArgDim" if name_type[1] == 'F16' or name_type[1] == 'float' else "AddKernelArgDim",
                 name, len(shape) + 1, ", ".join(str(dim) for dim in shape),
                 self.ctype_len(name)))
         return kinfos

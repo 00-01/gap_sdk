@@ -202,7 +202,7 @@ def at_map_tensors(G, tensors):
                 out_q_type = None
             if tname.startswith('input'):
                 for edge in G.in_edges(node.name):
-                    if isinstance(edge.from_node, InputParameters):
+                    if not isinstance(edge.from_node, ConstantInputParameters):
                         add_result(result[edge.from_node.step_idx], 0, tensor, node.in_dims[0].shape, in_q_type, node)
                         break
             elif tname.startswith('output'):

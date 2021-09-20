@@ -17,6 +17,7 @@
 #ifndef __AT__AT_API_EMUL_H__
 #define __AT__AT_API_EMUL_H__
 
+#if defined(__EMUL__)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -474,5 +475,7 @@ typedef void *AT_FORK_ARG_TYPE;
 #define AT_FORK(nb_cores,entry,arg)
 #define AT_FORK_CC(nb_cores,entry,arg)
 #define AT_FORK_WAIT()
+
+#endif
 
 #endif

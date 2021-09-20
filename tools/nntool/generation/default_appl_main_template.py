@@ -131,20 +131,17 @@ int test_${gen.project_name}(void)
     return 0;
 }
 
-#ifndef __EMUL__
-int main()
-{
-    printf("\\n\\n\\t *** NNTOOL ${gen.project_name} Example ***\\n\\n");
-    return pmsis_kickoff((void *) test_${gen.project_name});
-}
-#else
 int main(int argc, char *argv[])
 {
     printf("\\n\\n\\t *** NNTOOL ${gen.project_name} Example ***\\n\\n");
+    #ifdef __EMUL__
     test_${gen.project_name}();
+    #else
+    return pmsis_kickoff((void *) test_${gen.project_name});
+    #endif
     return 0;
 }
-#endif
+
 '''
 
 @stringfunction
@@ -177,10 +174,10 @@ extern ${gen.flash_pointer} ${gen.project_name}_L3_Flash;
 def generate_main_appl_make(G, gen, quantized):
     '''
 NNTOOL=nntool
-${"MODEL_SQ8=1"  if gen.G.has_expressions or "SQ8" in gen.G.quantization.schemes_present else "# MODEL_SQ8=1"}
+${"MODEL_SQ8=1"  if gen.G.has_expressions or "SQ8" in gen.G.quantization.schemes_present or any(qrec.cache.get("ne16")  for qrec in G.quantization.values()) else "# MODEL_SQ8=1"}
 ${"MODEL_POW2=1" if "POW2" in gen.G.quantization.schemes_present else "# MODEL_POW2=1"}
 ${"MODEL_FP16=1" if "FLOAT" in gen.G.quantization.schemes_present else "# MODEL_FP16=1"}
-${"MODEL_NE16=1" if any(qrec.cache.get("ne16")    for qrec in G.quantization.values()) else "# MODEL_NE16=1"}
+${"MODEL_NE16=1" if any(qrec.cache.get("ne16")  for qrec in G.quantization.values()) else "# MODEL_NE16=1"}
 
 MODEL_SUFFIX?=
 MODEL_PREFIX?=${gen.project_name}
@@ -205,6 +202,7 @@ CLUSTER_NUM_CORES=${gen.opts['cluster_num_cores']}
 
 NNTOOL_SCRIPT = nntool_script
 ${"APP_CFLAGS += -DSTD_FLOAT" if any(qrec[1].out_qs[0].dtype == np.float16 for qrec in G.quantization.sorted_iterator(G)) else ""}
+${"APP_LDFLAGS += -lm" if gen.G.has_expressions and "FLOAT" in gen.G.quantization.schemes_present else ""}
 $(info GEN ... $(CNN_GEN))
 
 '''
@@ -214,7 +212,7 @@ $(info GEN ... $(CNN_GEN))
 def generate_main_appl_make_atproject(G, gen, quantized, model_path):
     '''
 NNTOOL=nntool
-${"MODEL_SQ8=1"  if gen.G.has_expressions or "SQ8" in G.quantization.schemes_present else "# MODEL_SQ8=1"}
+${"MODEL_SQ8=1"  if gen.G.has_expressions or "SQ8" in G.quantization.schemes_present or any(qrec.cache.get("ne16")  for qrec in G.quantization.values()) else "# MODEL_SQ8=1"}
 ${"MODEL_POW2=1" if "POW2" in G.quantization.schemes_present else "# MODEL_POW2=1"}
 ${"MODEL_FP16=1" if "FLOAT" in G.quantization.schemes_present else "# MODEL_FP16=1"}
 ${"MODEL_NE16=1" if any(qrec.cache.get("ne16") for qrec in G.quantization.values()) else "# MODEL_NE16=1"}

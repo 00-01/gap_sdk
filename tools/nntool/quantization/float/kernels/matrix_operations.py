@@ -136,7 +136,8 @@ class MatMulFloat32(KernelBase):
             biases = 0
         out_dtype = qrec.out_qs[0].dtype if qrec.ktype.startswith(
             'float') else np.float32
-        output_tensor = np.matmul(in_tensors[0], in_tensors[1], dtype=out_dtype) + np.atleast_1d(biases).astype(out_dtype)
+        output_tensor = np.matmul(in_tensors[0], in_tensors[1]).astype(
+            out_dtype) + np.atleast_1d(biases).astype(out_dtype)
         return qrec.get_outputs(params, [output_tensor], ktype="float")
 
 
@@ -178,9 +179,12 @@ class ExpressionFloat32(KernelBase):
         in_tensors = qrec.prepare_inputs(params, in_tensors, ktype="float")
         in_vars = {params.input_symbols[i]: in_tensor
                    for i, in_tensor in enumerate(in_tensors)}
-        out_vars = params.func_col(**in_vars,
-                                   calculate_ranges=current_control is not None,
-                                   track_results=results)
+        func_col = qrec.cache.get('qfunc_col')
+        if func_col is None:
+            func_col = params.func_col
+        out_vars = func_col(**in_vars,
+                            calculate_ranges=current_control is not None,
+                            track_results=results)
         out_tensors = [out_vars[out_sym_name]
                        for out_sym_name in params.output_symbols]
         if current_control:
@@ -188,8 +192,10 @@ class ExpressionFloat32(KernelBase):
             details['results'] = results
         return qrec.get_outputs(params, out_tensors, ktype="float")
 
+
 class BinaryOpFloat32(KernelBase):
-    FUNC = lambda x: None
+    FUNC = lambda x, y: x
+
     @classmethod
     def execute(cls, params,
                 in_tensors,
@@ -202,23 +208,28 @@ class BinaryOpFloat32(KernelBase):
         output = cls.FUNC(*in_tensors)
         return qrec.get_outputs(params, [output], ktype="float")
 
+
 @params_type(MinOpParameters)
 @qrec_type('float')
 class MinFloat32(BinaryOpFloat32):
     FUNC = np.minimum
+
 
 @params_type(MaxOpParameters)
 @qrec_type('float')
 class MaxFloat32(BinaryOpFloat32):
     FUNC = np.maximum
 
+
 @params_type(PowOpParameters)
 @qrec_type('float')
 class PowFloat32(BinaryOpFloat32):
     FUNC = np.power
 
+
 class UnaryOpFloat32(KernelBase):
-    FUNC = lambda x: None
+    FUNC = lambda x: x
+
     @classmethod
     def execute(cls, params,
                 in_tensors,
@@ -233,30 +244,36 @@ class UnaryOpFloat32(KernelBase):
         output = cls.FUNC(in_tensor).astype(out_dtype)
         return qrec.get_outputs(params, [output], ktype="float")
 
+
 @params_type(ExpOpParameters)
 @qrec_type('float')
 class ExpFloat32(UnaryOpFloat32):
     FUNC = np.exp
+
 
 @params_type(CosOpParameters)
 @qrec_type('float')
 class CosFloat32(UnaryOpFloat32):
     FUNC = np.cos
 
+
 @params_type(SinOpParameters)
 @qrec_type('float')
 class SinFloat32(UnaryOpFloat32):
     FUNC = np.sin
+
 
 @params_type(AbsOpParameters)
 @qrec_type('float')
 class AbsFloat32(UnaryOpFloat32):
     FUNC = np.abs
 
+
 @params_type(LogOpParameters)
 @qrec_type('float')
 class LogFloat32(UnaryOpFloat32):
     FUNC = np.log
+
 
 @params_type(SqrtOpParameters)
 @qrec_type('float')

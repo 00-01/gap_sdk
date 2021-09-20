@@ -266,9 +266,7 @@ class RNNMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
                 scale=act_output_scale/o_q.scale)
 
         if input_bits == 8:
-            # TODO - Not sure this is correct - ?? state_w_scale * s_2_s_q.qbiases
-            in_qs[names['i_b']].scale = state_w_scale * \
-                np.power(2.0, -s_2_s_q.qnorms)
+            in_qs[names['i_b']].scale = state_w_scale / s_2_s_q.qbiases
             in_qs[names['i_b']].dtype = np.int32
             in_qs[names['i_b']].offset = woff * s_2_s_q.qbiases.astype(
                 np.int32) + (1 << (s_2_s_q.qnorms.astype(np.int32) - 1))

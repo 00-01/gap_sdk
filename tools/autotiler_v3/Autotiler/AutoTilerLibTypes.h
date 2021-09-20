@@ -890,6 +890,7 @@ typedef struct {
 	unsigned int Dim;		/* Number of items in this particular dimension */
 	KernelIteratorT KerIterSpace;	/* A tiled Iterator (possibly a single tile) or a regular iterator, in case of a Ker Arg Sub Space only the most inner dim can be tiled */
 	uint64_t SpaceSize[2];		/* Total size of this sub space */
+	uint64_t PaddedSpaceSize;	/* Total size of this sub space with forced padding taken into account */
 	uint64_t SubSpaceSize[4];	/* In bytes size of one item of this sub space, In case sub space is parametric index 0 is std tile dim, index 1 is last tile dim  */
 	uint64_t UnitSubSpaceSize;	/* Size in bytes of the full sub space for a unit stride in space */
 	int64_t UnitStride;			/* Unit move stride along KerIterSpace */
@@ -903,7 +904,9 @@ typedef struct {
 typedef struct {
 	unsigned int Dim;				/* Number of dimensions of this kernel argument */
 	uint64_t Size;					/* Total size in bytes or bits of this kernel argument, byte aligned */
+	uint64_t PaddedSize;				/* Total size in bytes or bits of this kernel argument, byte aligned, forced padding taken into account */
 	uint64_t BitSize;				/* Total size in bits of this kernel argument (unaligned) */
+	uint64_t PaddedBitSize;				/* Total size in bits of this kernel argument (unaligned), forced padding taken into account */
 	KernelArgOneDimDescrT **DimDescr;		/* A vector of dimension description outer to inner */
 	KernelArgOneDimDescrT **IterOrderDimDescr;	/* Reordered DimDescr according to Kernel Iteration Order */
 	int *KerIterDimDescr;				/* Indexed by kernel's IterOrder, if in DimDescr then position in IterOrderDimDescr otherwise -1 */

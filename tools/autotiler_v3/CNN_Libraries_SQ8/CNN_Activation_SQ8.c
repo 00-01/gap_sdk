@@ -66,7 +66,7 @@ static inline unsigned int __attribute__((always_inline)) ChunkSize(unsigned int
 }
 
 #define NEAREST //Use nearest LUT element instead of linearly interpolate
-int SigmoidLUT(int x, unsigned short int * table){
+int SigmoidTable(int x, unsigned short int * table){
 	/* Input x: Q12 [-8:8] range
 
 	   Output y = sig(x) -> Q15
@@ -99,7 +99,7 @@ int SigmoidLUT(int x, unsigned short int * table){
 #endif
 }
 
-int TanhLUT(int x, unsigned short * table){
+int TanhTable(int x, unsigned short * table){
 #ifndef NEAREST
 	int result, ua, ub, ut;
 	int abs_x = (Abs(x) * 3) >> 8; // 2*x

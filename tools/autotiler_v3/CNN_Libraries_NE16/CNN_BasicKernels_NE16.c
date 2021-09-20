@@ -232,8 +232,6 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 				int LastSubfilterH = (subfilter_j+1) >= Fy;
 				for (int subfilter_i=0; subfilter_i<Fx; subfilter_i++) {
 					int DoPad = ((subfilter_i*Dx) < (PadL-w*Sx))?1:0;
-				        // acquire job
-				        NE16_BARRIER_ACQUIRE(job_id);
 				        int LastSubfilterW = (subfilter_i+1) >= Fx;
 					if (Arg->LastD0 && LastSubfilterW && LastSubfilterH){
 						// Do not apply reduction if not last
@@ -243,6 +241,8 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 						Gen_Cfg = (Gen_Cfg & res_quant_out_flag) | (NE16_MASK_QUANT_NORECT << NE16_SHIFT_QUANT_NORECT);
 						if (!Arg->FirstD0) Gen_Cfg |= streamin_flag;
 					}
+				        // acquire job
+				        NE16_BARRIER_ACQUIRE(job_id);
 					SetNE16_InPointer     (Max(In, InPointer + Tile_InFeat*(subfilter_i*Dx + w*Sx-PadL + Tile_InW*(Ho_F*Sy-PadT + subfilter_j*Dy))));
 					SetNE16_OutPointer    (Out + Tile_OutFeat*(w + Ho_F*Tile_OutW));
 					// TODO - checkme I think here you need the total number of loaded chin
@@ -275,8 +275,6 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 				int LastSubfilterH = (subfilter_j+1) >= Fy;
 				for (int subfilter_i=0; subfilter_i<Fx; subfilter_i++) {
 					int DoPad = ((subfilter_i*Dx + w*Sx-PadL) >= (Tile_InW))?1:0;
-				        // acquire job
-				        NE16_BARRIER_ACQUIRE(job_id);
 				        int LastSubfilterW = (subfilter_i+1) >= Fx;
 					if (Arg->LastD0 && LastSubfilterW && LastSubfilterH){
 						// Do not apply reduction if not last
@@ -286,6 +284,8 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 						Gen_Cfg = (Gen_Cfg & res_quant_out_flag) | (NE16_MASK_QUANT_NORECT << NE16_SHIFT_QUANT_NORECT);
 						if (!Arg->FirstD0) Gen_Cfg |= streamin_flag;
 					}
+				        // acquire job
+				        NE16_BARRIER_ACQUIRE(job_id);
 					SetNE16_InPointer     (InPointer + Tile_InFeat*(w*Sx-PadL + subfilter_i*Dx + Tile_InW*(Ho_F*Sy-PadT + subfilter_j*Dy)));
 					SetNE16_OutPointer    (Out + Tile_OutFeat*(w + Ho_F*Tile_OutW));
 					// TODO - checkme I think here you need the total number of loaded chin
@@ -318,8 +318,6 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 				int DoPad = ((subfilter_j*Dy) < (PadT-h*Sy))?1:0;
 				int LastSubfilterH = (subfilter_j+1) >= Fy;
 				for (int subfilter_i=0; subfilter_i<Fx; subfilter_i++) {
-				        // acquire job
-				        NE16_BARRIER_ACQUIRE(job_id);
 				        int LastSubfilterW = (subfilter_i+1) >= Fx;
 					if (Arg->LastD0 && LastSubfilterW && LastSubfilterH){
 						// Do not apply reduction if not last
@@ -329,6 +327,8 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 						Gen_Cfg = (Gen_Cfg & res_quant_out_flag) | (NE16_MASK_QUANT_NORECT << NE16_SHIFT_QUANT_NORECT);
 						if (!Arg->FirstD0) Gen_Cfg |= streamin_flag;
 					}
+				        // acquire job
+				        NE16_BARRIER_ACQUIRE(job_id);
 					SetNE16_InPointer     (Max(InPointer, InPointer + Tile_InFeat*(Wo_F*Sx-PadL + subfilter_i*Dx + (subfilter_j*Dy+h*Sy-PadT)*Tile_InW)));
 					SetNE16_OutPointer    (Out + Tile_OutFeat*(Wo_F + h*Tile_OutW));
 					// TODO - checkme I think here you need the total number of loaded chin
@@ -361,8 +361,6 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 				int DoPad = ((subfilter_j*Dy + h*Sy-PadT) >= Tile_InH)?1:0;
 				int LastSubfilterH = (subfilter_j+1) >= Fy;
 				for (int subfilter_i=0; subfilter_i<Fx; subfilter_i++) {
-				        // acquire job
-				        NE16_BARRIER_ACQUIRE(job_id);
 				        int LastSubfilterW = (subfilter_i+1) >= Fx;
 					if (Arg->LastD0 && LastSubfilterW && LastSubfilterH){
 						// Do not apply reduction if not last
@@ -372,6 +370,8 @@ void NE16_ComputeBorders(KerConv_NE16_T *Arg, int Wo_F, int Wo_L, int Wo, int Ho
 						Gen_Cfg = (Gen_Cfg & res_quant_out_flag) | (NE16_MASK_QUANT_NORECT << NE16_SHIFT_QUANT_NORECT);
 						if (!Arg->FirstD0) Gen_Cfg |= streamin_flag;
 					}
+				        // acquire job
+				        NE16_BARRIER_ACQUIRE(job_id);
 					SetNE16_InPointer     (InPointer + Tile_InFeat*(Wo_F*Sx-PadL + subfilter_i*Dx + (subfilter_j*Dy+h*Sy-PadT)*Tile_InW));
 					SetNE16_OutPointer    (Out + Tile_OutFeat*(Wo_F + h*Tile_OutW));
 					// TODO - checkme I think here you need the total number of loaded chin

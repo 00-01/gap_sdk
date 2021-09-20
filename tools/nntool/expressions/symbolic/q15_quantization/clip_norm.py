@@ -46,6 +46,10 @@ class Clip(Function):
 @nargs(2)
 @c_headers('"Gap.h"')
 class Norm(Function):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def _impl(self, *args, **kwargs):
         return (args[0] + (1 << (args[1].astype(np.int32) - 1))) >> args[1].astype(np.int32)
 
@@ -71,5 +75,5 @@ class Norm(Function):
         # is also a Q15
         if not isinstance(sym, Norm):
             return super()._eval(*args, **kwargs)
-        sym.contents[1] = Add(sym.contents[1], args[1])
+        sym.contents[1] = Add(sym.contents[1], args[1], dtype=np.int32)
         return sym

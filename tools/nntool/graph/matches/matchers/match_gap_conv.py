@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from graph.types.activations import TanHActivationParameters
 import logging
 from copy import deepcopy
 
@@ -34,7 +35,8 @@ VALID_ACTIVATIONS_SQ8 = (
     LeakyActivationParameters,
     HSigmoidActivationParameters,
     HSwishActivationParameters,
-    SigmoidActivationParameters
+    SigmoidActivationParameters,
+    TanHActivationParameters
 )
 
 VALID_ACTIVATIONS_POW2 = (

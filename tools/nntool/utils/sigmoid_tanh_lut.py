@@ -161,6 +161,8 @@ def tanh_lut(x, qtype=None):
 
 def sigmoid_lut_float(x, dtype=None):
     """ Lookup table based sigmoid float version """
+    if dtype is None:
+        dtype = np.float32
     x_int = np.round(x * 2**(12)).astype(np.int32)
     abs_x = np.abs(x_int) >> 7
     abs_x_masked = np.where(abs_x >= 255, 0, abs_x)
@@ -168,13 +170,13 @@ def sigmoid_lut_float(x, dtype=None):
                       1.0,
                       sigmoid_table_float[abs_x_masked])
     # cast to actual dtype
-    result.astype(dtype)
-    result = np.where(x > 0, result, 1 - result)
-    return result
+    return np.where(x > 0, result.astype(dtype), 1 - result.astype(dtype))
 
 
 def tanh_lut_float(x, dtype=None):
     """ Lookup table based tanh float version """
+    if dtype is None:
+        dtype = np.float32
     x_int = np.round(x * 2**(12)).astype(np.int32)
     abs_x = np.abs(x_int) >> 6
     abs_x_masked = np.where(abs_x >= 255, 0, abs_x)
@@ -182,6 +184,4 @@ def tanh_lut_float(x, dtype=None):
                       1.0,
                       sigmoid_table_float[abs_x_masked])
     # cast to actual dtype
-    result.astype(dtype)
-    result = np.where(x < 0, - 2*result + 1.0, 2*result - 1.0)
-    return result
+    return np.where(x < 0, - 2*result.astype(dtype) + 1.0, 2*result.astype(dtype) - 1.0)

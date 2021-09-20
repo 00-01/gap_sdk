@@ -139,7 +139,7 @@ class RNNNE16Generator(GeneratorBase):
                                          alias=i_state_eparams,
                                          direction="GNA_INOUT") if num_seq > 1 else NoArg(),
                             GNodeArgEdge(f"S{node.step_idx}_StateInternal02",
-                                         alias=f"S{node.step_idx}_CellInternal01",
+                                         alias=f"S{node.step_idx}_StateInternal01",
                                          direction="GNA_INOUT") if num_seq > 2 else NoArg(),
                             GNodeArgEdge(in_eparams[0]),
                             GNodeArgNode(node, "scalenorm"),

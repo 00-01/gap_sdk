@@ -14,49 +14,48 @@
  * limitations under the License.
  */
 
-#ifndef __CNN_FLOAT_TYPE_H__
-#define __CNN_FLOAT_TYPE_H__
+#ifndef __DSP_FLOAT_TYPE_H__
+#define __DSP_FLOAT_TYPE_H__
 
 #ifdef __EMUL__
 	#ifdef __FLOAT_EMUL__
-		typedef float F16;
-		typedef float F16V __attribute__((vector_size (8)));
-		typedef int V2S __attribute__((vector_size (8)));
+		typedef float F16_DSP;
+		typedef float F16V_DSP __attribute__((vector_size (8)));
+		typedef V2S __attribute__((vector_size (8)));
 	#else
-		typedef short int F16;
-		typedef short int F16V __attribute__((vector_size (4)));
+		typedef short int F16_DSP;
+		typedef short int F16V_DSP __attribute__((vector_size (4)));
 		typedef v2s V2S;
 	#endif
 	typedef union {
-	        F16     S;
-	        F16V    V;
-	} F16SV;
+	        F16_DSP     S;
+	        F16V_DSP    V;
+	} F16SV_DSP;
 #else
 	typedef v2s V2S;
 	/* GAP9 */
-	#ifdef __gap9__
-		#ifdef STD_FLOAT
-			typedef float16 F16;
-			typedef v2h F16V;
+	#ifdef __gap9__ 
+		#ifdef F16_DSP_BFLOAT
+			typedef float16alt F16_DSP;
+			typedef v2ah F16V_DSP;
 		#else
-			typedef float16alt F16;
-			typedef v2ah F16V;
+			typedef float16 F16_DSP;
+			typedef v2h F16V_DSP;
 		#endif
 		typedef union {
-		        F16     S;
-		        F16V    V;
-		} F16SV;
+		        F16_DSP     S;
+		        F16V_DSP    V;
+		} F16SV_DSP;
 		#define TO_FLOAT(x) x
 	/* GAP8 */
-	#else
-		typedef short int F16;
-		typedef short int F16V __attribute__((vector_size (4)));
+	#else 
+		typedef short int F16_DSP;
+		typedef short int F16V_DSP __attribute__((vector_size (4)));
 		typedef union {
-		        F16     S;
-		        F16V    V;
-		} F16SV;
+		        F16_DSP     S;
+		        F16V_DSP    V;
+		} F16SV_DSP;
 	#endif // gap9
 #endif // __EMUL__
 
-#endif
-
+#endif // __DSP_FLOAT_TYPE_H__

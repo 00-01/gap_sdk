@@ -190,7 +190,11 @@ void CmplxMag_f16(CmplxMag_T *Arg)
         First = CoreId*Chunk; Last = Min(First + Chunk, N);
 
         for (i=First; i<(unsigned int)Last; i++) {
-                Mag[i] = (F16_DSP) (SqrtF16(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]));
+                #ifdef F16_DSP_BFLOAT
+                Mag[i] = (F16_DSP) (Sqrtf16a(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]));
+                #else
+                Mag[i] = (F16_DSP) (Sqrtf16(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]));
+                #endif
         }
         gap_waitbarrier(0);
 
@@ -211,7 +215,7 @@ void CmplxMag_f32(CmplxMag_T *Arg)
         First = CoreId*Chunk; Last = Min(First + Chunk, N);
 
         for (i=First; i<(unsigned int)Last; i++) {
-                Mag[i] = (float) SqrtF32(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]);
+                Mag[i] = (float) Sqrtf32(FrameIn[2*i]*FrameIn[2*i] + FrameIn[2*i+1]*FrameIn[2*i+1]);
         }
         gap_waitbarrier(0);
 

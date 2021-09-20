@@ -1157,7 +1157,7 @@ int CNN_Convert(
 	if (ConvertKerName==0) GenTilingError("CNN_Convert Kernel: %s, Can't find a matching basic kernel for tensor conversion", Name);
 
         int In_Unsigned = In_DataSize < 0, Out_Unsigned = Out_DataSize < 0;
-        In_DataSize = abs(In_DataSize); Out_DataSize = abs(Out_DataSize);
+        In_DataSize = Abs(In_DataSize); Out_DataSize = Abs(Out_DataSize);
         int In_Float = kop == KOP_CONVERT_FL_FP;
         int Out_Float = kop == KOP_CONVERT_FP_FL;
 #ifdef __EMUL__

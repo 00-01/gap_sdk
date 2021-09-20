@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from functools import reduce
 
 import numpy as np
+from bfloat16 import bfloat16
 from quantization.qtype import DTYPE_GAP_CTYPE
 
 
@@ -60,8 +61,29 @@ class SymbolStats():
                 if key in stat:
                     del stat[key]
 
-class QuantInfoBase():
-    pass
+class QRecBase():
+    DTYPE_TO_CTYPE = {
+        np.int8: 'int8_t',
+        np.int16: 'int16_t',
+        np.int32: 'int32_t',
+        np.float32: 'float',
+        bfloat16: 'F16',
+        np.float16: 'F16'
+    }
+    def __init__(self, dtype=None) -> None:
+        self._dtype = dtype
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, val):
+        self._dtype = val
+
+    @property
+    def ctype(self):
+        return self.DTYPE_TO_CTYPE[self.dtype]
 
 class Symbol():
     NARGS = None
@@ -71,7 +93,7 @@ class Symbol():
     C_HEADERS = []
 
 #pylint: disable=unused-argument
-    def __init__(self, *args, name="", shape=None, dtype=np.float32, qrec: QuantInfoBase = None, **kwargs):
+    def __init__(self, *args, name="", shape=None, dtype=np.float32, qrec: QRecBase = None, **kwargs):
         super(Symbol, self).__init__(**kwargs)
         if self.NARGS is not None and len(args) != self.NARGS:
             raise ValueError("wrong number of arguments to Symbol %s"%self.__class__.__name__)
@@ -123,6 +145,8 @@ class Symbol():
 
     @property
     def dtype(self):
+        if self._qrec is not None:
+            return self._qrec.dtype
         return self._dtype
 
     @property
@@ -367,6 +391,8 @@ class Constant(Symbol):
         return self
 
     def _impl(self, *args, **kwargs):
+        if self.qrec:
+            return self._value.astype(self.qrec.dtype)
         return self._value
 
     def _py_expr(self, *args, **kwargs):
@@ -379,11 +405,11 @@ class Constant(Symbol):
             val = self._value[0]
         else:
             raise ValueError('cannot produce c code for functions with array constants')
-        if self.qrec:
-            if self.qrec.ctype == "F16":
-                return f"(F16){print_float_constant(val)}"
-            elif self.qrec.ctype == "float":
-                return print_float_constant(val)
+
+        if self.dtype in [bfloat16, np.float16]:
+            return f"(F16){print_float_constant(val)}"
+        elif self.dtype == np.float32:
+            return print_float_constant(val)
         return val
 
     def __repr__(self) -> str:

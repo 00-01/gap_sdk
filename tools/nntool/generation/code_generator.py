@@ -692,25 +692,25 @@ class CodeGenerator(NewGenerator, RegisteredGeneratorsMixin):
                 code_block.write(
                     'L2_MEM {} {}[] = {{{}}};',
                     dtype2ctype(inp),
-                    node.name,
+                    node.name.capitalize(),
                     ",".join(f'{elem}{dtype2typesuffix(inp)}' if not np.isposinf(elem) else "INFINITY" for elem in inp.flatten()))
             else:
                 code_block.write(
-                    f"L2_MEM {CTYPE[nodeq.ctype]} {node.name}[{node.out_dims[0].size()}];")
+                    f"L2_MEM {CTYPE[nodeq.ctype]} {node.name.capitalize()}[{node.out_dims[0].size()}];")
         code_block.write("/* Outputs */")
         for node in self.G.output_nodes():
             if node.at_options.allocate:
                 continue
             nodeq = self.G.quantization[NodeId(node, None)].out_qs[0]
             code_block.write(
-                f"L2_MEM {CTYPE[nodeq.ctype]} {node.name}[{node.out_dims[0].size()}];")
+                f"L2_MEM {CTYPE[nodeq.ctype]} {node.name.capitalize()}[{node.out_dims[0].size()}];")
 
         if test_outputs:
-            for outp in test_outputs:
+            for out_n, outp in zip(self.G.output_nodes(), test_outputs):
                 code_block.write(
                     'L2_MEM {} {}_gt[] = {{{}}};',
                     dtype2ctype(outp),
-                    node.name,
+                    out_n.name.capitalize(),
                     ",".join(f'{elem}{dtype2typesuffix(outp)}' if not np.isposinf(elem) else "INFINITY" for elem in outp.flatten()))
         return str(code_block)
 
@@ -719,7 +719,7 @@ class CodeGenerator(NewGenerator, RegisteredGeneratorsMixin):
         for node in self.G.input_nodes():
             if node.at_options.allocate or node.at_options.extern_input_pointer:
                 continue
-            inout_str += f"{node.name}, "
+            inout_str += f"{node.name.capitalize()}, "
         rnn_present = any([isinstance(node, RNNBaseParameters)
                            for node in self.G.nodes()])
         if rnn_present:
@@ -727,7 +727,7 @@ class CodeGenerator(NewGenerator, RegisteredGeneratorsMixin):
         for node in self.G.output_nodes():
             if node.at_options.allocate:
                 continue
-            inout_str += f"{node.name}, "
+            inout_str += f"{node.name.capitalize()}, "
         return inout_str[:-2]
 
     def generate_output_check(self, tol=0.0, indent=0):
@@ -741,18 +741,18 @@ class CodeGenerator(NewGenerator, RegisteredGeneratorsMixin):
             code.write('for (int j=0; j<{}; j++) {{', out_sz)
             code.indent()
             if tol:
-                code.write(f"{dtype2ctype(nodeq)} diff = {out_node.name}[j] - {out_node.name}_gt[j];")
+                code.write(f"{dtype2ctype(nodeq)} diff = {out_node.name.capitalize()}[j] - {out_node.name.capitalize()}_gt[j];")
                 code.write(f'if (diff > {nodeq.quantize(np.array(tol)).item()} || diff < -{nodeq.quantize(np.array(tol)).item()}) ' + '{{')
             else:
-                code.write(f'if ({out_node.name}[j] != {out_node.name}_gt[j]) ' + '{{')
+                code.write(f'if ({out_node.name.capitalize()}[j] != {out_node.name.capitalize()}_gt[j]) ' + '{{')
             code.indent()
             code.write('errors++;')
             code.write(
-                f'printf("Error @ %d: {dtype} instead of {dtype}\\n", j, {out_node.name}[j], {out_node.name}_gt[j]);')
+                f'printf("Error @ %d: {dtype} instead of {dtype}\\n", j, {out_node.name.capitalize()}[j], {out_node.name.capitalize()}_gt[j]);')
             code.deindent()
             code.write("}}")
             code.deindent()
             code.write('}}')
             code.write(
-                f'printf("{out_node.name}: %d/{out_sz} errors\\n", errors);')
+                f'printf("{out_node.name.capitalize()}: %d/{out_sz} errors\\n", errors);')
         return str(code)

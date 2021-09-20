@@ -46,8 +46,8 @@ class MatMulFloatGenerator(GeneratorBase):
         )
         gen.bindings.append(
             NodeBindingList(cname,
-                            GNodeArgEdge(in_eparams[0]),
                             GNodeArgEdge(in_eparams[1]),
+                            GNodeArgEdge(in_eparams[0]),
                             GNodeArgEdge(in_eparams[2]),
                             GNodeArgEdge(out_eparams[0], direction="GNA_OUT")
                             ))

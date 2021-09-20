@@ -29,7 +29,7 @@ from .symbol import (Constant, Rational, c_headers, environment, handles,
 class Add(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.add(args[0], args[1])
+        return np.add(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.add(%s, %s)" % (args[0], args[1])
@@ -44,7 +44,7 @@ class Add(Function):
 class Mul(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.multiply(args[0], args[1])
+        return np.multiply(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.multiply(%s, %s)" % (args[0], args[1])
@@ -63,7 +63,7 @@ class Mul(Function):
 class Sub(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.subtract(args[0], args[1])
+        return np.subtract(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.subtract(%s, %s)" % (args[0], args[1])
@@ -88,8 +88,8 @@ class Div(Function):
 
     def _impl(self, *args, **kwargs):
         if self.is_floor:
-            return np.floor_divide(args[0], args[1])
-        return np.true_divide(args[0], args[1])
+            return np.floor_divide(args[0], args[1], dtype=self.dtype)
+        return np.true_divide(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         if self.is_floor:
@@ -135,7 +135,7 @@ class RShift(Function):
 class Neg(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.negative(args[0])
+        return np.negative(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.negative(%s)" % args[0]
@@ -157,18 +157,20 @@ class Pos(Function):
     def _eval(self, *args, **kwargs):
         return args[0]
 
+
 @nargs(1)
-@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
+@c_headers('"FloatDefines.h"')
 class Abs(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.abs(args[0])
+        return np.abs(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.abs(%s)" % args[0]
 
     def _c_expr(self, *args, **kwargs):
-        return "AbsF(%s)" % (args[0])
+        return "AbsF32(%s)" % (args[0])
+
 
 @c_headers('"Gap.h"')
 class GapAbs(Abs):
@@ -180,7 +182,7 @@ class GapAbs(Abs):
 class Floor(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.floor(args[0])
+        return np.floor(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.floor(%s)" % args[0]
@@ -194,7 +196,7 @@ class Floor(Function):
 class Ceil(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.ceil(args[0])
+        return np.ceil(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.ceil(%s)" % args[0]
@@ -208,13 +210,14 @@ class Ceil(Function):
 class Max(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.maximum(args[0], args[1])
+        return np.maximum(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.maximum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"MaxF(({args[0]}),({args[1]}))"
+        return f"MaxF32(({args[0]}),({args[1]}))"
+
 
 @c_headers('"Gap.h"')
 class GapMax(Max):
@@ -227,51 +230,55 @@ class GapMax(Max):
 class Min(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.minimum(args[0], args[1])
+        return np.minimum(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.minimum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"MinF(({args[0]}),({args[1]}))"
+        return f"MinF32(({args[0]}),({args[1]}))"
+
 
 @c_headers('"Gap.h"')
 class GapMin(Min):
     def _c_expr(self, *args, **kwargs):
         return "gap_min(%s, %s)" % (args[0], args[1])
 
+
 @nargs(1)
 @c_headers('<math.h>')
 class Sqrt(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.sqrt(args[0])
+        return np.sqrt(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.sqrt(%s)" % (args[0],)
 
     def _c_expr(self, *args, **kwargs):
-        return "sqrt(%s)" % (args[0],)
+        return "sqrtf(%s)" % (args[0],)
+
 
 @nargs(1)
 @c_headers('<math.h>')
 class Log(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.log(args[0])
+        return np.log(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.log(%s)" % (args[0],)
 
     def _c_expr(self, *args, **kwargs):
-        return "log(%s)" % (args[0],)
+        return "logf(%s)" % (args[0],)
+
 
 @nargs(1)
 @c_headers('<math.h>')
 class Sin(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.sin(args[0])
+        return np.sin(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.sin(%s)" % (args[0],)
@@ -279,12 +286,13 @@ class Sin(Function):
     def _c_expr(self, *args, **kwargs):
         return "sin(%s)" % (args[0],)
 
+
 @nargs(1)
 @c_headers('<math.h>')
 class Cos(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.cos(args[0])
+        return np.cos(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.cos(%s)" % (args[0],)
@@ -292,12 +300,13 @@ class Cos(Function):
     def _c_expr(self, *args, **kwargs):
         return "cos(%s)" % (args[0],)
 
+
 @nargs(1)
 @c_headers('<math.h>')
 class ATan(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.arctan(args[0])
+        return np.arctan(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.arctan(%s)" % (args[0],)
@@ -305,46 +314,51 @@ class ATan(Function):
     def _c_expr(self, *args, **kwargs):
         return "atan(%s)" % (args[0],)
 
+
 @nargs(2)
 @c_headers('<math.h>')
 class Pow(Function):
 
     def _impl(self, *args, **kwargs):
         if any(b < 0 and e < 1 for b, e in np.broadcast(*args)):
-            raise ValueError('fractional powers are being passed to a negative base for Pow operator')
-        return np.power(args[0], args[1])
+            raise ValueError(
+                'fractional powers are being passed to a negative base for Pow operator')
+        return np.power(args[0], args[1], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np.power({args[0]}, {args[1]})"
 
     def _c_expr(self, *args, **kwargs):
-        return f"pow(({args[0]}), ({args[1]}))"
+        return f"powf(({args[0]}), ({args[1]}))"
+
 
 @nargs(1)
 @c_headers('<math.h>')
 class Exp(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.exp(args[0])
+        return np.exp(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.exp(%s)" % (args[0],)
 
     def _c_expr(self, *args, **kwargs):
-        return "exp(%s)" % (args[0],)
+        return "expf(%s)" % (args[0],)
+
 
 @nargs(1)
 @c_headers('<math.h>')
 class TanH(Function):
 
     def _impl(self, *args, **kwargs):
-        return np.tanh(args[0])
+        return np.tanh(args[0], dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return "np.tanh(%s)" % (args[0],)
 
     def _c_expr(self, *args, **kwargs):
         return "tanh(%s)" % (args[0],)
+
 
 @nargs(1)
 @c_headers('"float_math_funcs.h"')
@@ -361,6 +375,7 @@ class Sigmoid(Function):
 
     def _c_expr(self, *args, **kwargs):
         return f"fsigmoid({args[0]})"
+
 
 @nargs(1)
 class Cast(Function):
@@ -385,7 +400,8 @@ class Cast(Function):
         return "((%s)%s)" % (DTYPE_GAP_CTYPE[self._cast_dtype], args[0])
 
     def __repr__(self) -> str:
-        return "Cast(%s, %s)"%(self.contents[0], self._cast_dtype.__name__)
+        return "Cast(%s, %s)" % (self.contents[0], self._cast_dtype.__name__)
+
 
 class CompoundFunction(Function):
     def __init__(self, *args, **kwargs):
@@ -418,7 +434,8 @@ class CompoundFunction(Function):
 
     #pylint: disable=arguments-differ
     def _calculate(self, calculate_ranges=False, **kwargs):
-        res = self._inner_function.calculate(calculate_ranges=calculate_ranges, **kwargs)
+        res = self._inner_function.calculate(
+            calculate_ranges=calculate_ranges, **kwargs)
         if calculate_ranges:
             self.control.add_stat(self, res.value)
         return res
@@ -444,7 +461,8 @@ class HTanh(CompoundFunction):
 class HSigmoid(CompoundFunction):
 
     def _eval(self, *args, **kwargs):
-        return Mul(Min(Constant(6), Max(Constant(0), args[0] + Constant(3))), Rational(1, 6))
+        return Mul(Min(Constant(6), Max(Constant(0), Add(args[0], Constant(3), dtype=self.dtype))), Rational(1, 6), dtype=self.dtype)
+
 
 @nargs(1)
 class Relu(CompoundFunction):
@@ -464,6 +482,7 @@ class Relu(CompoundFunction):
                 return Max(Constant(self._lower_bound), args[0])
             else:
                 return args[0]
+
 
 @nargs(1)
 class ConvertFloatScaled(CompoundFunction):

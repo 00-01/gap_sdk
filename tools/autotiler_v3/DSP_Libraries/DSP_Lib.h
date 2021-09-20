@@ -3,6 +3,8 @@
 #include "Gap.h"
 #include "pulp_dsp/plp_math_extract.h"
 #include "math_funcs.h"
+#include "DSP_FloatType.h"
+#include "FloatDefines.h"
 
 #ifndef DSP_LIB_H
 #define DSP_LIB_H
@@ -13,54 +15,6 @@
 
 #ifndef AT_NORM
 #define AT_NORM(x, n)	gap_norm_reg((x), (n))
-#endif
-
-#ifdef __EMUL__
-#ifdef __FLOAT_EMUL__
-typedef float F16_DSP;
-typedef float F16V_DSP __attribute__((vector_size (8)));
-typedef V2S __attribute__((vector_size (8)));
-#else
-typedef short int F16_DSP;
-typedef short int F16V_DSP __attribute__((vector_size (4)));
-typedef v2s V2S;
-#endif
-typedef union {
-        F16_DSP     S;
-        F16V_DSP    V;
-} F16SV_DSP;
-#define SqrtF16(a) sqrt(a)
-#define SqrtF32(a) sqrt(a)
-#else
-typedef v2s V2S;
-/* GAP9 */
-#ifdef __gap9__ 
-#ifdef F16_DSP_BFLOAT
-typedef float16alt F16_DSP;
-typedef float16alt F16V_DSP __attribute__((vector_size (4)));
-#define SqrtF16(a) __builtin_pulp_f16altsqrt(a)
-#else
-typedef float16 F16_DSP;
-typedef float16 F16V_DSP __attribute__((vector_size (4)));
-#define SqrtF16(a) __builtin_pulp_f16sqrt(a)
-#endif
-typedef union {
-        F16_DSP     S;
-        F16V_DSP    V;
-} F16SV_DSP;
-#define TO_FLOAT(x) x
-#define SqrtF32(a) __builtin_pulp_f32sqrt(a)
-/* GAP8 */
-#else 
-typedef short int F16_DSP;
-typedef short int F16V_DSP __attribute__((vector_size (4)));
-typedef union {
-        F16_DSP     S;
-        F16V_DSP    V;
-} F16SV_DSP;
-#define SqrtF16(a) sqrt(a)
-#define SqrtF32(a) sqrt(a)
-#endif
 #endif
 
 typedef struct {

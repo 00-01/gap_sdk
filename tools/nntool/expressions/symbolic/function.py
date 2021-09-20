@@ -64,6 +64,12 @@ class Function(Symbol):
                     unbound_variables[arg.name] = arg
             elif isinstance(arg, Function):
                 unbound_variables.update(arg.unbound_variables)
+            elif isinstance(arg, str):
+                if arg in unbound_variables:
+                    raise ValueError('there is more than one variable called %s' % arg)
+                else:
+                    unbound_variables[arg] = Variable(arg)
+                
         return unbound_variables
 
     def _eval(self, *args, **kwargs):

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 GreenWaves Technologies
+ * Copyright (C) 2021 GreenWaves Technologies
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -207,42 +207,49 @@ void Load_RNN_NE16_Library()
                         TCArg("pStageDesc_t", "pStageDesc")
                        )
         );
-        // LibKernel("LSTM_KerB32_NE16",                          CALL_PARALLEL, 0, "KerLSTM_NE16_T", 0);
-        // LibKernel("LSTM_ParKerB32_NE16",                       CALL_PARALLEL, 0, "KerLSTM_NE16_T", 0);
-        // LibKernel("LSTM_ParKerB32_SameInStateScale_NE16",      CALL_PARALLEL, 0, "KerLSTM_NE16_T", 0);
-        // LibKernel("LSTM_ParKerB32_Hard_NE16",                  CALL_PARALLEL, 0, "KerLSTM_NE16_T", 0);
+
         LibKernel("LSTM_ParKerB32_NE16", CALL_PARALLEL_CC, 0, "KerLSTM_NE16_T",
                         CNN_Match(CNN_OperList(1, KOP_LSTM), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-1,0,0,0,-1), 0,0,0,0,1,1));
         LibKernel("LSTM_ParKerB32_NE16fp", CALL_PARALLEL_CC, 0, "KerLSTM_NE16fp_T",
                         CNN_Match(CNN_OperList(1, KOP_LSTM), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-2,0,0,0,-2), 0,0,0,0,1,1));
 
+        LibKernelTemplate("KerGRU_NE16_T",
+                  CArgs(30,
+                        TCArg("unsigned char *__restrict__", "StateInOut"),
+                        TCArg("unsigned char *__restrict__", "State"),
+                        TCArg("unsigned char *__restrict__", "Xin"),
+                        TCArg("unsigned char *__restrict__", "ScaleNorm"),
+                        TCArg("int *__restrict__", "OutBuff1"),
+                        TCArg("int *__restrict__", "OutBuff2"),
+                        TCArg("int *__restrict__", "OutBuff3"),
+                        TCArg("unsigned short int", "DimState"),
+                        TCArg("unsigned short int", "DimIn"),
+                        TCArg("unsigned short int", "DimStateInt"),
+                        TCArg("unsigned short int", "DimInInt"),
+                        TCArg("unsigned char *__restrict__", "Wr"),
+                        TCArg("unsigned char *__restrict__", "Wri"),
+                        TCArg("int * __restrict__", "Br"),
+                        TCArg("unsigned char *__restrict__", "Wz"),
+                        TCArg("unsigned char *__restrict__", "Wzi"),
+                        TCArg("int * __restrict__", "Bz"),
+                        TCArg("unsigned char *__restrict__", "Wh"),
+                        TCArg("unsigned char *__restrict__", "Whi"),
+                        TCArg("int * __restrict__", "Bwh"),
+                        TCArg("int * __restrict__", "Brh"),
+                        TCArg("unsigned char *__restrict__", "Hout"),
+                        TCArg("unsigned short int", "Nout"),
+                        TCArg("signed char *__restrict__", "Infos"),
+                        TCArg("char", "FirstCell"),
+                        TCArg("char", "FirstOut"),
+                        TCArg("char", "FilterDataSizeBits"),
+                        TCArg("int", "Default_NE16_Job_Cfg"),
+                        TCArg("char", "Reset"),
+                        TCArg("int", "TileOffset")
+                       )
+        );
 
-        // LibKernelTemplate("KerGRU_NE16_T",
-        //           CArgs(19,
-        // 		TCArg("signed char *__restrict__", "StateInOut"),
-        //                 TCArg("signed char *__restrict__", "State"),
-        //                 TCArg("signed char *__restrict__", "Xin"),
-        // 		TCArg("unsigned short int", "DimState"),
-        // 		TCArg("unsigned short int", "DimIn"),
-        // 		TCArg("signed char *__restrict__", "Wr"),
-        // 		TCArg("int * __restrict__", "Br"),
-        // 		TCArg("signed char *__restrict__", "Wz"),
-        // 		TCArg("int * __restrict__", "Bz"),
-        // 		TCArg("signed char *__restrict__", "Wh"),
-        // 		TCArg("int * __restrict__", "Bwh"),
-        // 		TCArg("int * __restrict__", "Brh"),
-        // 		TCArg("signed char *__restrict__", "Hout"),
-        // 		TCArg("unsigned short int", "Nout"),
-        // 		TCArg("signed char *__restrict__", "Infos"),
-        // 		TCArg("char", "FirstCell"),
-        // 		TCArg("char", "FirstOut"),
-        //                 TCArg("int", "TileOffset"),
-        // 		TCArg("char", "Reset")
-        // 	       )
-        // );
-        // LibKernel("GRU_KerB32_NE16", CALL_PARALLEL, 0, "KerGRU_NE16_T", 0);
-        // LibKernel("GRU_ParKerB32_NE16", CALL_PARALLEL, 0, "KerGRU_NE16_T", 0);
-        // LibKernel("GRU_ParKerB32_Hard_NE16", CALL_PARALLEL, 0, "KerGRU_NE16_T", 0);
+        LibKernel("GRU_ParKerB32_NE16", CALL_PARALLEL_CC, 0, "KerGRU_NE16_T",
+                        CNN_Match(CNN_OperList(1, KOP_GRU), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-1,0,0,0,-1), 0,0,0,0,1,1));
 
 }
 
@@ -839,7 +846,7 @@ static Kernel_T *LSTM_Stack_Seq_NE16(
 
         int DimStateInt = ROUND_UP_N(DimState, (Mode16?32:16));
         int DimInInt = (UseIn?ROUND_UP_N(DimIn, (Mode16?32:16)):0);
-        printf("DimInInt %d DimStateInt %d DimIn %d DimState bias_ds %d\n", DimInInt, DimStateInt, DimIn, DimState, BiasDataSize);
+        printf("DimInInt %d DimStateInt %d DimIn %d DimState %d bias_ds %d\n", DimInInt, DimStateInt, DimIn, DimState, BiasDataSize);
 
         Kernel_T *Kernel = UserKernel(Name,
                 KernelIterSpace(3, Dynamic?IterFixedSpaceDynBound(D0, NCells, "NCells"):IterFixedSpace(D0, NCells), IterParSpace(D1, DimState, OutSizeConstraint), IterTiledSpace(T0)),
@@ -1306,6 +1313,505 @@ int LSTM_Stack_NE16(
                                 GroupKerArgs[A++] = KerGroupArg("Hout",   O_OUT,  	     DimState*K1,                        FeatDataSize, "Hout");
                                 GroupKerArgs[A++] = KerGroupArg("Infos",  O_IN,   	     LSTM_NE16_CELL_INFOS,     1,            "Infos");
         if (!AlwaysReset)	GroupKerArgs[A++] = KerGroupArg("Reset",  O_IN,   	     1,                                  1,            "Reset");
+
+        KernelGroup_T *UKGroup = UserKernelGroupK(
+                Name,
+                1,
+                GroupCArgs,
+                0,
+                GroupCCalls,
+                GroupKerArgs
+        );
+        return (UKGroup!=0);
+}
+
+static Kernel_T *GRU_Stack_Seq_NE16(
+        char *Name,
+        CNN_GenControl_T *Ctrl,
+        char *GRUKerName,
+
+        int BiasDataSize,
+        int FeatDataSize,
+        int FilterDataSizeBits,
+
+        int HardAct,
+        int AlwaysReset,
+        int NCells,
+        int DimState,
+        int DimIn,
+        int UseIn,
+        int ExposeSequence,
+        int Buffer,
+        int OutSizeConstraint,
+        int FirstSeq,
+        int LastSeq,
+        int Revert,
+        int Dynamic
+        )
+
+{
+        /*      Sequences
+                In:     DimIn!=0, ExposeSequence==0
+                InOut:  DimIn!=0, ExposeSequence!=0
+                None:   DimIn==0, ExposeSequence==0
+                Out:    DimIn==0, ExposeSequence!=0
+        */
+        printf("GRU Segment: %s NC: %d, First: %d, Last: %d, UseIn: %d, Hard Act: %d Always Reset: %d Dynamic: %d ExposeSeq: %d Feat: %d Buffer: %d\n",
+                Name, NCells, FirstSeq, LastSeq, UseIn, HardAct, AlwaysReset, Dynamic, ExposeSequence, FeatDataSize, Buffer);
+        if (Abs(FeatDataSize)!=1 && Abs(FeatDataSize)!=2) GenTilingError("Node: %s Input DataSize %d not supported in NE16", Name, FeatDataSize);
+
+        int Mode16          = (Abs(FeatDataSize) == 2);
+        int GatePrenorm = (Mode16?8:0);
+
+        if (Ctrl) {
+                // Not used currently
+                if (Ctrl->GatePrenorm != -1 && Mode16) GatePrenorm = Ctrl->GatePrenorm;
+        }
+
+        // Set bit mode if != 8 databits
+        int Ws = FilterDataSizeBits;
+        unsigned int Wa = 0;
+        if (Ws%8) Wa = O_BIT; else Ws = Ws/8;
+        Wa |= O_NE16_RNN;
+
+        // setup default job
+        int StreamoutMode   = (Mode16?0:1);
+        int Streamin        = (Mode16?1:0); // 16 bit always streams in
+        int FilterMode      = 2;
+        int LinearMode      = 1;
+        int StridedMode     = 0;
+        int NormBits        = 0; // Byte norms and scales
+        int WOffsetCfg      = 1; // Weight 0 point dynamic
+        int QuantRightShift = 0;
+        int QuantBits       = 2; // 00: 8bit, 01: 16bit, 10: 32bit
+        int QuantNoRect     = 1;
+        int NormBias        = (Mode16?0:1); // Bias on by default - switch off if not needed
+        int NormShift       = (Mode16?0:1);
+        unsigned int DEFAULT_NE16_JOB_CFG = NE16_DefaultConfig_RNN(
+                FilterDataSizeBits, Mode16, StreamoutMode, FilterMode, LinearMode, StridedMode, NormBits, Streamin,
+                WOffsetCfg, QuantRightShift, QuantBits, QuantNoRect, NormShift, NormBias);
+        Tile_Orientation_T TileOrientation = TILE_HOR;
+        unsigned long long int LayerOp = 0;
+        unsigned long long int LayerBandwidth = 0;
+        unsigned int Si_Attr = O_IN|((!FirstSeq||AlwaysReset)?O_NO_LOAD:0);
+        unsigned int So_Attr = O_OUT|((!LastSeq||AlwaysReset)?O_NO_STORE:0);
+        int RD0 = Revert?SPACE_PROP(D0, SPACE_PROP_REVERT):D0;
+        if (Dynamic && (Si_Attr==O_IN)) Si_Attr |= O_ALWAYS_LOAD;
+
+        int Din = UseIn?DimIn:0;
+
+	LayerOp = NCells*((DimState + (UseIn?DimIn:0))*DimState*3 + DimState*3 + DimState*3);
+	LayerBandwidth = NCells*((DimState + DimIn) + 3*(DimState + DimIn)*DimState*1 + 3*(DimState)*BiasDataSize + DimState);
+
+        int DimStateInt = ROUND_UP_N(DimState, (Mode16?32:16));
+        int DimInInt = (UseIn?ROUND_UP_N(DimIn, (Mode16?32:16)):0);
+        printf("DimInInt %d DimStateInt %d DimIn %d DimState %d bias_ds %d\n", DimInInt, DimStateInt, DimIn, DimState, BiasDataSize);
+
+        Kernel_T *Kernel = UserKernel(Name,
+                KernelIterSpace(3, Dynamic?IterFixedSpaceDynBound(D0, NCells, "NCells"):IterFixedSpace(D0, NCells), IterParSpace(D1, DimState, OutSizeConstraint), IterTiledSpace(T0)),
+                TileOrientation,
+                CArgs(18,
+                      (Dynamic)?		  TCArg(CNN_ArgDataType(4,0,0),		        "NCells"):AT_NO_C_ARG,
+                      (!(FirstSeq&&AlwaysReset))? TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1),   "SHin"):AT_NO_C_ARG,
+                      (!(LastSeq&&AlwaysReset))?  TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1),   "SHout"):AT_NO_C_ARG,
+                      (UseIn)?			  TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1),   "Xin"):AT_NO_C_ARG,
+                                                  TCArg(CNN_ArgDataTypeUns(1,1,1),              "Wr"),
+                      (UseIn)?                    TCArg(CNN_ArgDataTypeUns(1,1,1),              "Wri"):AT_NO_C_ARG,
+                                                  TCArg(CNN_ArgDataType(BiasDataSize,1,1),      "Br"),
+                                                  TCArg(CNN_ArgDataTypeUns(1,1,1),              "Wz"),
+                      (UseIn)?                    TCArg(CNN_ArgDataTypeUns(1,1,1),              "Wzi"):AT_NO_C_ARG,
+                                                  TCArg(CNN_ArgDataType(BiasDataSize,1,1),      "Bz"),
+                                                  TCArg(CNN_ArgDataTypeUns(1,1,1),              "Wh"),
+                      (UseIn)?                    TCArg(CNN_ArgDataTypeUns(1,1,1),              "Whi"):AT_NO_C_ARG,
+                                                  TCArg(CNN_ArgDataType(BiasDataSize,1,1),      "Bwh"),
+                                                  TCArg(CNN_ArgDataType(BiasDataSize,1,1),      "Brh"),
+                                                  TCArg(CNN_ArgDataTypeUns(1,1,1),              "ScaleNorm"),
+                      (ExposeSequence)?		  TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1),   "Hout"):AT_NO_C_ARG,
+                                                  TCArg(CNN_ArgDataType(1,1,1),                 "Infos"),
+                      (!AlwaysReset)?		  TCArg(CNN_ArgDataType(1,0,0),                 "Reset"):AT_NO_C_ARG
+                ),
+                Calls(4,
+                        FirstSeq?Call("NE16_Enable", LOC_D0_PROLOG, Bindings(0)):AT_NO_CALL,
+                        Call("NE16_SoftReset", LOC_LOOP, Bindings(0)),
+                        Call(GRUKerName, LOC_LOOP,
+                                Bindings(30,
+                                        (!(FirstSeq&&AlwaysReset))?K_Arg("SHin",  KER_ARG_TILE):((!(LastSeq&&AlwaysReset))?K_Arg("SHout",  KER_ARG_TILE):Imm(0)),
+                                        K_Arg("State",  KER_ARG_TILE),
+                                        UseIn?K_Arg("Xin", KER_ARG_TILE):Imm(0),
+                                        K_Arg("ScaleNorm",  KER_ARG_TILE),
+                                        K_Arg("OutBuff1",  KER_ARG_TILE),
+                                        K_Arg("OutBuff2",  KER_ARG_TILE),
+                                        K_Arg("OutBuff3",  KER_ARG_TILE),
+                                        Imm(DimState),
+                                        Imm(DimIn),
+                                        Imm(DimStateInt),
+                                        Imm(DimInInt),
+                                        K_Arg("Wr",  KER_ARG_TILE),
+                                        (UseIn?K_Arg("Wri",  KER_ARG_TILE):AT_IGNORE_ARG_BINDING),
+                                        K_Arg("Br",  KER_ARG_TILE),
+                                        K_Arg("Wz",  KER_ARG_TILE),
+                                        (UseIn?K_Arg("Wzi",  KER_ARG_TILE):AT_IGNORE_ARG_BINDING),
+                                        K_Arg("Bz",  KER_ARG_TILE),
+                                        K_Arg("Wh",  KER_ARG_TILE),
+                                        (UseIn?K_Arg("Whi",  KER_ARG_TILE):AT_IGNORE_ARG_BINDING),
+                                        K_Arg("Bwh",  KER_ARG_TILE),
+                                        K_Arg("Brh",  KER_ARG_TILE),
+                                        (ExposeSequence)?K_Arg("Hout", KER_ARG_TILE):Imm(0),
+                                        K_ArgPar("Br", KER_ARG_PARTILE_SIZE, D1),
+                                        K_Arg("Infos", KER_ARG_TILE),
+                                        K_ArgPred("Wr", KER_ARG_TILEFIRST, D0),
+                                        K_ArgPred("Wr", KER_ARG_TILEFIRST, D1),
+                                        Imm(FilterDataSizeBits),
+                                        Imm(DEFAULT_NE16_JOB_CFG), 
+                                        AlwaysReset?(FirstSeq?Imm(1):Imm(0)):C_Arg("Reset"),
+                                        BindKExpr("KArg(Br, TileBase, D1)")
+                                        )
+                        ),
+                        LastSeq?Call("NE16_Disable", LOC_D0_EPILOG, Bindings(0)):AT_NO_CALL
+
+                ),
+                KerArgs(20,
+                        KerArg("Wr",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimStateInt,      1, Ws,           0, 0, 0, "Wr"),
+                        (UseIn)?
+                        KerArg("Wri",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimInInt,         1, Ws,           0, 0, 0, "Wri"):AT_NO_KER_ARG,
+                        KerArg("Br",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|O_NE16_INTER,  2,                1, BiasDataSize, 0, 0, 0, "Br"),
+                        KerArg("Wz",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimStateInt,      1, Ws,           0, 0, 0, "Wz"),
+                        (UseIn)?
+                        KerArg("Wzi",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimInInt,         1, Ws,           0, 0, 0, "Wzi"):AT_NO_KER_ARG,
+                        KerArg("Bz",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|O_NE16_INTER,  2,                1, BiasDataSize, 0, 0, 0, "Bz"),
+                        KerArg("Wh",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimStateInt,      1, Ws,           0, 0, 0, "Wh"),
+                        (UseIn)?
+                        KerArg("Whi",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimInInt,         1, Ws,           0, 0, 0, "Whi"):AT_NO_KER_ARG,
+                        KerArg("Bwh",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer,               1,                1, BiasDataSize, 0, 0, 0, "Bwh"),
+                        KerArg("Brh",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer,               1,                1, BiasDataSize, 0, 0, 0, "Brh"),
+                        KerArg("ScaleNorm", KerArgSpace(1,D1),  O_IN|O_DB|O_CONST|Buffer|O_NE16_INTER,  6 * (UseIn?2:1),  1, 1,            0, 0, 0, "ScaleNorm"),
+
+                        KerArg("State",   KerArgSpace(1,T0),    O_BUFF|O_NTILED,      	                DimStateInt+DimState+DimInInt,
+                                                                                                                          1, FeatDataSize, 0, 0, 0, ""),
+                        (!(FirstSeq&&AlwaysReset))?
+                        KerArg("SHin",     KerArgSpace(1,T0),   Si_Attr|O_BUFF|O_NTILED,                DimState,         1, FeatDataSize, 0, 0, 0, "SHin"):AT_NO_KER_ARG,
+
+                        (!(LastSeq&&AlwaysReset))?
+                        ((!(FirstSeq&&AlwaysReset))?
+                        KerArgAliased("SHout", KerArgSpace(1,T0), 1, So_Attr|O_BUFF|O_NTILED,           DimState,         1, FeatDataSize, 0, 0, 0, "SHout"):
+                        KerArg("SHout",    KerArgSpace(1,T0),   So_Attr|O_BUFF|O_NTILED,                DimState,         1, FeatDataSize, 0, 0, 0, "SHout")):AT_NO_KER_ARG,
+
+                        (UseIn)?
+                        KerArg("Xin",     KerArgSpace(1,RD0),   O_IN|O_DB,                              DimIn,            1, FeatDataSize, 0, 0, 0, "Xin"):AT_NO_KER_ARG,
+                        KerArg("OutBuff1", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
+                        KerArg("OutBuff2", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
+                        KerArg("OutBuff3", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
+                        (ExposeSequence)?
+                        KerArg("Hout",    KerArgSpace(2,RD0,D1),O_OUT|O_DB,                             1,                1, FeatDataSize, 0, 0, 0, "Hout"):AT_NO_KER_ARG,
+                        KerArg("Infos",   KerArgSpace(1,T0),    O_IN|O_BUFF|O_NTILED|O_CONST,           GRU_NE16_CELL_INFOS,1, 1,        0, 0, 0, "Infos")
+                )
+        );
+        if (Kernel) {
+                AddKernelInfos(Name, AT_KERINFO_OPER, LayerOp, 0);
+                AddKernelInfos(Name, AT_KERINFO_BANDWIDTH, LayerBandwidth, 0);
+
+		if (!(FirstSeq&&AlwaysReset))	AddKernelArgDim(Name, "SHin",     2, DimState,      FeatDataSize);
+		if (!(LastSeq&&AlwaysReset))	AddKernelArgDim(Name, "SHout",    2, DimState,      FeatDataSize);
+                                                AddKernelArgDim(Name, "ScaleNorm",3, 6*(UseIn?2:1), DimState, 1);
+                if (UseIn)			AddKernelArgDim(Name, "Xin",      3, NCells,        DimIn,                    FeatDataSize);
+                                                AddKernelArgDim(Name, "Wr",       3, DimState,      FilterDataSizeBits*DimStateInt/8,      1);
+                if (UseIn)                      AddKernelArgDim(Name, "Wri",      3, DimState,      FilterDataSizeBits*DimInInt/8,         1);
+                                                AddKernelArgDim(Name, "Br",       3, 2,             DimState,                 BiasDataSize);
+                                                AddKernelArgDim(Name, "Wz",       3, DimState,      FilterDataSizeBits*DimStateInt/8,      1);
+                if (UseIn)                      AddKernelArgDim(Name, "Wzi",      3, DimState,      FilterDataSizeBits*DimInInt/8, 1);
+                                                AddKernelArgDim(Name, "Bz",       3, 2,             DimState,                 BiasDataSize);
+                                                AddKernelArgDim(Name, "Wh",       3, DimState,      FilterDataSizeBits*DimStateInt/8,      1);
+                if (UseIn)                      AddKernelArgDim(Name, "Whi",      3, DimState,      FilterDataSizeBits*DimInInt/8,         1);
+                                                AddKernelArgDim(Name, "Bwh",      3, 1,             DimState,                 BiasDataSize);
+                                                AddKernelArgDim(Name, "Brh",      3, 1,             DimState,                 BiasDataSize);
+                                                AddKernelArgDim(Name, "Infos",    3, 1,             GRU_NE16_CELL_INFOS,      1);
+                if (ExposeSequence)		AddKernelArgDim(Name, "Hout",     3, NCells,        DimState,                 FeatDataSize);
+        }
+
+        return Kernel;
+}
+
+int GRU_Stack_NE16(
+        char *Name,
+        CNN_GenControl_T *Ctrl,
+
+        int BiasDataSize,
+        int FeatDataSize,
+        int FilterDataSizeBits,
+
+        int NCells,
+        int K0,
+        int K1,
+        int DimState,
+        int DimIn,
+        int AlwaysReset,
+        int Revert
+        )
+
+{
+        int Log = 1;
+        unsigned int Wa = 0;
+        int Ws = FilterDataSizeBits;
+        if (((FilterDataSizeBits%8)!=0)) Wa = O_BIT; else Ws = Ws/8;
+        Wa |= O_NE16_LIN;
+        if (K0<1) GenTilingError("GRU_Stack_NE16, %s, K0, At least one input is expected\n", Name, K0);
+        if (K1<1) GenTilingError("GRU_Stack_NE16, %s, K1, At least one output is expected\n", Name, K1);
+        if (K0>NCells) GenTilingError("GRU_Stack_NE16, %s, K0, Number of input should be in [1,NCells]\n", Name, K0);
+        if (K1>NCells) GenTilingError("GRU_Stack_NE16, %s, K1, Number of ouput should be in [1,NCells]\n", Name, K1);
+
+        int UseHardAct = 0;
+
+        if (Ctrl) {
+                if (Ctrl->RNNUseHardActivation != -1) UseHardAct = Ctrl->RNNUseHardActivation;
+        }
+
+        int ParFeat = 1;
+
+        unsigned S_Attr = 0 | ((!AlwaysReset)?O_IN:0) | ((!AlwaysReset)?O_OUT:0);
+        printf("GRU_Stack_NE16: KOP_GRU, %s - Feature Size %d\n", (UseHardAct?"KOP_HSIGMOID":"KOP_SIGMOID"), FeatDataSize);
+        char *GRUKerName = CNN_FindMatchingKernel(
+                KOP_GRU, (UseHardAct?KOP_HSIGMOID:KOP_SIGMOID), CALL_PARALLEL,
+                FeatDataSize, 0, 0, 0, FeatDataSize, 0,0,0,0,1,1, 0,0,0,0, 0, 0, 0);
+
+        if (!GRUKerName) GenTilingError("GRU_Stack_NE16 Kernel: %s, Can't find a matching basic kernel", Name);
+
+        FeatDataSize = abs(FeatDataSize);
+
+        char *G1_Name=0, *G2_Name=0, *G3_Name=0;
+        int N1, N2, N3, N2_IO, Seq = RNN_Sequence_NE16(NCells, K0, K1, &N1, &N2, &N3, &N2_IO);
+
+        /*
+                If dynamic cell count we accept only
+                               All IN all OUT e.g NC=K0=K1 		=> N1=N3=0,  N2=NC => Single sequence
+                        All IN single OUT e.g NC=K0, K1=1	=> N1=NC-1,  N2=1  => Two sequences
+        */
+        int Dynamic = 0;
+
+        if (Ctrl) {
+                if (Ctrl->DynamicIter) Dynamic = 1;
+        }
+        if (Log) {
+                printf("GRU, %d Cells%s, DimState: %d, DimIn: %d, Input Cells: %d, Output Cells: %d, Order: %s\n",
+                        NCells, Dynamic?" Dynamic":"", DimState, DimIn, K0, K1, Revert?"Reverse":"Regular");
+                printf("Basic Kernel: %s\n", GRUKerName);
+                printf("In Seq: %d, %s Seq: %d, Out Seq: %d\n", N1, N2_IO?"In/Out":"void", N2, N3);
+                printf("Use hard act: %d\n", UseHardAct);
+        }
+
+        if (Dynamic && !((NCells==K0 && NCells==K1) || (NCells==K0 && K1==1))) GenTilingError("RNN with dynamic cell count is valid only for NC=K0=K1 (all in and out) or NC=K0,K1=1 (all in, single out)");
+        OpenKernelGroup(Name);
+
+        if (Dynamic)
+                UserSymbols(3, US_Int("Revert", Revert), US_Int("DimIn", DimIn), US_Type("pFeatType", CNN_ArgDataType(FeatDataSize,1,1)));
+        int Ok = 0;
+        G1_Name = AppendNames(Name, "G1");
+        G2_Name = AppendNames(Name, "G2");
+        G3_Name = AppendNames(Name, "G3");
+
+        int DoBuffer = 1, DoConstraint = 32;
+        while (Ok==0) {
+                Ok = TryKernelSolution(
+                        GRU_Stack_Seq_NE16, Ctrl, GRUKerName, BiasDataSize, FeatDataSize, FilterDataSizeBits,
+                        UseHardAct, AlwaysReset, DimState, DimIn, DoBuffer, DoConstraint, Revert, Dynamic,
+                        G1_Name, G2_Name, G3_Name, N1, N2, N3, N2_IO);
+                if (DoBuffer) {
+                        if (Ok) {
+                                if (Log) printf("Mapped sequence with all coeffs promoted to buffer\n");
+                        } else {
+                                if (Log) printf("Failed to map sequence with all coeffs promoted to buffer, reverting to tile based\n");
+                                DoBuffer = 0;
+                        }
+                } else if (DoConstraint) {
+                        if (Ok) {
+                                if (Log) printf("Mapped sequence tile based with %d output size constraint\n", DoConstraint);
+                        } else {
+                                if (Log) printf("Failed to map sequence tile based with %d output size constraint, relaxing constraint\n", DoConstraint);
+                                DoConstraint = (DoConstraint>16)?DoConstraint-8:0;
+                        }
+                } else {
+                        if (Ok) {
+                                if (Log) printf("Mapped sequence tile based with no output size constraint\n");
+                        } else {
+                                if (Log) printf("No solution found\n");
+                                break;
+                        }
+                }
+        }
+        CloseKernelGroupNoMerge();
+        if (Ok==0) return 0;
+
+        CKernel_Arg_T **GroupCArgs;
+        CKernelCall_T **GroupCCalls;
+        Object_T **GroupKerArgs;
+        int NumCArgs = 14 + 2*(AlwaysReset==0) + 1*(N1!=0) + 1*(N2!=0 && N3!=0) + (Dynamic!=0);
+        GroupCArgs = AllocateCArgs(NumCArgs);
+        int A= 0;
+
+        if (Dynamic) 		GroupCArgs[A++] = TCArg(CNN_ArgDataType(4,0,0), 	   "NCells");
+        if (!AlwaysReset) 	GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1), "Hinout");
+        if (N1!=0) 	   	GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1), "G1O0");
+        if (N2!=0 && N3!=0)	GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1), "G2O0");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1), "Xin");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1), "ScaleNorm");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Wr");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Wri");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataType(BiasDataSize,1,1), "Br");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Wz");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Wzi");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataType(BiasDataSize,1,1), "Bz");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Wh");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(1,1,1),            "Whi");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataType(BiasDataSize,1,1), "Bwh");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataType(BiasDataSize,1,1), "Brh");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataTypeUns(FeatDataSize,1,1), "Hout");
+                                GroupCArgs[A++] = TCArg(CNN_ArgDataType(1,1,1),            "Infos");
+        if (!AlwaysReset)	GroupCArgs[A++] = TCArg(CNN_ArgDataType(1,0,0),            "Reset");
+
+        GroupCCalls = AllocateCalls((N1!=0)+(N2!=0)+(N3!=0));
+        A=0;
+        if (Dynamic) {
+                if (N1>0) {
+                        GroupCCalls[A++] = UserKernelCall(G1_Name, LOC_GROUP,
+                                                Bindings(17,
+                                                        BindKGExpr("CArg(NCells)-1"),
+                                                        (!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING,
+                                                        C_Arg("G1O0"),
+                                                        BindKGExpr("((pFeatType)CArg(Xin))+(Revert?(DimIn*(CArg(NCells)-1)):0)"),
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Wri"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Wzi"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Whi"),
+                                                        C_Arg("Bwh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Infos"),
+                                                        (AlwaysReset==0)?C_Arg("Reset"):AT_NO_ARG_BINDING));
+                }
+                if (N2>0&&N2_IO)
+                        GroupCCalls[A++] = UserKernelCall(G2_Name, LOC_GROUP,
+                                                Bindings(18,
+                                                        (N1==0)?BindKGExpr("CArg(NCells)"):AT_NO_ARG_BINDING,
+                                                        (N1)?C_Arg("G1O0"):((!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING),
+                                                        (N3)?C_Arg("G2O0"):((!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING),
+                                                        BindKGExpr("((pFeatType)CArg(Xin))+(Revert?0:(DimIn*(CArg(NCells)-1)))"),
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Wri"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Wzi"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Whi"),
+                                                        C_Arg("Bwh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Hout"),
+                                                        C_Arg("Infos"),
+                                                        (!AlwaysReset)?((N1==0)?C_Arg("Reset"):Imm(0)):AT_NO_ARG_BINDING
+                                                        )
+                                                );
+        } else {
+                if (N1>0) {
+                        GroupCCalls[A++] = UserKernelCall(G1_Name, LOC_GROUP,
+                                                Bindings(16,
+                                                        (!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING,
+                                                        C_Arg("G1O0"),
+                                                        Revert?KG_ArgOper("Xin",   '+', (N2_IO?N2:0)*DimIn):C_Arg("Xin"),
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Wri"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Wzi"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Whi"),
+                                                        C_Arg("Bwh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Infos"),
+                                                        (AlwaysReset==0)?C_Arg("Reset"):AT_NO_ARG_BINDING));
+                }
+                if (N2>0&&N2_IO)
+                        GroupCCalls[A++] = UserKernelCall(G2_Name, LOC_GROUP,
+                                                Bindings(17,
+                                                        (N1)?C_Arg("G1O0"):((!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING),
+                                                        (N3)?C_Arg("G2O0"):((!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING),
+                                                        Revert?C_Arg("Xin"):KG_ArgOper("Xin",   '+', N1*DimIn),
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Wri"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Wzi"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Whi"),
+                                                        C_Arg("Bwh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Hout"),
+                                                        C_Arg("Infos"),
+                                                        (!AlwaysReset)?((N1==0)?C_Arg("Reset"):Imm(0)):AT_NO_ARG_BINDING
+                                                        )
+                                                );
+                if (N2>0&&!N2_IO)
+                        GroupCCalls[A++] = UserKernelCall(G2_Name, LOC_GROUP,
+                                                Bindings(11,
+                                                        C_Arg("G1O0"),
+                                                        C_Arg("G2O0"),
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Infos"),
+                                                        (!AlwaysReset)?Imm(0):AT_NO_ARG_BINDING
+                                                        )
+                                                );
+                if (N3>0)
+                        GroupCCalls[A++] = UserKernelCall(G3_Name, LOC_GROUP,
+                                                Bindings(12,
+                                                        (N2)?C_Arg("G2O0"):C_Arg("G1O0"),
+                                                        (!AlwaysReset)?C_Arg("Hinout"):AT_NO_ARG_BINDING,
+                                                        C_Arg("Wr"),
+                                                        C_Arg("Br"),
+                                                        C_Arg("Wz"),
+                                                        C_Arg("Bz"),
+                                                        C_Arg("Wh"),
+                                                        C_Arg("Brh"),
+                                                        C_Arg("ScaleNorm"),
+                                                        C_Arg("Hout"),
+                                                        C_Arg("Infos"),
+                                                        (!AlwaysReset)?Imm(0):AT_NO_ARG_BINDING
+                                                        )
+                                                );
+        }
+        GroupKerArgs = AllocateKerArgs(14+ (Dynamic!=0) + 1*(N1!=0) + 1*(N2!=0 && N3!=0)+ 2*(AlwaysReset==0));
+        A = 0;
+        if (Dynamic)		GroupKerArgs[A++] = KerGroupArg("NCells", O_IN,   	     1,                       4,            "NCells");
+        if (AlwaysReset==0) 	GroupKerArgs[A++] = KerGroupArg("Hinout", O_IN|O_OUT,        DimState,                FeatDataSize, "Hinout");
+        if (N1!=0)		GroupKerArgs[A++] = KerGroupArg("G1O0",    O_IN|O_OUT|O_BUFF, DimState,               FeatDataSize, "G1O0");
+        if (N2!=0 && N3!=0)	GroupKerArgs[A++] = KerGroupArg("G2O0",    O_IN|O_OUT|O_BUFF, DimState,               FeatDataSize, "G2O0");
+                                GroupKerArgs[A++] = KerGroupArg("Xin",    O_IN,   	     DimIn*K0,                FeatDataSize, "Xin");
+                                GroupKerArgs[A++] = KerGroupArg("Wr",     O_IN|Wa,   	     DimState*DimState,       Ws,           "Wr");
+        			GroupKerArgs[A++] = KerGroupArg("Wri",     O_IN|Wa,   	     DimIn*DimState,          Ws,           "Wri");
+                                GroupKerArgs[A++] = KerGroupArg("Br",     O_IN,   	     2*DimState,              BiasDataSize, "Br");
+                                GroupKerArgs[A++] = KerGroupArg("Wz",     O_IN|Wa,   	     DimState*DimState,       Ws,           "Wz");
+        			GroupKerArgs[A++] = KerGroupArg("Wzi",     O_IN|Wa,   	     DimIn*DimState,          Ws,           "Wzi");
+                                GroupKerArgs[A++] = KerGroupArg("Bz",     O_IN,   	     2*DimState,              BiasDataSize, "Bz");
+                                GroupKerArgs[A++] = KerGroupArg("Wh",     O_IN|Wa,   	     DimState*DimState,       Ws,           "Wh");
+        			GroupKerArgs[A++] = KerGroupArg("Whi",     O_IN|Wa,   	     DimIn*DimState,          Ws,           "Whi");
+                                GroupKerArgs[A++] = KerGroupArg("Bwh",     O_IN,   	     DimState,                BiasDataSize, "Bwh");
+                                GroupKerArgs[A++] = KerGroupArg("Brh",     O_IN,   	     DimState,                BiasDataSize, "Brh");
+                                GroupKerArgs[A++] = KerGroupArg("ScaleNorm",     O_IN,       8 * DimState * 2,        1,            "ScaleNorm");
+                                GroupKerArgs[A++] = KerGroupArg("Hout",   O_OUT,  	     DimState*K1,             FeatDataSize, "Hout");
+                                GroupKerArgs[A++] = KerGroupArg("Infos",  O_IN,   	     GRU_NE16_CELL_INFOS,     1,            "Infos");
+        if (!AlwaysReset)	GroupKerArgs[A++] = KerGroupArg("Reset",  O_IN,   	     1,                       1,            "Reset");
 
         KernelGroup_T *UKGroup = UserKernelGroupK(
                 Name,

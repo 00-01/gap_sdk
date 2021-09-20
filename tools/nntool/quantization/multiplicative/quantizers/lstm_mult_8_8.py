@@ -59,11 +59,17 @@ LOG = logging.getLogger('nntool.' + __name__)
         'help': 'scales filter weights with a representation of both 1 and -1 (i.e. -127 - 127 in 8 bits)',
         'default': True
     },
+    {
+        'name': 'use_ne16',
+        'type': bool,
+        'help': 'Use NE16 for this layer',
+        'default': False
+    }
 )
 @params_type(LSTMParameters)
 @in_qs_constraint({'dtype': np.int8})
 @out_qs_constraint({'dtype': np.int8})
-@option_constraint(force_external_size={8, None})
+@option_constraint(force_external_size={8, None}, use_ne16={None, False})
 class LSTMMultMult8x8(RescaleConstantMixin, MultQuantizionHandler):
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):

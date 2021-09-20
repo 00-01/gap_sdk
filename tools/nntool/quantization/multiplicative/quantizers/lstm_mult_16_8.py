@@ -65,11 +65,17 @@ def get_max(stat):
         'help': 'scales filter weights with a representation of both 1 and -1 (i.e. -127 - 127 in 8 bits)',
         'default': True
     },
+    {
+        'name': 'use_ne16',
+        'type': bool,
+        'help': 'Use NE16 for this layer',
+        'default': False
+    }
 )
 @params_type(LSTMParameters)
 @in_qs_constraint({'dtype': np.int16})
 @out_qs_constraint({'dtype': np.int16})
-@option_constraint(force_external_size=16)
+@option_constraint(force_external_size=16, use_ne16={None, False})
 class LSTMMultMult16x8(RescaleConstantMixin, MultQuantizionHandler):
 
     @classmethod

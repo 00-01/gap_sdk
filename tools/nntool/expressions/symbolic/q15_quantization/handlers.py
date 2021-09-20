@@ -234,7 +234,7 @@ class BasicEqualizeQ15Quant(BasicFunctionQuant):
         if calc_qrec == out_qrec:
             return (sym_cls(*in_syms), calc_qrec)
 
-        return (ScaleQuantized(sym_cls(*in_syms),
+        return (ScaleQuantized(sym_cls(*in_syms, dtype=out_qrec.dtype),
                                from_qrec=calc_qrec, to_qrec=out_qrec), out_qrec)
 
 
@@ -267,7 +267,7 @@ class BasicMulQ15Quant(BasicFunctionQuant):
         out_qrec = Q15ScaleQRec(np.int32, prod_scale, min(
             prod_q, 15), max_val=prod_scale, min_val=-prod_scale)
         if prod_q > 15:
-            qsym = Norm(sym_cls(*in_syms), QuantizedConstant(prod_q - 15))
+            qsym = Norm(sym_cls(*in_syms, dtype=np.int32), QuantizedConstant(prod_q - 15))
         else:
             qsym = sym_cls(*in_syms)
         return (qsym, out_qrec)
@@ -295,7 +295,8 @@ class BasicDivQ15Quant(BasicFunctionQuant):
                     QuantizedValue(
                         in_syms[0], qrec=in_qrecs[0], name=in_syms[0].name),
                     Constant(value, name=in_syms[1].name, shape=in_syms[1].shape),
-                    name=sym.name),
+                    name=sym.name,
+                    dtype=np.int32),
                 sym_ctrl)
 
         # LHS and RHS must be Q15 maximum
@@ -418,7 +419,7 @@ class BasicQ17Q15LogQuant(BasicFunctionQuant):
         max_bits = math.ceil(math.log2(math.fabs(-340695 + qlog_off))) + 2
         return (
             ScaleQuantized(Add(Log1715(in_sym), QuantizedConstant(
-                qlog_off)), from_qrec=calc_qrec, to_qrec=out_qrec, num_bits=31-max_bits),
+                qlog_off), dtype=np.int32), from_qrec=calc_qrec, to_qrec=out_qrec, num_bits=31-max_bits),
             out_qrec)
 
 
@@ -489,7 +490,7 @@ class BasicQ17Q15PowQuant(BasicFunctionQuant):
         if val == -2:
             out_qrec = Q15ScaleQRec(
                 np.int32, 1/np.power(lhs_qrec.scale, 2), 15)
-            return (Div(QuantizedConstant(1 << 30), Cast(Square1715(lhs), dtype=np.int32)), out_qrec)
+            return (Div(QuantizedConstant(1 << 30), Cast(Square1715(lhs), dtype=np.int32), dtype=np.int32), out_qrec)
         if val == 1:
             out_qrec = Q15ScaleQRec(np.int32, lhs_qrec.scale, 15)
             return (lhs, out_qrec)

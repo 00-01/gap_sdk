@@ -29,7 +29,7 @@ from generation.generators.kernels.autotiler_kernel import NewAutoTilerKernel
 from generation.helpers.gen_constant import gen_constant
 from generation.new_generators.generator_base import (GeneratorBase,
                                                       paramstype, qrec_options)
-from graph.types import LSTMParameters
+from graph.types import GRUParameters
 from quantization.qtype import QType
 from utils.numpy_helpers import interleave
 
@@ -37,18 +37,19 @@ LOG = logging.getLogger("nntool." + __name__)
 
 from generation.new_generators.helpers.sigmoid_table import SIGMOID_TABLE
 
-@paramstype(LSTMParameters)
+@paramstype(GRUParameters)
 @qrec_options(ne16=True)
-class LSTMNE16Generator(GeneratorBase):
+class GRUNE16Generator(GeneratorBase):
 
     @classmethod
     def globals_generator(cls, gen, node, qrec, pnode, fnode) -> bool:
         names = {val: idx for idx, val in enumerate(
-            LSTMParameters.INPUT_NAMES)}
+            GRUParameters.INPUT_NAMES)}
         scales = []
         weight_zero = None
-        for gate in ['i', 'c', 'f', 'o']:
-            for input_tensor in ['i', 'r']:
+        for gate in ['r', 'h', 'z']:
+            input_order = ['r', 'w'] if gate == 'h' else ['w', 'r']
+            for input_tensor in input_order:
                 scale_name = f'{input_tensor}_2_{gate}_q'
                 weight_name = f'{input_tensor}_2_{gate}_w'
                 if weight_zero is None:
@@ -56,7 +57,6 @@ class LSTMNE16Generator(GeneratorBase):
                 else:
                     assert weight_zero == qrec.in_qs[names[weight_name]
                                                      ].zero_point[0]
-                w_q = qrec.in_qs[names['r_2_i_w']]
                 qscale = qrec.cache[scale_name]
                 scales.append(qscale.qbiases)
                 scales.append(qscale.qnorms)
@@ -76,72 +76,23 @@ class LSTMNE16Generator(GeneratorBase):
                 f"{node.name}_Reset", 'AT_MEM_L2', 'AT_MEM_UNDEF'))
 
         out_q = qrec.out_qs[0]
-        out_scale = qrec.cache["state_out_q"].qbiases[0]
-        out_scalen = qrec.cache["state_out_q"].qnorms[0]
-        cin_scale = qrec.cache["cell_in_q"].qbiases[0]
-        cin_scalen = qrec.cache["cell_in_q"].qnorms[0]
-        cout_scale = qrec.cache["cell_out_q"].qbiases[0]
-        cout_scalen = qrec.cache["cell_out_q"].qnorms[0]
-        out_zeropoint = out_q.zero_point[0]
-
-# define LSTM_NE16_W_ZEROPOINT   0
-# define LSTM_NE16_GATE_PRENORM  1
-# define LSTM_NE16_CIN_SCALE     (0 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_CIN_SCALEN    (1 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_COUT_SCALE    (2 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_COUT_SCALEN   (3 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_OUT_SCALE     (4 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_OUT_SCALEN    (5 + LSTM_NE16_OUT_OFF)
-# define LSTM_NE16_OUT_ZEROPOINT (6 + LSTM_NE16_OUT_OFF)
-
-# define LSTM_NE16_INT_A0        (0 + LSTM_NE16_INT_OFF)
-# define LSTM_NE16_INT_B0        (1 + LSTM_NE16_INT_OFF)
-# define LSTM_NE16_INT_C0        (2 + LSTM_NE16_INT_OFF)
 
         sigmoid_table = interleave(
             SIGMOID_TABLE & 0xff, SIGMOID_TABLE >> 8).astype(np.int8)
         if out_q.dtype == np.uint8:
-            # Maybe get rid of this
-            if qrec.cache.get('act_qtype'):
-                min_val = qrec.cache['act_qtype'].quantize(-1)
-                max_val = qrec.cache['act_qtype'].quantize(1)
-            else:
-                min_val = max_val = 0
             contents = np.concatenate((
                 sigmoid_table,
                 np.array([
                     -weight_zero.astype(np.int8),
-                    qrec.cache['gate_prenorm'],
-                    cin_scale.astype(np.int8),
-                    cin_scalen.astype(np.int8),
-                    cout_scale.astype(np.int8),
-                    cout_scalen.astype(np.int8),
-                    out_scale.astype(np.int8),
-                    out_scalen.astype(np.int8),
-                    out_zeropoint.astype(np.int8),
-                    0,
-                    0,
-                    0,
-                    0
                 ], dtype=np.int8)))
         else:
             contents = np.concatenate((
                 sigmoid_table,
                 np.array([
                     -weight_zero.astype(np.int8),
-                    qrec.cache['gate_prenorm'],
-                    cin_scale.astype(np.int8),
-                    cin_scalen.astype(np.int8),
-                    cout_scale.astype(np.int8),
-                    cout_scalen.astype(np.int8),
-                    out_scale.astype(np.int8),
-                    out_scalen.astype(np.int8),
-                    out_zeropoint.astype(np.uint16) & 0xff,
-                    out_zeropoint.astype(np.uint16) >> 8,
                 ], dtype=np.int8)))
 
-        comment = (f"WZP: {weight_zero}, Out: {out_scale}/{out_scalen}, Cin: {cin_scale}/{cin_scalen}"
-                   f"Cout: {cout_scale}/{cout_scalen}, OZP: {out_zeropoint}")
+        comment = (f"WZP: {weight_zero}")
         cname, file_name = gen_constant(gen, pnode, pnode, INFOS)
         const_info = ConstantInfo(file_name, QType.Pow2(
             bits=8, q=0, signed=True), contents=contents)
@@ -171,38 +122,32 @@ class LSTMNE16Generator(GeneratorBase):
         in_ctype = "char" if qrec.in_qs[0].bits == 8 else "short"
         if num_seq > 1:
             gen.locals.append(LocalArgInfo(
-                f"signed {in_ctype}", f"S{step_idx}_CellInternal01"))
-            gen.locals.append(LocalArgInfo(
                 f"unsigned {in_ctype}", f"S{step_idx}_StateInternal01"))
 
         if num_seq > 2:
             gen.locals.append(LocalArgInfo(
-                f"signed {in_ctype}", f"S{step_idx}_CellInternal02"))
-            gen.locals.append(LocalArgInfo(
                 f"unsigned {in_ctype}", f"S{step_idx}_StateInternal02"))
 
-        i_state_eparams = in_eparams[names['i_state']]
-        c_state_eparams = in_eparams[names['c_state']]
+        i_state_eparams = in_eparams[names['h_state']]
         reset_name = i_state_eparams.creating_node.reset_name if node.rnn_states_as_inputs else "Reset"
         bindings = [
-            GNodeArgEdge(c_state_eparams, direction="GNA_INOUT"),
             GNodeArgEdge(i_state_eparams, direction="GNA_INOUT"),
-            GNodeArgEdge("S%s_CellInternal01" % step_idx, alias=c_state_eparams,
-                         direction="GNA_INOUT") if num_seq > 1 else NoArg(),
             GNodeArgEdge("S%s_StateInternal01" % step_idx, alias=i_state_eparams,
                          direction="GNA_INOUT") if num_seq > 1 else NoArg(),
-            GNodeArgEdge("S%s_CellInternal02" % step_idx, alias="S%s_CellInternal01" %
-                         step_idx, direction="GNA_INOUT") if num_seq > 2 else NoArg(),
-            GNodeArgEdge("S%s_StateInternal02" % step_idx, alias="S%s_CellInternal01" %
+            GNodeArgEdge("S%s_StateInternal02" % step_idx, alias="S%s_StateInternal01" %
                          step_idx, direction="GNA_INOUT") if num_seq > 2 else NoArg(),
             GNodeArgEdge(in_eparams[0]),
             GNodeArgNode(node, "scalenorm")
         ]
-        for gate in ['f', 'i', 'c', 'o']:
-            for inp_t in ['r', 'i']:
+        for gate in ['r', 'z', 'h']:
+            for inp_t in ['r', 'w']:
                 bindings.append(GNodeArgEdge(
                     in_eparams[names[f'{inp_t}_2_{gate}_w']]))
-            bindings.append(GNodeArgEdge(in_eparams[names[f'{gate}_b']]))
+            if gate == 'h':
+                bindings.append(GNodeArgEdge(in_eparams[names['w_h_b']]))
+                bindings.append(GNodeArgEdge(in_eparams[names['r_h_b']]))
+            else:
+                bindings.append(GNodeArgEdge(in_eparams[names[f'{gate}_b']]))
 
         bindings.extend([
             GNodeArgEdge(out_eparams[0], direction="GNA_OUT"),
@@ -221,16 +166,16 @@ class LSTMNE16Generator(GeneratorBase):
     def kernel_generator(cls, gen, node, qrec, in_eparams, out_eparams, cname) -> bool:
         del in_eparams, out_eparams
         gen.kernels.append(
-            LSTMNE16Kernel(
+            GRUNE16Kernel(
                 node.name, cname, node, qrec)
         )
         return True
 
 
-class LSTMNE16Kernel(NewAutoTilerKernel):
+class GRUNE16Kernel(NewAutoTilerKernel):
     CALL_TEMPLATE = """
 // generator for {node_name}
-LSTM_Stack_NE16("{cname}", {gen_ctrl}, {bias_size}, {feat_size}, {filter_bits},
+GRU_Stack_NE16("{cname}", {gen_ctrl}, {bias_size}, {feat_size}, {filter_bits},
                  {n_cells}, {k0}, {k1}, {dim_state}, {dim_in}, {always_reset}, {revert});
 """
 
@@ -240,24 +185,24 @@ LSTM_Stack_NE16("{cname}", {gen_ctrl}, {bias_size}, {feat_size}, {filter_bits},
         else:
             gen_ctrl.cname = cname
 
-        if params.hard_act:
-            gen_ctrl.rnn_use_hardact = 1
-            gen_ctrl.gate_prenorm = qrec.cache['i_2_f_q'].pre_normalization
+        # if params.hard_act:
+        #     gen_ctrl.rnn_use_hardact = 1
+        #     gen_ctrl.gate_prenorm = qrec.cache['i_2_f_q'].pre_normalization
 
         names = {val: idx for idx, val in enumerate(
-            LSTMParameters.INPUT_NAMES)}
+            GRUParameters.INPUT_NAMES)}
         in_qs = qrec.in_qs
 
         w_bits = None
-        for gate in ['f', 'i', 'c', 'o']:
-            for inp_t in ['r', 'i']:
+        for gate in ['r', 'z', 'h']:
+            for inp_t in ['r', 'w']:
                 if w_bits is None:
                     w_bits = in_qs[names[f'{inp_t}_2_{gate}_w']].bits
                 elif w_bits != in_qs[names[f'{inp_t}_2_{gate}_w']].bits:
                     ValueError(f'bit width of gates differs in {params.name}')
 
         attrs = {
-            'bias_size': in_qs[names['i_b']].bits//8,
+            'bias_size': in_qs[names['r_b']].bits//8,
             'feat_size': -in_qs[0].bits//8,
             'filter_bits': w_bits,
             'n_cells': params.n_cells,

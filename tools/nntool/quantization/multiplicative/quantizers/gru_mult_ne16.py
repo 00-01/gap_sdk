@@ -18,7 +18,7 @@ import math
 from copy import deepcopy
 
 import numpy as np
-from graph.types import LSTMParameters
+from graph.types.rnn import GRUParameters
 from quantization.multiplicative.quantizers.rnn_mult_ne16 import (
     calculatate_weight_q, limit_input_precision, roundup)
 from quantization.multiplicative.scaling_qtypes import MultMulBiasScaleQType
@@ -83,10 +83,10 @@ def get_max_or_one(stat):
         'default': False
     }
 )
-class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
+class GRUMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
 
     @classmethod
-    def _quantize_lstm(cls, params, in_qs, stats, input_bits, **kwargs):
+    def _quantize_gru(cls, params, in_qs, stats, input_bits, **kwargs):
         force_out_qs, out_dtype = cls.get_mult_opts(**kwargs)
         force_out_q = force_out_qs and force_out_qs[0]
         if force_out_qs and any(force_out_q is not None for force_out_q in force_out_qs):
@@ -111,53 +111,14 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
         in_edges = G.indexed_in_edges(params.name)
 
         names = {val: idx for idx, val in enumerate(
-            LSTMParameters.INPUT_NAMES)}
+            GRUParameters.INPUT_NAMES)}
 
-        o_q = in_qs[names['i_state']] = QType.from_min_max_sq(
-            min_val=stats['range_out'][0]['min'],
-            max_val=stats['range_out'][0]['max'],
+        # output/state is always Q15 or Q7 symmetric
+        o_q = in_qs[names['h_state']] = QType.from_min_max_sq(
+            min_val=-1,
+            max_val=1,
             dtype=in_out_dtype,
             narrow_range=opts['narrow_state'])
-
-        cell_range = stats.get('range_cell')
-        if cell_range is None:
-            raise ValueError(
-                f'cell range not present in stats for {params.name}')
-
-        # cell range in minimum 1.0
-        cell_stat = max(1.0, *[abs(cell_range[var])
-                               for var in ['min', 'max']])
-
-        if params.cell_clip and not params.quant_c_state_with_stat:
-            cell_max = params.cell_clip
-            ratio_c = cell_max / cell_stat
-            if not (ratio_c > 0.9 and ratio_c < 1.1):
-                msg = (f"C state is forced to a range [-{cell_max}:{cell_max}] different to the one calulated "
-                       f"from the inference statistic [-{cell_stat}:{cell_stat}], consider using nodeoption {params.name} "
-                       "QUANT_C_STATE_WITH_STAT 1 to force it to be the one calculated")
-                LOG.warning('%s', msg)
-        else:
-            cell_max = cell_stat
-
-        # this limit is driven by the c_in * f + c * i calculation
-        # c * i will be in Q24 and we want c_in * f to be scaled to the same
-        # abs(f) will be <=1 so the cell int bits cannot exceed 31 - 1 (overflow) - 24 = 6
-        cell_limit = pow(2, 6)
-        if cell_max > cell_limit:
-            LOG.warning(
-                'Cell state exceeds %s and will be clipped', cell_limit)
-            cell_max = cell_limit
-
-        cell_int_bits = calc_bits(cell_max)
-        # cell stays signed since it is used in a haddamard with the int32 streamout
-        # in NE16
-        in_qs[names['c_state']] = QType.from_min_max_sq(
-            -cell_max, cell_max, dtype=np.int16 if input_bits == 16 else np.int8)
-
-        LOG.debug("cell bits %d max %d cell range %d",
-                  cell_int_bits,
-                  cell_max,
-                  in_qs[names['c_state']].range)
 
         # set weight qtypes
         int_num_inp = roundup(params.n_inputs, input_bits == 16)
@@ -181,8 +142,8 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
             opts['weight_bits'],
             extra_correction=-1 if opts.get('narrow_state') else 0)
 
-        for gate in ['i', 'o', 'c', 'f']:
-            i_idx = names[f'i_2_{gate}_w']
+        for gate in ['z', 'r', 'h']:
+            i_idx = names[f'w_2_{gate}_w']
             r_idx = names[f'r_2_{gate}_w']
 
             woffs[gate] = woff_gate = [None, None]
@@ -208,15 +169,15 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
 
 
         # get weight scales
-        scale_pairs = {chan: ('i_2_%s_w' % chan, 'r_2_%s_w' % chan)
-                       for chan in ['i', 'o', 'c', 'f']}
+        scale_pairs = {chan: ('w_2_%s_w' % chan, 'r_2_%s_w' % chan)
+                       for chan in ['z', 'r', 'h']}
         w_scales = [(in_qs[names[namei]].scale, in_qs[names[namer]].scale)
                     for k, (namei, namer) in scale_pairs.items()]
 
         gate_sum_max = [
-            (get_max_or_one(stats[f'range_{gate}_gate_i']),
-             get_max_or_one(stats[f'range_{gate}_gate_r']))
-            for gate in ['i', 'o', 'c', 'f']
+            (get_max_or_one(stats[f'range_{gate}_gate_inp']),
+             get_max_or_one(stats[f'range_{gate}_gate_state']))
+            for gate in ['z', 'r', 'h']
         ]
 
         gate_sum_max_bits = [
@@ -224,7 +185,7 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
                 np.ceil(np.log2(gsm_r / (o_q.scale * r_w))))
             for (gsm_i, gsm_r), (i_w, r_w) in zip(gate_sum_max, w_scales)]
 
-        for gate, (max_i, max_r) in zip(['i', 'o', 'c', 'f'], gate_sum_max_bits):
+        for gate, (max_i, max_r) in zip(['z', 'r', 'h'], gate_sum_max_bits):
             if np.max(max_i) > 30:
                 LOG.warning(
                     'max bits in accumulation input %s gate %s - there may be errors',
@@ -245,18 +206,19 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
         i_pscales = {}
         scale_qtypes['r_pscales'] = r_pscales
         scale_qtypes['i_pscales'] = i_pscales
-        for gate, w_scale, max_bits in zip(['i', 'o', 'c', 'f'], w_scales, gate_sum_max_bits):
+        for gate, w_scale, max_bits in zip(['z', 'r', 'h'], w_scales, gate_sum_max_bits):
             weight_scale_ratio = w_scale[0]/w_scale[1]
             # TODO - decide to scale weights equal
 
             i_pscales[gate] = w_scale[0] * in_q.scale
             r_pscales[gate] = w_scale[1] * o_q.scale
-            if input_bits == 16:
-                scale_qtypes[f"i_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
+            # h gate input is added manually to state in Q12
+            if input_bits == 16 or gate == 'h':
+                scale_qtypes[f"w_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
                     scale=i_pscales[gate] / int_scale
                 )
             else:
-                scale_qtypes[f"i_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
+                scale_qtypes[f"w_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
                     scale=i_pscales[gate] / r_pscales[gate]
                 )
             if input_bits == 16:
@@ -264,6 +226,12 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
             else:
                 i_zp_b = woffs[gate][0] * qscale.qbiases.astype(
                     np.int32) + (1 << (qscale.qnorms.astype(np.int32) - 1))
+                if gate == "h":
+                    in_qs[names['w_h_b']] = QType(
+                        dtype=np.int32,
+                        scale=i_pscales[gate] / qscale.qbiases,
+                        offset=i_zp_b,
+                    )
 
             scale_qtypes[f"r_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
                 scale=r_pscales[gate] / int_scale
@@ -277,90 +245,72 @@ class LSTMMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
                     interleaved_values = [i_zp_b]
                 )
             else:
+                if gate == 'h':
+                    bias_name = 'r_h_b'
+                    interleaved_values = None
+                else:
+                    bias_name = f'{gate}_b'
+                    interleaved_values = [i_zp_b]
+
                 r_zp_b = woffs[gate][1] * qscale.qbiases.astype(
                     np.int32) + (1 << (qscale.qnorms.astype(np.int32) - 1))
-                in_qs[names[f'{gate}_b']] = QType(
+                in_qs[names[bias_name]] = QType(
                     dtype=np.int32,
                     scale=r_pscales[gate] / qscale.qbiases,
                     offset=r_zp_b,
-                    interleaved_values = [i_zp_b]
+                    interleaved_values = interleaved_values
                 )
 
         # NOTE - for 16 bit pre-normalize the scales to give us room but make sure it isn't negative
         if input_bits == 16:
             gate_prenorm = min(np.min([
-                np.min(scale_qtypes[f"{inp}_2_{gate}_q"].qnorms) for gate in ['i', 'o', 'c', 'f'] for inp in ['i', 'r']
+                np.min(scale_qtypes[f"{inp}_2_{gate}_q"].qnorms) for gate in ['z', 'r', 'h'] for inp in ['w', 'r']
             ]), 8)
-            for gate in ['i', 'o', 'c', 'f']:
-                for inp in ['i', 'r']:
+            for gate in ['z', 'r', 'h']:
+                for inp in ['w', 'r']:
                     scale_qtypes[f"{inp}_2_{gate}_q"].pre_normalization = gate_prenorm
         else:
             gate_prenorm = 0
 
 
-        r_pscales['state_out_scale'] = o_q.scale
-        r_pscales['int_scale'] = int_scale
-
-        # ct = c_in * f + c * i
-        # c * i = Q15 * Q15 -> Q30 -> norm(18) -> Q12
-        # scale(c_in * f) = Qcell * Q15 (prenorm if 16bit) and scale -> Q12
-        # ((c_in * f) + (c * i)) in Q12
-        # scale -> cell_out
-        # tan(ct) -> Q15
-        # o * tan(ct) -> Q30
-        # prenorm and scale
-
-        # scale result of c_state_1 * f_gate -> Q15
-        cell_in_scale = (in_qs[names['c_state']].scale *
-                         out_tanh_sig_scale / out_tanh_sig_scale)
-
-        # cell_out from Q15 -> Q7/Q15 scaled
-        cell_out_scale = out_tanh_sig_scale / in_qs[names['c_state']].scale
-
-        state_out_scale = out_tanh_sig_scale / o_q.scale
-
-        r_pscales['act_out_scale'] = out_tanh_sig_scale
-        r_pscales['c_before_scale'] = int_scale
-
-        scale_qtypes['cell_in_q'] = MultMulBiasScaleQType(scale=cell_in_scale)
-        # NOTE - for 16 bit pre-normalize the scales to give us room
-        if input_bits == 16:
-            scale_qtypes['cell_in_q'].pre_normalization = 8
-        scale_qtypes['cell_out_q'] = MultMulBiasScaleQType(
-            scale=cell_out_scale)
-        scale_qtypes['state_out_q'] = MultMulBiasScaleQType(
-            scale=state_out_scale)
+        scales = {
+            'i': i_pscales,
+            'r': r_pscales,
+            'state': o_q.scale,
+            'in': in_q.scale,
+            'act_in': int_scale,
+            'act_out': out_tanh_sig_scale,
+            'act_in_q': act_in_q,
+            'act_out_q': act_out_q
+        }
         scale_qtypes['i_qtype'] = QType(q=act_in_q, dtype=np.int32)
-        if params.lstm_output_c_state:
-            out_qs = [o_q, in_qs[names['c_state']]]
-        else:
-            out_qs = [o_q]
 
         return QRec.scaled(
             in_qs=in_qs,
-            out_qs=out_qs,
+            out_qs=[o_q],
             ne16=True,
             gate_prenorm=gate_prenorm,
+            scales=scales,
             **scale_qtypes,
         )
 
 
-@params_type(LSTMParameters)
+@params_type(GRUParameters)
 @in_qs_constraint({'dtype': np.uint8})
 @out_qs_constraint({'dtype': np.uint8})
 @option_constraint(force_external_size={8, None}, use_ne16=True)
-class LSTMMultMultNE16UInt8(LSTMMultMultNE16Base):
+class GRUMultMultNE16UInt8(GRUMultMultNE16Base):
 
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):
-        return cls._quantize_lstm(params, in_qs, stats, 8, **kwargs)
+        return cls._quantize_gru(params, in_qs, stats, 8, **kwargs)
 
-@params_type(LSTMParameters)
+@params_type(GRUParameters)
 @in_qs_constraint({'dtype': np.uint16})
 @out_qs_constraint({'dtype': np.uint16})
 @option_constraint(force_external_size=16, use_ne16=True)
-class LSTMMultMultNE16UInt16(LSTMMultMultNE16Base):
+class GRUMultMultNE16UInt16(GRUMultMultNE16Base):
 
     @classmethod
     def _quantize(cls, params, in_qs, stats, **kwargs):
-        return cls._quantize_lstm(params, in_qs, stats, 16, **kwargs)
+        return cls._quantize_gru(params, in_qs, stats, 16, **kwargs)
