@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "Gap.h"
-#include "FFT_Library.h"
+#include "DSP_Lib.h"
 #include "TwiddlesDef.h"
 #include "SwapTablesDef.h"
 #include "In_Data.h"
@@ -139,17 +139,22 @@ void CallFFT(int Nfft, int Type){
   	__CALL((*FFTFun), &FFTArg);
   	AT_FORK(gap_ncore(), (void *) (*SwapFun), (void *) &SwapArg);
   	__CALL((*SwapFun), &SwapArg);
-  	elapsed = gap_cl_readhwtimer() - start; printf("\tFFT %4d %s %10s Cyc: %6d +%5d", Nfft, FFTDataType, ArgIns.Radix==2?"Radix2":"Radix4", elapsedFFT, elapsed);
+  	elapsed = gap_cl_readhwtimer() - start; printf("|     %4d | %3s %6s | %6d | %5d | %6d", Nfft, FFTDataType, ArgIns.Radix==2?"Radix2":"Radix4", elapsedFFT, elapsed, elapsed+elapsedFFT);
+	#if !defined(__EMUL__) && defined(PERF_ALL)
+  	printf(" | %7d | %7d | %7d | %8d | %7d |", pi_perf_read(PI_PERF_INSTR), pi_perf_read(PI_PERF_ACTIVE_CYCLES), pi_perf_read(PI_PERF_TCDM_CONT), pi_perf_read(PI_PERF_LD_STALL), pi_perf_read(PI_PERF_IMISS));
+  	#else
+  	printf(" |         |         |         |          |         |");
+  	#endif
   	if (Type == 0) {
-  		printf("\n");
+  		printf("          |\n");
   		// printf("\nOutFFT%d_f32 = np.array([\n", Nfft); for(int i=0;i<(Nfft); i++) printf("%f%+fj, ", InBuff_f32[2*i], InBuff_f32[2*i+1]); printf("])\n");
   	} else if (Type == 1) {
   		// printf("\nOutFFT%d_q16 = np.array([\n", Nfft); for(int i=0;i<(Nfft); i++) printf("%d%+dj, ", ((short int*)InBuff_q16)[2*i], ((short int*)InBuff_q16)[2*i+1]); printf("])\n");
-  		printf("\tMSE Error: %f\n", MSE_16(InBuff_f32, (short int*) InBuff_q16, Nfft, Q));
+  		printf(" %f |\n", MSE_16(InBuff_f32, (short int*) InBuff_q16, Nfft, Q));
   	} else if (Type == 2) {
   		#ifdef __gap9__
   		// printf("\nOutFFT%d_f16 = np.array([\n", Nfft); for(int i=0;i<(Nfft); i++) printf("%f%+fj, ", ((f16*)OutBuff)[2*i], ((f16*)OutBuff)[2*i+1]); printf("])\n");
-  		printf("\tMSE Error: %f\n", MSE_f16(InBuff_f32, (f16 *) InBuff_f16, Nfft));
+  		printf(" %f |\n", MSE_f16(InBuff_f32, (f16 *) InBuff_f16, Nfft));
   		#else
   		printf("\n");
   		#endif
@@ -158,7 +163,12 @@ void CallFFT(int Nfft, int Type){
 
 static void RunFFT()
 {
+	#if !defined(__EMUL__) && defined(PERF_ALL)
+  	pi_perf_conf((1<<PI_PERF_CYCLES) | (1<<PI_PERF_INSTR) | (1<<PI_PERF_ACTIVE_CYCLES) | (1<<PI_PERF_LD_EXT) | (1<<PI_PERF_TCDM_CONT) | (1<<PI_PERF_LD_STALL) | (1<<PI_PERF_IMISS));
+  	pi_perf_cl_start();
+  	#else
     gap_cl_starttimer();
+    #endif
     gap_cl_resethwtimer();
     int	start, elapsed, timef32;
     printf("Initializing inputs....\n");
@@ -172,14 +182,18 @@ static void RunFFT()
   	gap_cl_resethwtimer();
 
   	int FFTBins = 64;
+  	printf("|----------+------------+--------+-------+--------+---------+---------+---------+----------+---------+----------|\n");
+  	printf("| FFT BINS | Type       | FFT    | Swap  | Tot    | Instr   | Act Cyc | TCDM Co | LD Stall | Imiss   | MSE Err  |\n");
+  	printf("|----------+------------+--------+-------+--------+---------+---------+---------+----------+---------+----------|\n");
 	while (FFTBins < MAXDIM){
-		printf("FFT: %4d\n", FFTBins);
+		//printf("FFT: %4d\n", FFTBins);
 	  	CallFFT(FFTBins, 0);
 	  	CallFFT(FFTBins, 1);
 	  	#ifdef __gap9__
 	  	CallFFT(FFTBins, 2);
 	  	#endif
 	  	FFTBins *= 2;
+  		printf("|----------+------------+--------+-------+--------+---------+---------+---------+----------+---------+----------|\n");
   	}
   	printf("Finished\n");
 }
@@ -197,6 +211,7 @@ void test_kickoff(void *arg)
 			printf("Cluster open failed !\n");
 			pmsis_exit(-4);
 		}
+		printf("FC Frequency as %d MHz, CL Frequency = %d MHz, PERIIPH Frequency = %d\n", pi_freq_get(PI_FREQ_DOMAIN_FC), pi_freq_get(PI_FREQ_DOMAIN_CL), pi_freq_get(PI_FREQ_DOMAIN_PERIPH));
 	#endif
 
 	// InDataQ16  = (short int *)  AT_L2_ALLOC(0, MAXDIM*sizeof(short int));

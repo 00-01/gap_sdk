@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "CNN_BasicKernels_fp16.h"
+#include "FastFloatApprox16.h"
 
 static int CoreCountDynamic = 1;
 static int ActiveCore = gap_ncore();
@@ -473,7 +474,7 @@ void KerParMatMulSigmoid_fp16(KerMatMul_fp16_T *Arg)
 			}
 			F16 s = S[0]+S[1];
 			for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Col+OffCol] = Fast_Sigmoid_fp16(s);
+			Out[(Line+OffLine)*W_Out+Col+OffCol] = FastSigmoidF16(s);
 		}
 		gap_waitbarrier(0);
 	}
@@ -531,7 +532,7 @@ void KerParMatMulSigmoidSxSy_fp16(KerMatMul_fp16_T *Arg)
 		       	}
 			F16 s = S[0]+S[1];
 		       	for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Oo] = Fast_Sigmoid_fp16(s);
+			Out[(Line+OffLine)*W_Out+Oo] = FastSigmoidF16(s);
 	       	}
 		int nF = F+Sx;
 		if (nF<Wi) {
@@ -586,7 +587,7 @@ void KerParMatMulSwish_fp16(KerMatMul_fp16_T *Arg)
 			}
 			F16 s = S[0]+S[1];
 			for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Col+OffCol] = Fast_Swish_fp16(s);
+			Out[(Line+OffLine)*W_Out+Col+OffCol] = FastSwishF16(s);
 		}
 		gap_waitbarrier(0);
 	}
@@ -644,7 +645,7 @@ void KerParMatMulSwishSxSy_fp16(KerMatMul_fp16_T *Arg)
 		       	}
 			F16 s = S[0]+S[1];
 		       	for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Oo] = Fast_Swish_fp16(s);
+			Out[(Line+OffLine)*W_Out+Oo] = FastSwishF16(s);
 	       	}
 		int nF = F+Sx;
 		if (nF<Wi) {
@@ -699,7 +700,7 @@ void KerParMatMulTanh_fp16(KerMatMul_fp16_T *Arg)
 			}
 			F16 s = S[0]+S[1];
 			for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Col+OffCol] = Fast_Tanh_fp16(s);
+			Out[(Line+OffLine)*W_Out+Col+OffCol] = FastTanhF16(s);
 		}
 		gap_waitbarrier(0);
 	}
@@ -757,7 +758,7 @@ void KerParMatMulTanhSxSy_fp16(KerMatMul_fp16_T *Arg)
 		       	}
 			F16 s = S[0]+S[1];
 		       	for (i=(W_In1/4)*4; i<W_In1; i++) s += In1[Line*W_In1 + i] * BufferColIn2[i];
-			Out[(Line+OffLine)*W_Out+Oo] = Fast_Tanh_fp16(s);
+			Out[(Line+OffLine)*W_Out+Oo] = FastTanhF16(s);
 	       	}
 		int nF = F+Sx;
 		if (nF<Wi) {
@@ -1022,7 +1023,7 @@ void KerParMatMulSwishSmallFeat_fp16(KerMatMul_fp16_T *Arg)
 			if (W_In1&0x2) Acc += pIn1[W_In1/2-1] * pIn2[W_In1/2-1];
 			F16 A = Acc[0]+Acc[1];
 			if (W_In1&0x1) A += In1[l1*W_In1+W_In1-1] * In2[l2*W_In2+W_In1-1];
-			Out[l1*H_In2 + l2] = Fast_Swish_fp16(A);
+			Out[l1*H_In2 + l2] = FastSwishF16(A);
 		}
 	}
 	gap_waitbarrier(0);
@@ -1056,7 +1057,7 @@ void KerParMatMulSigmoidSmallFeat_fp16(KerMatMul_fp16_T *Arg)
 			if (W_In1&0x2) Acc += pIn1[W_In1/2-1] * pIn2[W_In1/2-1];
 			F16 A = Acc[0]+Acc[1];
 			if (W_In1&0x1) A += In1[l1*W_In1+W_In1-1] * In2[l2*W_In2+W_In1-1];
-			Out[l1*H_In2 + l2] = Fast_Sigmoid_fp16(A);
+			Out[l1*H_In2 + l2] = FastSigmoidF16(A);
 		}
 	}
 	gap_waitbarrier(0);
@@ -1090,7 +1091,7 @@ void KerParMatMulTanhSmallFeat_fp16(KerMatMul_fp16_T *Arg)
 			if (W_In1&0x2) Acc += pIn1[W_In1/2-1] * pIn2[W_In1/2-1];
 			F16 A = Acc[0]+Acc[1];
 			if (W_In1&0x1) A += In1[l1*W_In1+W_In1-1] * In2[l2*W_In2+W_In1-1];
-			Out[l1*H_In2 + l2] = Fast_Tanh_fp16(A);
+			Out[l1*H_In2 + l2] = FastTanhF16(A);
 		}
 	}
 	gap_waitbarrier(0);

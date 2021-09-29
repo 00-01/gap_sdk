@@ -45,7 +45,7 @@
 	#else
 		#define AbsF(a)		Absf16a((a))
 		#define MaxF(a, b)	Maxf16a((a), (b))
-		#define MinF(a, b)	Maxf16a((a), (b))
+		#define MinF(a, b)	Minf16a((a), (b))
 
 		#define AbsF2(a)	((F16V) Absv2ah((a)))
 		#define MaxF2(a, b)	((F16V) Maxv2ah((a), (b)))
@@ -56,23 +56,60 @@
 		#define	LEAK_CONSTANT	((float16alt)0.1)
 	#endif // STD_FLOAT
 #else
-    #define AbsF(a)         (((a)<0.0f)?(-(a)):(a))
-    #define MinF Min
-    #define MaxF Max
-    #define AbsF32(a)         (((a)<0.0f)?(-(a)):(a))
-    #define MinF32 Min
-    #define MaxF32 Max
-    #define AbsF2(a)	((F16V) {((float)(a)[0]<0.0)?(-(float)(a)[0]):((float)(a)[0]), \
-        ((float)(a)[1]<0.0)?(-(float)(a)[1]):((float)(a)[1])})
-    #define MaxF2(a, b)	((F16V) {((float)(a)[0]<(float)(b)[0])?((float)(a)[0]):((float)(b)[0]), \
-        ((float)(a)[1]<(float)(b)[1])?((float)(a)[1]):((float)(b)[1])})
-    #define MinF2(a, b)	((F16V) {((float)(a)[0]>(float)(b)[0])?((float)(a)[0]):((float)(b)[0]), \
-        ((float)(a)[1]>(float)(b)[1])?((float)(a)[1]):((float)(b)[1])})
-
-    #define MIN_FLT16	((float)(1.1754943508e-38f))
-    #define MAX_FLT16	((float)(3.4028234664e38f))
-
 	#define	LEAK_CONSTANT	((float)0.1)
+#endif
+
+/* Float Activation Functions */
+#ifdef FLOAT_LUT_ACTIVATIONS
+	#include "../DSP_Libraries/FloatLutFuncs.h"
+	#ifdef STD_FLOAT
+		#define FastSigmoidF16(__x) 	sigmoid_lut_f16(__x)
+		#define FastSigmoidF16V(__x) 	((v2h) {sigmoid_lut_f16((__x)[0]), sigmoid_lut_f16((__x)[1])})
+		#define FastTanhF16(__x) 		tanh_lut_f16(__x)
+		#define FastTanhF16V(__x) 		((v2h) {tanh_lut_f16((__x)[0]), tanh_lut_f16((__x)[1])})
+		#define FastSwishF16(__x) 		swish_lut_f16(__x, (f16)1.0f)
+		#define FastSwishF16V(__x)	 	((v2h) {swish_lut_f16((__x)[0], (f16)1.0f), swish_lut_f16((__x)[1], (f16)1.0f)})
+		#define FastExpF16(__x) 		fastexp_f16(__x)
+		#define FastExpF16V(__x) 		fastexp_v2h(__x)
+	#else
+		#define FastSigmoidF16(__x) 	sigmoid_lut_f16a(__x)
+		#define FastSigmoidF16V(__x) 	((v2h) {sigmoid_lut_f16a((__x)[0]), sigmoid_lut_f16a((__x)[1])})
+		#define FastTanhF16(__x) 		tanh_lut_f16a(__x)
+		#define FastTanhF16V(__x) 		((v2h) {tanh_lut_f16a((__x)[0]), tanh_lut_f16a((__x)[1])})
+		#define FastSwishF16(__x) 		swish_lut_f16a(__x, (f16)1.0f)
+		#define FastSwishF16V(__x) 		((v2h) {swish_lut_f16a((__x)[0], (f16)1.0f), swish_lut_f16a((__x)[1], (f16)1.0f)})
+		#define FastExpF16(__x) 		fastexp_f16a(__x)
+		#define FastExpF16V(__x) 		fastexp_v2ah(__x)
+	#endif // STD_FLOAT
+	#define FastSigmoidF32(__x)			sigmoid_lut_f32(__x)
+	#define FastTanhF32(__x)			tanh_lut_f32(__x)
+	#define FastSwishF32(__x)			swish_lut_f32(__x)
+	#define FastExpF32(__x)				fastexp(__x)
+#else
+	#include "../DSP_Libraries/FastFloatApprox16.h"
+	#ifdef STD_FLOAT
+		#define FastSigmoidF16(__x) 	fastsigmoid_f16(__x)
+		#define FastSigmoidF16V(__x) 	fastsigmoid_v2h(__x)
+		#define FastTanhF16(__x) 		fasttanh_f16(__x)
+		#define FastTanhF16V(__x) 		fasttanh_v2h(__x)
+		#define FastSwishF16(__x) 		fastswish_f16(__x, (f16)1.0f)
+		#define FastSwishF16V(__x) 		fastswish_v2h(__x, (f16)1.0f)
+		#define FastExpF16(__x) 		fastexp_f16(__x)
+		#define FastExpF16V(__x) 		fastexp_v2h(__x)
+	#else
+		#define FastSigmoidF16(__x) 	fastsigmoid_f16a(__x)
+		#define FastSigmoidF16V(__x) 	fastsigmoid_v2ah(__x)
+		#define FastTanhF16(__x) 		fasttanh_f16a(__x)
+		#define FastTanhF16V(__x) 		fasttanh_v2ah(__x)
+		#define FastSwishF16(__x) 		fastswish_f16a(__x, (f16a)1.0f)
+		#define FastSwishF16V(__x) 		fastswish_v2ah(__x, (f16a)1.0f)
+		#define FastExpF16(__x) 		fastexp_f16a(__x)
+		#define FastExpF16V(__x) 		fastexp_v2ah(__x)
+	#endif // STD_FLOAT
+	#define FastSigmoidF32(__x)			fastsigmoid(__x)
+	#define FastTanhF32(__x)			fasttanh(__x)
+	#define FastSwishF32(__x)			fastswish(__x)
+	#define FastExpF32(__x)				fastexp(__x)
 #endif
 
 #define Minu(a, b)            (( ((unsigned int)a)<((unsigned int)b) )?((unsigned int)a):((unsigned int)b) )

@@ -1322,6 +1322,7 @@ typedef struct {
 	char InDataSize;
 	char OutDataSize;
 	int GatePrenorm;
+	char FloatDump; /* if != 0 dump tensors as floats in operations that take multiple input types */
 } CNN_GenControl_T;
 
 typedef struct {

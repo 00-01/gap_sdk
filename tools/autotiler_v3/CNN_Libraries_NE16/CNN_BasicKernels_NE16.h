@@ -52,8 +52,42 @@ typedef struct {
 } KerConv_NE16_T;
 
 typedef struct {
+	void * __restrict__ In;			/**< Pointer to input tile  */
+	void * __restrict__ ColBuff;		/**< Pointer to Buffer for Im2Col  */
+	unsigned short * __restrict__ Filter;	/**< Pointer to convolution coefficients. (Nx x Ny) coeffs in Q15 */
+	int * __restrict__ Bias;		/**< Pointer to bias tile, used when convolution is depth wise */
+	void * __restrict__ Out;		/**< Pointer to output tile, this tile can have up to N-1 lines and N-1 column than In depending on Pad */
+	unsigned char * __restrict__ Scale;	/**< Pointer to Scale tensor applied channel-wise on the output */
+	unsigned char * __restrict__ ScaleN;	/**< Pointer to Scale Shift tensor applied channel-wise on the output */
+	unsigned short int Tile_InFeat;		/**< Number of features in In tile */
+	unsigned short int TotalInFeatures; 	/**< Number of loaded In features tile */
+	unsigned short int Tile_InH;		/**< Number of rows in In tile */
+	unsigned short int Tile_InW;		/**< Number of columns in In tile */
+	unsigned short int Tile_OutFeat;	/**< Number of features in Out tile */
+	unsigned short int Tile_OutH;		/**< Number of rows in Out tile */
+	unsigned short int Tile_OutW;		/**< Number of columns in Out tile */
+	unsigned short int FilterSize;		/**< Fcx * Fcy */
+	unsigned short int Pad_Val;		/**< Only if the NE16 is set to 3x3 mode. Explicit padding forces the value of part of the input set. The padding value can be from 0 to 255 in basic mode and from 0 to 65535 in mode16 */
+	v4s 		   Pad;			/**< Only if the NE16 is set to 3x3 mode. Paddding, 0: Left, 1: Right, 2: Top, 3: Bottom. It can be from 0 to 2 in each direction. */
+	int 		   W_Offset;		/**< All weight tensors used by NE16 have to be stored as unsigned numbers (from 2 to 8 bits of range). This scalar signed 32-bit integer is used to set offset the stored tensor */
+	unsigned char 	   Qw;			/**< Number of bits for filter */
+	unsigned char 	   Mode16;
+	unsigned char 	   FirstD0;
+	unsigned char	   LastD0;
+	unsigned char 	   FirstTile;
+	unsigned int 	   Default_NE16_Job_Cfg;
+	unsigned char      Fx;
+	unsigned char      Fy;
+	unsigned char	   Sx;
+	unsigned char	   Sy;
+	unsigned char	   Dx;
+	unsigned char	   Dy;
+	unsigned int       Semaphores[2];
+} Ker_MM_Conv_NE16_T;
+
+typedef struct {
 	unsigned char * __restrict__  In;
-	unsigned short * __restrict__ Filter;
+	unsigned char * __restrict__ Filter;
 	int * __restrict__            Bias;
 	void * __restrict__           Out;
 	unsigned char * __restrict__  Scale;
@@ -66,9 +100,36 @@ typedef struct {
 	unsigned char                 FirstD0;
 	int                           W_Offset;
 	unsigned char                 Qw;
-	unsigned char 	   	      Mode16;
+	unsigned char 	   	      	  Mode16;
 	unsigned int                  Default_NE16_Job_Cfg;
 } KerLinear_NE16_T;
+
+#define NE16_FC_PRENORM 	0
+#define NE16_FC_ZP 			1
+#define NE16_FC_WOFF		3
+#define NE16_FC_INF			4
+
+typedef struct {
+	unsigned short * __restrict__  	In;
+	unsigned char * __restrict__ 	Filter;
+	int * __restrict__            	Bias;
+	void * __restrict__  	 		Out;
+	int * __restrict__  	 		Buf;
+	unsigned char * __restrict__  	Scale;
+	unsigned char * __restrict__  	ScaleN;
+	unsigned short int            	Tile_InFeat;
+	unsigned short int            	Tile_OutFeat;
+	unsigned short int            	H;
+	unsigned short int            	W;
+	unsigned char                 	LastD0;
+	unsigned char                 	FirstD0;
+	unsigned char                 	LastD1;
+	unsigned char                 	FirstD1;
+	unsigned char                 	Qw;
+	unsigned int                  	Default_NE16_Job_Cfg;
+	unsigned int					Sem;
+	signed char * 					Infos;
+} KerLinear_NE16fp_T;
 
 typedef struct 
 {
@@ -164,5 +225,6 @@ void KerConv1D_StrideS_NE16(KerConv_NE16_T *Arg);
 void KerConvNxMDxDy_StrideSxSy_NE16(KerConv_NE16_T *Arg);
 void KerConv3x3Stride1_DxDy_NE16(KerConv_NE16_T *Arg);
 void KerLinear_NE16(KerLinear_NE16_T *Arg);
+void Ker_MM_Conv2D_NE16(Ker_MM_Conv_NE16_T *Arg);
 
 #endif

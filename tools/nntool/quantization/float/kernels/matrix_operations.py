@@ -22,8 +22,8 @@ from graph.types import (ExpOpParameters, ExpressionFusionParameters,
 from graph.types.others import (AbsOpParameters, CosOpParameters,
                                 LogOpParameters, MaxOpParameters,
                                 MinOpParameters, PowOpParameters,
-                                SinOpParameters, SqrtOpParameters,
-                                UnaryOpParameters)
+                                RSqrtOpParameters, SinOpParameters,
+                                SqrtOpParameters, UnaryOpParameters)
 from graph.types.tensor_arithmetic import Broadcastable, MatMulOpParameters
 from quantization.kernels.kernel_base import KernelBase, params_type, qrec_type
 from quantization.new_qrec import AllFloatQRec, QRec
@@ -194,7 +194,7 @@ class ExpressionFloat32(KernelBase):
 
 
 class BinaryOpFloat32(KernelBase):
-    FUNC = lambda x, y: x
+    def FUNC(x, y): return x
 
     @classmethod
     def execute(cls, params,
@@ -228,7 +228,9 @@ class PowFloat32(BinaryOpFloat32):
 
 
 class UnaryOpFloat32(KernelBase):
-    FUNC = lambda x: x
+    @staticmethod
+    def FUNC(x: np.ndarray) -> np.ndarray:
+        return x
 
     @classmethod
     def execute(cls, params,
@@ -279,3 +281,9 @@ class LogFloat32(UnaryOpFloat32):
 @qrec_type('float')
 class SqrtFloat32(UnaryOpFloat32):
     FUNC = np.sqrt
+
+
+@params_type(RSqrtOpParameters)
+@qrec_type('float')
+class RSqrtFloat32(UnaryOpFloat32):
+    def FUNC(x): return 1.0/np.sqrt(x)

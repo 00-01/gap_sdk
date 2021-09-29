@@ -58,7 +58,7 @@ def get_max_or_one(stat):
     },
     {
         'name': 'force_external_size',
-        'type': str,
+        'type': int,
         'help': 'bits to use for features and state',
         'choices': [8, 16],
         'default': 8

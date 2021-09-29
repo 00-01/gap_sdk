@@ -133,7 +133,7 @@ class AttrNamespace:
 
     def __getattr__(self, name: str):
         if name.startswith('__'):
-            raise AttributeError()
+            raise AttributeError() # @IgnoreException
         return False
 
     def __setattr__(self, name: str, value) -> None:
@@ -152,7 +152,14 @@ class AttrNamespace:
 
     def __eq__(self, other):
         if isinstance(self, AttrNamespace) and isinstance(other, AttrNamespace):
-            return self.__dict__ == other.__dict__
+            if set(self.__dict__.keys()) != set(other.__dict__.keys()):
+                return False
+            for k, value1 in self.__dict__.items():
+                value2 = other.__dict__[k]
+                # since elements might be numpy arrays use numpy method.
+                if not np.array_equal(value1, value2):
+                    return False
+            return True
         return NotImplemented
 
     def __getstate__(self):

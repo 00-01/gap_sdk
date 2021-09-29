@@ -43,7 +43,7 @@ static inline void __os_native_api_restore_irq(int irq_enable)
 
 static inline void __os_native_api_sem_take(void *sem_object)
 {
-    int irq = __disable_irq();
+    //int irq = __disable_irq();
     if (pi_is_fc())
     {
 #ifndef __VEGA__
@@ -59,7 +59,7 @@ static inline void __os_native_api_sem_take(void *sem_object)
             xSemaphoreTake(sem_object, portMAX_DELAY);
         }
     }
-    __restore_irq(irq);
+    //__restore_irq(irq);
 }
 
 static inline void __os_native_api_sem_give(void *sem_object)
@@ -139,6 +139,34 @@ static inline int __os_native_api_mutex_deinit(pmsis_mutex_t *mutex)
     mutex->mutex_object = (void*)NULL;
     return 0;
 }
+
+
+static inline int __os_native_api_sync_obj_init(void *sync_obj)
+{
+    *((TaskHandle_t *) sync_obj) = xTaskGetCurrentTaskHandle();
+    return 0;
+}
+
+static inline int __os_native_api_sync_obj_deinit(void *sync_obj)
+{
+    return 0;
+}
+
+static inline void __os_native_api_sync_obj_take(void *sync_obj)
+{
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+}
+
+static inline void __os_native_api_sync_obj_release(void *sync_obj)
+{
+    uint32_t irq = __disable_irq();
+    BaseType_t higher_priority_task_woken = pdFALSE;
+    TaskHandle_t task_handler = sync_obj;
+    vTaskNotifyGiveFromISR(task_handler, &higher_priority_task_woken);
+    portYIELD_FROM_ISR(higher_priority_task_woken);
+    __restore_irq(irq);
+}
+
 
 static inline void __os_native_yield(void)
 {

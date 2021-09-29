@@ -65,6 +65,8 @@ public:
     virtual vp::io_req_status_e access(uint64_t offset, int size, uint8_t *value, bool is_write) = 0;
     virtual bool get_next_transfer(uint32_t *addr, int *size) = 0;
     virtual void reset(bool active) = 0;
+    void dec_size(int size) { this->remaining_size -= size; }
+    int get_remaining_size() { return this->remaining_size; }
     bool is_active() { return this->active_transfer; }
     void register_channel(Udma_channel *channel);
     void set_active_transfer(bool active);
@@ -75,6 +77,7 @@ public:
     Udma_channel *channel;
     int event_id;
     bool active_transfer;
+    int remaining_size;
 };
 
 
@@ -192,6 +195,7 @@ public:
     Udma_request *next;
 
     uint32_t data;
+    uint32_t addr;
     int size;
     int offset;
     Udma_addrgen *addrgen;

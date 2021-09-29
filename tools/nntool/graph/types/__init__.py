@@ -71,3 +71,4 @@ from graph.types.tensor_arithmetic import (MatMulOpParameters,
                                            MatrixDivParameters,
                                            MatrixMulParameters,
                                            MatrixSubParameters)
+from graph.types.dsp_preprocessing import RFFT2DPreprocessingParameters, MFCCPreprocessingParameters

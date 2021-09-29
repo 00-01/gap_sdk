@@ -33,6 +33,8 @@
 #define T1	KER_ITER_TILE1
 #define T2	KER_ITER_TILE2
 
+typedef void (*add_kernel_arg_func_t) (char *Name, char *ArgName, int Dim, ...);
+
 static int copy_library_loaded = 0;
 
 // Returns floor of square root of x
@@ -571,6 +573,12 @@ int CNN_Copy(
 	unsigned long long int LayerOp = 0;
 	unsigned long long int LayerBandwidth = 0;
 
+	add_kernel_arg_func_t AddKArgDimFunc = AddKernelArgDim;
+
+        if (Ctrl) {
+		if (Ctrl->FloatDump != -1&&Ctrl->FloatDump) AddKArgDimFunc = AddKernelFloatArgDim;
+        }
+
 	LayerBandwidth += Sz*2;
 
 	if (Log) {
@@ -602,8 +610,8 @@ int CNN_Copy(
 	if (Kernel) {
 		AddKernelInfos(Name, AT_KERINFO_OPER, LayerOp, 0);
 		AddKernelInfos(Name, AT_KERINFO_BANDWIDTH, LayerBandwidth, 0);
-		AddKernelArgDim(Name, "In", 2, Sz, Abs(FeatureSize));
-		AddKernelArgDim(Name, "Out", 2, Sz, Abs(FeatureSize));
+		AddKArgDimFunc(Name, "In", 2, Sz, Abs(FeatureSize));
+		AddKArgDimFunc(Name, "Out", 2, Sz, Abs(FeatureSize));
 	}
 	return (Kernel!=0);
 }
@@ -627,10 +635,13 @@ static int CNN_MatTranspose_Internal(
         Tile_Orientation_T TileOrientation = TILE_HOR;
         unsigned int OutTileOrientation;
         int ParFeat = 1, HWC = 0;
+	add_kernel_arg_func_t AddKArgDimFunc = AddKernelArgDim;
+
         if (Ctrl) {
                 if (Ctrl->TileOrientation != -1) TileOrientation = (Ctrl->TileOrientation==0)?TILE_HOR:TILE_VER;
                 if (Ctrl->ParallelFeatures != -1) ParFeat = Ctrl->ParallelFeatures;
                 if (Ctrl->HWC != -1) HWC = Ctrl->HWC;
+		if (Ctrl->FloatDump != -1&&Ctrl->FloatDump) AddKArgDimFunc = AddKernelFloatArgDim;
         }
         if (HWC) {
                 return CNN_3DTensorPermute(Name, Ctrl, Feat, Size, Width, Height, KOP_MATPERM_HWC2WHC);
@@ -688,8 +699,8 @@ static int CNN_MatTranspose_Internal(
                 AddKernelInfos(Name, AT_KERINFO_OPER, LayerOp, 0);
                 AddKernelInfos(Name, AT_KERINFO_BANDWIDTH, LayerBandwidth, 0);
 
-                AddKernelArgDim(Name, "In",  4, Feat, Height, Width, Size);
-                AddKernelArgDim(Name, "Out", 4, Feat, Width, Height, Size);
+                AddKArgDimFunc(Name, "In",  4, Feat, Height, Width, Size);
+                AddKArgDimFunc(Name, "Out", 4, Feat, Width, Height, Size);
 		AT_PrepareForTest(Name,
                                   (v4s) {Size, 0, 0, Size},
                                   (v4s) {0,0,0,0},
@@ -791,8 +802,11 @@ int CNN_3DTensorPermute(
 	unsigned long long int LayerOp = (int64_t) Width*Height*Feat;
 	unsigned long long int LayerBandwidth = 0;
 
+	add_kernel_arg_func_t AddKArgDimFunc = AddKernelArgDim;
+
 	if (Ctrl) {
 		if (Ctrl->HWC != -1) HWC = Ctrl->HWC;
+		if (Ctrl->FloatDump != -1&&Ctrl->FloatDump) AddKArgDimFunc = AddKernelFloatArgDim;
 	}
 	int KerLayout = HWC?CALL_HWC_KER:0;
 
@@ -924,38 +938,38 @@ int CNN_3DTensorPermute(
 		AddKernelInfos(Name, AT_KERINFO_OPER, LayerOp, 0);
 		AddKernelInfos(Name, AT_KERINFO_BANDWIDTH, LayerBandwidth, 0);
 
-		AddKernelArgDim(Name, "In", 4, Feat, Height, Width, Size);
+		AddKArgDimFunc(Name, "In", 4, Feat, Height, Width, Size);
 		switch (MatPermOper) {
 			case KOP_MATPERM_CHW2CWH:
-				AddKernelArgDim(Name, "Out", 4, Feat, Width, Height, Size);
+				AddKArgDimFunc(Name, "Out", 4, Feat, Width, Height, Size);
 				break;
 			case KOP_MATPERM_CHW2HWC:
-				AddKernelArgDim(Name, "Out", 4, Height, Width, Feat, Size);
+				AddKArgDimFunc(Name, "Out", 4, Height, Width, Feat, Size);
 				break;
 			case KOP_MATPERM_CHW2WHC:
-				AddKernelArgDim(Name, "Out", 4, Width, Height, Feat, Size);
+				AddKArgDimFunc(Name, "Out", 4, Width, Height, Feat, Size);
 				break;
 			case KOP_MATPERM_CHW2WCH:
-				AddKernelArgDim(Name, "Out", 4, Width, Feat, Height, Size);
+				AddKArgDimFunc(Name, "Out", 4, Width, Feat, Height, Size);
 				break;
 			case KOP_MATPERM_CHW2HCW:
-				AddKernelArgDim(Name, "Out", 4, Height, Feat, Width, Size);
+				AddKArgDimFunc(Name, "Out", 4, Height, Feat, Width, Size);
 				break;
 
 			case KOP_MATPERM_HWC2HCW:
-				AddKernelArgDim(Name, "Out", 4, Height, Feat, Width, Size);
+				AddKArgDimFunc(Name, "Out", 4, Height, Feat, Width, Size);
 				break;
 			case KOP_MATPERM_HWC2WCH:
-				AddKernelArgDim(Name, "Out", 4, Width, Feat, Height, Size);
+				AddKArgDimFunc(Name, "Out", 4, Width, Feat, Height, Size);
 				break;
 			case KOP_MATPERM_HWC2WHC:
-				AddKernelArgDim(Name, "Out", 4, Width, Height, Feat, Size);
+				AddKArgDimFunc(Name, "Out", 4, Width, Height, Feat, Size);
 				break;
 			case KOP_MATPERM_HWC2CHW:
-				AddKernelArgDim(Name, "Out", 4, Feat, Height, Width, Size);
+				AddKArgDimFunc(Name, "Out", 4, Feat, Height, Width, Size);
 				break;
 			case KOP_MATPERM_HWC2CWH:
-				AddKernelArgDim(Name, "Out", 4, Feat, Width, Height, Size);
+				AddKArgDimFunc(Name, "Out", 4, Feat, Width, Height, Size);
 				break;
 		}
 		AT_PrepareForTest(Name,

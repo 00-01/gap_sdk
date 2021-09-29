@@ -58,7 +58,7 @@ def get_max_or_one(stat):
     },
     {
         'name': 'force_external_size',
-        'type': str,
+        'type': int,
         'help': 'bits to use for features and state',
         'choices': [8, 16],
         'default': 8
@@ -223,6 +223,12 @@ class GRUMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
                 )
             if input_bits == 16:
                 i_zp_b = woffs[gate][0]
+                if gate == "h":
+                    in_qs[names['w_h_b']] = QType(
+                        dtype=np.int32,
+                        scale=i_pscales[gate],
+                        offset=i_zp_b,
+                    )
             else:
                 i_zp_b = woffs[gate][0] * qscale.qbiases.astype(
                     np.int32) + (1 << (qscale.qnorms.astype(np.int32) - 1))
@@ -236,22 +242,22 @@ class GRUMultMultNE16Base(RescaleConstantMixin, MultQuantizionHandler):
             scale_qtypes[f"r_2_{gate}_q"] = qscale = MultMulBiasScaleQType(
                 scale=r_pscales[gate] / int_scale
             )
+
+            if gate == 'h':
+                bias_name = 'r_h_b'
+                interleaved_values = None
+            else:
+                bias_name = f'{gate}_b'
+                interleaved_values = [i_zp_b]
             if input_bits == 16:
                 r_zp_b = woffs[gate][1]
-                in_qs[names[f'{gate}_b']] = QType(
+                in_qs[names[bias_name]] = QType(
                     dtype=np.int32,
                     scale=r_pscales[gate],
                     offset=r_zp_b,
-                    interleaved_values = [i_zp_b]
+                    interleaved_values = interleaved_values
                 )
             else:
-                if gate == 'h':
-                    bias_name = 'r_h_b'
-                    interleaved_values = None
-                else:
-                    bias_name = f'{gate}_b'
-                    interleaved_values = [i_zp_b]
-
                 r_zp_b = woffs[gate][1] * qscale.qbiases.astype(
                     np.int32) + (1 << (qscale.qnorms.astype(np.int32) - 1))
                 in_qs[names[bias_name]] = QType(

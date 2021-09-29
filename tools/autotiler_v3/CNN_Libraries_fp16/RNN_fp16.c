@@ -19,6 +19,7 @@
 
 static int CoreCountDynamic = 1;
 static int ActiveCore = gap_ncore();
+#include "FastFloatApprox16.h"
 
 static inline unsigned int __attribute__((always_inline)) ChunkSize(unsigned int X)
 
@@ -121,7 +122,7 @@ void RNN_ParKer_fp16(KerRNN_fp16_T *Arg)
 		if (Nin&0x1) Of += ((F16 *)Vin)[Nin-1] * ((F16 *)Vf)[Nin-1];
 
 		/* Of = HTanh(Scaled(Of)) */
-		Of = Fast_Tanh_fp16(Of);
+		Of = FastTanhF16(Of);
 
 		if (StateInOut) StateInOut[o+OutBase] = Of;
 		if (Hout) Hout[o] = Of;
@@ -202,22 +203,22 @@ void LSTM_ParKer_fp16(KerLSTM_fp16_T *Arg)
 		}
 
 		/* Of = HSigmoid(Scaled(Of)) */
-		Of = Fast_Sigmoid_fp16(Of);
+		Of = FastSigmoidF16(Of);
 
 		/* Oi = HSigmoid(Scaled(Oi)) */
-		Oi = Fast_Sigmoid_fp16(Oi);
+		Oi = FastSigmoidF16(Oi);
 
 		/* Og = HTanh(Scaled(Og)) */
-		Og = Fast_Tanh_fp16(Og);
+		Og = FastTanhF16(Og);
 
         	/* Oo = HSigmoid(Scaled(Oo)) */
-		Oo = Fast_Sigmoid_fp16(Oo);
+		Oo = FastSigmoidF16(Oo);
         
         	F16 X1 = Of * State[o+OutBase] + Oi * Og;
         	if (StateInOut) StateInOut[o+OutBase] = X1;
 
 		/* X1 = HTanh(X1) */
-		X1 = Fast_Tanh_fp16(X1);
+		X1 = FastTanhF16(X1);
 
         	F16 X2 = Oo * X1;
         	if (StateInOut) StateInOut[DimState+o+OutBase] = X2;
@@ -350,12 +351,12 @@ void GRU_ParKer_fp16(KerGRU_fp16_T *Arg)
 		}
 
 		/* Or = HSigmoid(Scaled(Or)) !*! StateInOut[o] */
-		Or = Fast_Sigmoid_fp16(Or);
+		Or = FastSigmoidF16(Or);
 
 		/* Or = HSigmoid(Scaled(Or)) !*! StateInOut[o] */
-		Oz = Fast_Sigmoid_fp16(Oz);
+		Oz = FastSigmoidF16(Oz);
 
-		Oh = Fast_Tanh_fp16(Oh*Or + Oh_in);
+		Oh = FastTanhF16(Oh*Or + Oh_in);
 
 		/* Oht = HTanh(Oh) */
 		//F16 Oht = Fast_Tanh_fp16(Oh);

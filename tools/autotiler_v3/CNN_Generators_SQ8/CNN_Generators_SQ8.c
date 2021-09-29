@@ -52,6 +52,10 @@
 
 #define AT_INF_DIM              9
 
+#define AT_INF_ADD_BIAS		9
+#define AT_INF_ASYM_ADD_DIM	11
+
+
 void LoadCNN_SQ8_Library()
 
 {
@@ -613,6 +617,12 @@ void LoadCNN_SQ8_Library()
 	LibKernel("KerMatAdd_HSwish_SQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_HSWISH), 0, CNN_Type(1,1,0,0,1), 0,0,0,0,0,0));
 	LibKernel("KerMatAdd_LeakyReLU_SQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_LEAKYRELU), 0, CNN_Type(1,1,0,0,1), 0,0,0,0,0,0));
 
+	LibKernel("KerMatAdd_USQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",			CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_NONE), 0, CNN_Type(-1,-1,0,0,-1), 0,0,0,0,0,0));
+	LibKernel("KerMatAdd_ReLU_USQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_RELU), 0, CNN_Type(-1,-1,0,0,-1), 0,0,0,0,0,0));
+	LibKernel("KerMatAdd_ReLUN_USQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_RELUN), 0, CNN_Type(-1,-1,0,0,-1), 0,0,0,0,0,0));
+	LibKernel("KerMatAdd_ReLUM_USQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_RELUM), 0, CNN_Type(-1,-1,0,0,-1), 0,0,0,0,0,0));
+	LibKernel("KerMatAdd_ReLUMN_USQ8", CALL_PARALLEL, 0, "KerMat3_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATADD), CNN_OperList(1, KOP_RELUMN), 0, CNN_Type(-1,-1,0,0,-1), 0,0,0,0,0,0));
+
 	/* Matrix Multiplication for 1x1 convolutions with channel scaling and optional ReLU or ReLUN activation */
 	/* 8b Bias */
 	LibKernel("KerParMatMulNoBias_2x4_SQ8", CALL_PARALLEL, 0, "KerMatMul_PL_SQ8_T",		CNN_Match(CNN_OperList(1, KOP_MATMUL_NOBIAS), CNN_OperList(1, KOP_NONE), 1, CNN_Type(1,1,0,0,1), 0,0,0,0,1,1));
@@ -1095,9 +1105,10 @@ int CNN_MM_ConvolutionPoolAct_SQ8(
 		if (Ctrl->HWC) HWC = 1;
 		if (Ctrl->ParallelFeatures != -1) ParFeatConv = Ctrl->ParallelFeatures;
 	}
-	if (ParFeatConv == 2 && HWC && Fcy>1 && (InFeat < 8)) {
+	if (ParFeatConv == 2 && HWC && Fcy>1 && (InFeat < 8))
 		ParFeatConv = 0;
-	} else ParFeatConv = 1;
+	else
+		ParFeatConv = 1;
 	unsigned int Bs = Bias_DataSize;
 	KernelOper_T COper = ConvOper;
 	int OverlapC, OverlapP;
@@ -1751,9 +1762,14 @@ int CNN_ConvolutionPoolAct_SQ8(
 			return CNN_Act_SQ8(Name, Ctrl, InFeat, Width, Height, ActOper);
 		else GenTilingError("CNN_ConvolutionPoolAct_SQ8 Kernel: %s, All requested operations are KOP_NONE", Name);
 	} else if (HWC) {
-		return CNN_MM_ConvolutionPoolAct_SQ8(Name, Ctrl, Bias_DataSize, Scale_DataSize, InFeat, OutFeat, Width, Height,
-						     ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
-				      		     PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
+		if (ConvOper == KOP_CONV_DW)
+			return CNN_HWC_DWConvolutionPoolAct_SQ8(Name, Ctrl, Bias_DataSize, Scale_DataSize, InFeat, OutFeat, Width, Height,
+								ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
+								PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
+		else
+			return CNN_MM_ConvolutionPoolAct_SQ8(Name, Ctrl, Bias_DataSize, Scale_DataSize, InFeat, OutFeat, Width, Height,
+							     ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
+							     PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
 	} else if (ConvOper==KOP_CONV && ((Fcx > 1 && Fcy == 1))) {
 		AT_SetKernelCtrl(AT_KERNEL_NOSOLUTION_ERROR, AT_OPT_OFF);
 		int Ok = CNN_MM_ConvolutionPoolAct_SQ8(Name, Ctrl, Bias_DataSize, Scale_DataSize, InFeat, OutFeat, Width, Height,
@@ -1762,11 +1778,6 @@ int CNN_ConvolutionPoolAct_SQ8(
 		AT_SetKernelCtrl(AT_KERNEL_NOSOLUTION_ERROR, AT_OPT_ON);
 		if (Ok) return Ok;
 		if (Log) printf("No solution found for im2col scheme, reverting to standard implementation\n");
-	} else if ((ConvOper==KOP_CONV_DW) && HWC) {
-		int Ok = CNN_HWC_DWConvolutionPoolAct_SQ8(Name, Ctrl, Bias_DataSize, Scale_DataSize, InFeat, OutFeat, Width, Height,
-						       	  ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
-				      		       	  PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
-		return Ok;
 	}
 	if (Fcx==1 && Fcy==1 && Scx==1 && Scy==1 && Dcx==1 && Dcy==1 && Height==1 && Width==1) {
 		printf("This is a pointwise on 1x1 input --> Mapping to CNN_Linear_NE16\n");
@@ -3172,14 +3183,19 @@ int CNN_MatAddAct_SQ8(
 	int StandAloneAct = (ActOper!=KOP_NONE);
 	int KerLayout = HWC?CALL_HWC_KER:0;
 	char *MatAddKerName=0, *ActKerName=0;
+	int Ids = 1, Ods = 1;
+	if (Ctrl) {
+		if (Ctrl->InDataSize) Ids = Ctrl->InDataSize;
+		if (Ctrl->OutDataSize) Ods = Ctrl->OutDataSize;
+	}
 
-	MatAddKerName = CNN_FindMatchingKernel(AddMatOper, ActOper, ParFeat, 1, 1, 0, 0, 1, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
+	MatAddKerName = CNN_FindMatchingKernel(AddMatOper, ActOper, ParFeat, Ids, Ids, 0, 0, Ods, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
 	if (MatAddKerName) StandAloneAct = 0;
-	else MatAddKerName = CNN_FindMatchingKernel(AddMatOper, KOP_NONE, ParFeat, 1, 1, 0, 0, 1, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
+	else MatAddKerName = CNN_FindMatchingKernel(AddMatOper, KOP_NONE, ParFeat, Ids, Ids, 0, 0, Ods, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
 	if (MatAddKerName==0) GenTilingError("CNN_MatAddAct_SQ8 Kernel: %s, Can't find a matching basic kernel for MatAdd", Name);
 
 	if (StandAloneAct) {
-		ActKerName = CNN_FindMatchingKernel(ActOper, KOP_NONE, 0, 1, 1, 0, 0, 1, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
+		ActKerName = CNN_FindMatchingKernel(ActOper, KOP_NONE, ParFeat, Ods, 0, 0, 0, Ods, 0,0,0,0,0,0, 0,0,0,0,0,0, 0);
 		if (ActKerName==0) GenTilingError("CNN_MatAddAct_SQ8 Kernel: %s, Can't find a matching basic kerne for Activationl", Name);
 	}
 
@@ -3187,14 +3203,15 @@ int CNN_MatAddAct_SQ8(
 	LayerBandwidth += (int64_t) Width*Height*1*Feat;
 	LayerBandwidth += (int64_t) Width*Height*1*Feat;
 	LayerBandwidth += (int64_t) Width*Height*1*Feat;
+	int InfosDim = Ods>0?AT_INF_DIM:AT_INF_ASYM_ADD_DIM;
 
         Kernel_T *Kernel = UserKernel(Name,
 		KernelIterSpace(1, IterTiledSpace(T0)),
                 TileOrientation,
                 CArgs(4,
-                      TCArg(CNN_ArgDataType(1,1,1), "In1"),
-                      TCArg(CNN_ArgDataType(1,1,1), "In2"),
-                      TCArg(CNN_ArgDataType(1,1,1), "Out"),
+                      TCArg(Ids>0?CNN_ArgDataType(1,1,1):CNN_ArgDataTypeUns(1,1,1), "In1"),
+                      TCArg(Ids>0?CNN_ArgDataType(1,1,1):CNN_ArgDataTypeUns(1,1,1), "In2"),
+                      TCArg(Ods>0?CNN_ArgDataType(1,1,1):CNN_ArgDataTypeUns(1,1,1), "Out"),
                       TCArg(CNN_ArgDataType(1,1,1), "Infos")
                      ),
                 Calls(2,
@@ -3226,7 +3243,7 @@ int CNN_MatAddAct_SQ8(
                         KerArg("In1",    KerArgSpace(1,T0), O_IN|O_DB,            1, Feat*Width*Height, 	   1, 0, 0, 0, "In1"),
                         KerArg("In2",    KerArgSpace(1,T0), O_IN|O_DB,            1, Feat*Width*Height, 	   1, 0, 0, 0, "In2"),
                         KerArg("Out",    KerArgSpace(1,T0), O_OUT|O_DB,           1, Feat*Width*Height, 	   1, 0, 0, 0, "Out"),
-			KerArg("Infos",  KerArgSpace(1,T0), O_IN|O_BUFF|O_NTILED, 1, 		     1, AT_INF_DIM*1, 0, 0, 0, "Infos")
+			KerArg("Infos",  KerArgSpace(1,T0), O_IN|O_BUFF|O_NTILED, 1, 		     1,   InfosDim*1, 0, 0, 0, "Infos")
 		)
 	);
 	if (Kernel) {
@@ -3236,7 +3253,7 @@ int CNN_MatAddAct_SQ8(
 		AddKernelArgDim(Name, "In1", 4, Feat,  Height, Width, 1);
 		AddKernelArgDim(Name, "In2", 4, Feat,  Height, Width, 1);
 		AddKernelArgDim(Name, "Out", 4, Feat, Height, Width, 1);
-		AddKernelArgDim(Name, "Infos", 2, AT_INF_DIM, 1);
+		AddKernelArgDim(Name, "Infos", 2, InfosDim, 1);
 
 		AT_PrepareForTest_SQ8(Name, Feat,Feat,Width,Height, 1, AddMatOper, 0,0,0,0,0,0,(v4s)0, 0, 0,0,0,0,0,0,(v4s)0, ActOper);
 	}

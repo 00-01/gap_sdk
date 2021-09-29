@@ -17,7 +17,7 @@ import logging
 
 import numpy as np
 
-from expressions.symbolic.basic import Add, Div, Mul, Sub
+from expressions.symbolic.basic import Add, Div, Mul, SquaredDifference, Sub
 
 from ..dim import Dim
 from .base import (CanFuseToExpression, Parameters, SameNumberOfDimensionsForInputs,
@@ -161,15 +161,20 @@ class MatrixMulParameters(MatrixBroadcastedLinearOpParameters):
     pass
 
 
-@cls_op_name('sub')
 @expression_op(Sub)
+@cls_op_name('sub')
 class MatrixSubParameters(MatrixBroadcastedLinearOpParameters):
     pass
 
 
-@cls_op_name('div')
 @expression_op(Div)
+@cls_op_name('div')
 class MatrixDivParameters(MatrixBroadcastedLinearOpParameters):
+    pass
+
+@expression_op(SquaredDifference)
+@cls_op_name('squared_difference')
+class SquaredDifferenceParameters(MatrixBroadcastedLinearOpParameters):
     pass
 
 

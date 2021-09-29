@@ -17,7 +17,7 @@ import logging
 
 import numpy as np
 from expressions.symbolic.basic import (Abs, Cos, Exp, Log, Max, Min, Neg, Pow,
-                                        Sin, Sqrt)
+                                        RSqrt, Sin, Sqrt)
 from graph.dim import Dim
 
 from .base import (CanFuseToExpression, ComparableParameters,
@@ -348,6 +348,7 @@ class GatherParameters(Parameters, SingleInputAndOutput, SensitiveToOrder, Insen
     def __str__(self):
         return "A %s I %s" % (self.axis, self.indices)
 
+
 @cls_op_name('strided_slice')
 class StridedSliceParameters(Parameters, SingleInputAndOutput, ComparableParameters, InsensitiveToQuantization):
 
@@ -554,6 +555,12 @@ class UnaryOpParameters(CanFuseToExpression, Parameters):
 @cls_op_name('sqrt')
 @expression_op(Sqrt)
 class SqrtOpParameters(UnaryOpParameters):
+    pass
+
+
+@cls_op_name('rsqrt')
+@expression_op(RSqrt)
+class RSqrtOpParameters(UnaryOpParameters):
     pass
 
 

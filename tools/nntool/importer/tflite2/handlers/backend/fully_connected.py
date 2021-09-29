@@ -46,7 +46,7 @@ class FullyConnected(FilterMixin, BackendHandler):
         check(not keep_dims,
               f'keep dims on Fully Connected {node.name} is not supported')
 
-        inputs = [all_nodes[t] for t in node.input]
+        inputs = [all_nodes[t] if t is not None else None for t in node.input]
 
         x = inputs[0]
         x_known_shape = x[2].known_shape
@@ -64,7 +64,7 @@ class FullyConnected(FilterMixin, BackendHandler):
         check(filt_dim.sz * batch_size == inp_sz,
               "filter doesn't match input size")
 
-        if len(inputs) > 2:
+        if len(inputs) > 2 and inputs[2] is not None:
             bias = inputs[2]
             bias_node = bias[0]
         else:

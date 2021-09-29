@@ -354,23 +354,7 @@ class Dim():
     @classmethod
     def broadcast(cls, dims):
         shapes = [dim.shape for dim in dims]
-        out_shape = cls.npbroadcast(shapes)
-        out_keys = [None] * len(out_shape)
-        for dim in dims:
-            if not dim.is_named:
-                continue
-            keys = [None] * (len(out_shape) - len(dim.keys)) + dim.keys
-            for idx, key in enumerate(keys):
-                if key is None:
-                    continue
-                if out_keys[idx] is None:
-                    out_keys[idx] = key
-                else:
-                    assert out_keys[idx] == key, "dimension label mismatch in broadcast"
-        res = cls.unnamed(out_shape)
-        if all(key is not None for key in out_keys):
-            res.apply_naming_hints(out_keys)
-        return res
+        return cls.unnamed(cls.npbroadcast(shapes))
 
     @staticmethod
     def combine(dims: Iterable, axis) -> 'Dim':
@@ -456,7 +440,7 @@ class Dim():
 
     def __getattr__(self, name):
         if name.startswith('_'):
-            return super().__getattribute__(name)
+            return super().__getattribute__(name)  # @IgnoreException
         self._verify_is_named()
         try:
             idx = self._names.index(name)

@@ -47,6 +47,9 @@
 
 #define AT_INF_DIM		9
 
+#define AT_INF_ADD_BIAS		9
+#define AT_INF_ASYM_ADD_DIM	11
+
 #ifndef Prec
 #define Prec 			(10)
 #endif
@@ -1014,6 +1017,12 @@ extern void KerMatAdd_ReLUN_SQ8(KerMat3_SQ8_T *Arg);
 extern void KerMatAdd_HSigmoid_SQ8(KerMat3_SQ8_T *Arg);
 extern void KerMatAdd_HSwish_SQ8(KerMat3_SQ8_T *Arg);
 extern void KerMatAdd_LeakyReLU_SQ8(KerMat3_SQ8_T *Arg);
+
+extern void KerMatAdd_USQ8(KerMat3_SQ8_T *Arg);
+extern void KerMatAdd_ReLU_USQ8(KerMat3_SQ8_T *Arg);
+extern void KerMatAdd_ReLUN_USQ8(KerMat3_SQ8_T *Arg);
+extern void KerMatAdd_ReLUM_USQ8(KerMat3_SQ8_T *Arg);
+extern void KerMatAdd_ReLUMN_USQ8(KerMat3_SQ8_T *Arg);
 
 /*************************************************************************************************************************************************
 	Matrix mult with channel centric scaling, followed by optional activation: ReLU and ReLUN, other activations should be performed

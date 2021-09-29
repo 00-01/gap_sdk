@@ -41,6 +41,12 @@ class DrawGraphReporter():
         self._name_cache = None
 
     @staticmethod
+    def dim_or_error(dims, idx):
+        if dims is None or len(dims) <= idx:
+            return "not set", True
+        return f'({dims[idx]})', False
+
+    @staticmethod
     def get_trans(node, dir_name):
         return hasattr(node, f'transpose_{dir_name}') and getattr(node, f'transpose_{dir_name}')
 
@@ -179,7 +185,7 @@ class DrawGraphReporter():
             return str(qtype), False
         else:
             if node.in_dims:
-                return f'({node.in_dims[idx]})', False
+                return self.dim_or_error(node.in_dims, idx)
             return 'not set', True
 
     def report(self, G: NNGraph, nodes=None, graph_format='PDF', all_dims=False,

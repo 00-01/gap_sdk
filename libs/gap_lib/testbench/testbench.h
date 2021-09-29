@@ -155,7 +155,7 @@ __attribute__((packed)) pi_testbench_i2s_verif_slot_stop_config_t;
 pi_device_t *pi_testbench_get();
 pi_device_t *pi_testbench_reopen();
 
-int pi_testbench_prepare_pads(struct pi_testbench_conf *conf);
+void pi_testbench_prepare_pads(struct pi_testbench_conf *conf);
 int pi_testbench_open(struct pi_device *device);
 void pi_testbench_set_status(pi_device_t *device, int status);
 uint64_t pi_testbench_get_time_ps(pi_device_t *device);

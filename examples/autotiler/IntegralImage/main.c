@@ -125,7 +125,6 @@ void integral_image(int argc, char *argv[])
     struct pi_cluster_task *task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
 
 	pi_cluster_task(task, (void (*)(void *))cluster_main, (void *) &ClusterCall);
-    task->stack_size = (uint32_t) STACK_SIZE;
 
     pi_cluster_send_task_to_cl(&cluster_dev, task);
 

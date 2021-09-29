@@ -48,7 +48,7 @@ class Cmdfield(object):
         else:
             bit = '%d:%d' % (self.offset + self.width - 1, self.offset)
 
-        return [bit, self.value, self.desc]
+        return [bit, self.name, self.desc]
 
     def dump_to_rst(self, rst):
         rst.append(self.get_row())
@@ -60,7 +60,7 @@ class Cmd(object):
 
     def dump_to_rst(self, rst):
         writer = pytablewriter.RstGridTableWriter()
-        writer.header_list = ['Bit #', 'Value', 'Description']
+        writer.header_list = ['Bit #', 'Name', 'Description']
 
         table = []
         for name, field in self.fields.items():
@@ -75,6 +75,8 @@ class Cmd(object):
 class Cmdmap(object):
 
     def dump_to_cmdlist_rst(self, rst, writer):
+        writer = pytablewriter.RstGridTableWriter()
+        writer.header_list = ['Command name', 'Width', 'Command code', 'Description']
 
         table = []
         for name, cmd in self.commands.items():

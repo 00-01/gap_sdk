@@ -21,7 +21,8 @@
 #include <stdio.h>
 #include <math.h>
 #include "RNN_BasicKernels_NE16.h"
-#include "stage_desc.h"
+#include "NE16_Helpers.h"
+#include "NE16_Manual_Subtile.h"
 
 static int CoreCountDynamic = 1;
 static int ActiveCore = gap_ncore();
@@ -64,7 +65,7 @@ void dump_i32(const char *name, int len, const int *out)
         pi_cl_team_critical_exit();
 }
 
-static inline unsigned int __attribute__((always_inline)) ChunkSize(unsigned int X, int IncludeCC)
+static inline unsigned int __attribute__((always_inline)) ChunkSizeCC(unsigned int X, int IncludeCC)
 
 {
         unsigned int NCore;
@@ -92,7 +93,7 @@ static inline unsigned int __attribute__((always_inline)) ChunkSize(unsigned int
 static inline void ParSetup(int Nout, int IncCC, int * First, int * Last)
 {
         int CoreId = gap_coreid();
-        int ChunkCell = ChunkSize(Nout, 1);
+        int ChunkCell = ChunkSizeCC(Nout, 1);
         *First = CoreId * ChunkCell;
         *Last = Nout;
 }
@@ -102,7 +103,7 @@ static inline void ParSetup(int Nout, int IncCC, int * First, int * Last)
 static inline void Copy(void *__restrict__ To, void *__restrict__ From, unsigned int Size, unsigned int CoreId)
 
 {
-        unsigned int Chunk = ChunkSize(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
+        unsigned int Chunk = ChunkSizeCC(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
         unsigned int Iter = Max(0, Last - First);
 
         int *pFrom = (int *)(From + First), *pTo = (int *)(To + First);
@@ -139,7 +140,7 @@ static inline void ZeroBody(void *__restrict__ To, unsigned int Cnt)
 static inline void Zero(void *__restrict__ To, unsigned int Size, unsigned int CoreId)
 {
         int Trace = 0;
-        unsigned int Chunk = ChunkSize(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
+        unsigned int Chunk = ChunkSizeCC(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
         if (Trace)
                 printf("zero %d %d %d\n", CoreId, First, Last);
 
@@ -167,7 +168,7 @@ static inline void ZeroState8(unsigned char *__restrict__ To, unsigned int Size,
 
 {
         int Trace = 0;
-        unsigned int Chunk = ChunkSize(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
+        unsigned int Chunk = ChunkSizeCC(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
         if (Trace)
                 printf("zero %d %d %d\n", CoreId, First, Last);
 
@@ -193,8 +194,8 @@ static inline void ZeroState16Body(void *__restrict__ To, unsigned int Cnt, unsi
 static inline void ZeroState16(short int *__restrict__ To, unsigned int Size, unsigned int CoreId, unsigned int ZeroPoint)
 
 {
-        int Trace = 1;
-        unsigned int Chunk = ChunkSize(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
+        int Trace = 0;
+        unsigned int Chunk = ChunkSizeCC(Size, 0), First = Chunk * CoreId, Last = Min(First + Chunk, Size);
 
         int Iter = Max(0, Last - First);
 
@@ -204,233 +205,6 @@ static inline void ZeroState16(short int *__restrict__ To, unsigned int Size, un
 
 }
 
-static inline void SetNE16_InPointer(void *InPointer)
-{
-        NE16_WRITE_REG(NE16_REG_INFEAT_PTR, (int)InPointer);
-#if defined(DEBUG_NE16) || defined(DEBUG_NE16_PNTR)
-        printf("InPointer:\t%x\n", InPointer);
-#endif
-}
-static inline void SetNE16_OutPointer(void *OutPointer)
-{
-        NE16_WRITE_REG(NE16_REG_OUTFEAT_PTR, (int)OutPointer);
-#if defined(DEBUG_NE16) || defined(DEBUG_NE16_PNTR)
-        printf("OutPointer:\t%x\n", OutPointer);
-#endif
-}
-static inline void SetNE16_WeightsPointer(void *WeightsPointer)
-{
-        NE16_WRITE_REG(NE16_REG_WEIGHTS_PTR, (int)WeightsPointer);
-#ifdef DEBUG_NE16
-        printf("WeightsPointer:\t%x\n", WeightsPointer);
-#endif
-}
-static inline void SetNE16_BiasPointer(void *BiasPointer)
-{
-        NE16_WRITE_REG(NE16_REG_SCALE_BIAS_PTR, (int)BiasPointer);
-#ifdef DEBUG_NE16
-        printf("BiasPointer:\t%x\n", BiasPointer);
-#endif
-}
-static inline void SetNE16_ScalePointer(void *ScalePointer)
-{
-        NE16_WRITE_REG(NE16_REG_SCALE_PTR, (int)ScalePointer);
-#ifdef DEBUG_NE16
-        printf("ScalePointer:\t%x\n", ScalePointer);
-#endif
-}
-static inline void SetNE16_ScaleNPointer(void *ScaleNPointer)
-{
-        NE16_WRITE_REG(NE16_REG_SCALE_SHIFT_PTR, (int)ScaleNPointer);
-#ifdef DEBUG_NE16
-        printf("ScaleNPointer:\t%x\n", ScaleNPointer);
-#endif
-}
-
-static inline void SetNE16_Strides(unsigned short In_D0,
-                                   unsigned short In_D1,
-                                   unsigned short In_D2,
-
-                                   unsigned short Out_D0,
-                                   unsigned short Out_D1,
-                                   unsigned short Out_D2,
-
-                                   unsigned short Weights_D0,
-                                   unsigned short Weights_D1,
-                                   unsigned short Weights_D2)
-{
-#ifdef DEBUG_NE16
-        printf("InStrides: %d - %d - %d OutStrides: %d - %d - %d WeightsStrides: %d - %d - %d\n", In_D0, In_D1, In_D2, Out_D0, Out_D1, Out_D2, Weights_D0, Weights_D1, Weights_D2);
-#endif
-        NE16_WRITE_REG(NE16_REG_INFEAT_D0_STRIDE, In_D0);
-        NE16_WRITE_REG(NE16_REG_INFEAT_D1_STRIDE, In_D1);
-        NE16_WRITE_REG(NE16_REG_INFEAT_D2_STRIDE, In_D2);
-        NE16_WRITE_REG(NE16_REG_OUTFEAT_D0_STRIDE, Out_D0);
-        NE16_WRITE_REG(NE16_REG_OUTFEAT_D1_STRIDE, Out_D1);
-        NE16_WRITE_REG(NE16_REG_OUTFEAT_D2_STRIDE, Out_D2);
-        NE16_WRITE_REG(NE16_REG_WEIGHTS_D0_STRIDE, Weights_D0);
-        NE16_WRITE_REG(NE16_REG_WEIGHTS_D1_STRIDE, Weights_D1);
-        NE16_WRITE_REG(NE16_REG_WEIGHTS_D2_STRIDE, Weights_D2);
-}
-
-static inline void SetNE16_Dim(unsigned short Nb_KI,
-                               unsigned short Nb_KO,
-                               unsigned short Nb_WO,
-                               unsigned short Nb_HO)
-{
-#ifdef DEBUG_NE16
-        printf("Nb_KI:\t%d\tNb_KO:\t%d\tNb_HO:\t%d\tNb_WO:\t%d\n", Nb_KI, Nb_KO, Nb_WO, Nb_HO);
-#endif
-        NE16_WRITE_REG(NE16_REG_NB_KO_KI, ((Nb_KI & NE16_MASK_NB_KI) << NE16_SHIFT_NB_KI) |     /**< The Ki remainder must be the remainder of Ki / 16 if such remainder is not zero, otherwise must be 16 */
-                                              ((Nb_KO & NE16_MASK_NB_KO) << NE16_SHIFT_NB_KO)); /**< The number of Ko subtiles is Ko / 32, plus 1 if Ko / 32 has non-zero remainder */
-        NE16_WRITE_REG(NE16_REG_NB_HO_WO, ((Nb_WO & NE16_MASK_NB_WO) << NE16_SHIFT_NB_WO) |     /**< The number of Wo subtitles is Wo / 3, plus 1 if Wo / 3 has non-zero remainder */
-                                              ((Nb_HO & NE16_MASK_NB_HO) << NE16_SHIFT_NB_HO)); /**< The number of Ho subtitles is Ho / 3, plus 1 if Ho / 3 has non-zero remainder */
-}
-
-static inline void SetNE16_Reminders(unsigned short Rem_WI,
-                                     unsigned short Rem_HI,
-                                     unsigned short Rem_KI,
-                                     unsigned short Rem_KO,
-                                     unsigned short Rem_WO,
-                                     unsigned short Rem_HO)
-{
-#ifdef DEBUG_NE16
-        printf("Rem_KI:\t%d\tRem_KO:\t%d\tRem_HI:\t%d\tRem_WI:\t%d\tRem_HO:\t%d\tRem_WO:\t%d\n", Rem_KI, Rem_KO, Rem_HI, Rem_WI, Rem_HO, Rem_WO);
-#endif
-        NE16_WRITE_REG(NE16_REG_REM_KO_KI, ((Rem_KI & NE16_MASK_REM_KI) << NE16_SHIFT_REM_KI) |     /**< The Ki remainder must be the remainder of Ki / 16 if such remainder is not zero, otherwise must be 16 */
-                                               ((Rem_KO & NE16_MASK_REM_KO) << NE16_SHIFT_REM_KO)); /**< The Ko remainder must be the remainder of Ko / 32 if such remainder is not zero, otherwise must be 32 */
-        NE16_WRITE_REG(NE16_REG_REM_HO_WO, ((Rem_WO & NE16_MASK_REM_WO) << NE16_SHIFT_REM_WO) |     /**< The Wo remainder must be the remainder of Wo / 3 */
-                                               ((Rem_HO & NE16_MASK_REM_HO) << NE16_SHIFT_REM_HO)); /**< The Ho remainder must be the remainder of Ho / 3 */
-        NE16_WRITE_REG(NE16_REG_REM_HI_WI, ((Rem_WI & NE16_MASK_REM_WI) << NE16_SHIFT_REM_WI) |     /**< */
-                                               ((Rem_HI & NE16_MASK_REM_HI) << NE16_SHIFT_REM_HI)); /**< */
-}
-
-static inline void SetNE16_ConfigPad(v4s Pad, short int PadVal)
-{
-        NE16_WRITE_REG(NE16_REG_PADDING, ((PadVal & NE16_MASK_PADDING_VALUE) << NE16_SHIFT_PADDING_VALUE) |     /**< Only if the NE16 is set to 3x3 mode. Explicit padding forces the value of part of the input set.  */
-                                             ((Pad[0] & NE16_MASK_PADDING_LEFT) << NE16_SHIFT_PADDING_LEFT) |   /**< It can be from 0 to 2 in each direction (left/right/top/bottom) */
-                                             ((Pad[1] & NE16_MASK_PADDING_RIGHT) << NE16_SHIFT_PADDING_RIGHT) | /**< The padding value can be from 0 to 255 in basic mode and from 0 to 65535 in mode16 */
-                                             ((Pad[2] & NE16_MASK_PADDING_TOP) << NE16_SHIFT_PADDING_TOP) |
-                                             ((Pad[3] & NE16_MASK_PADDING_BOTTOM) << NE16_SHIFT_PADDING_BOTTOM));
-#ifdef DEBUG_NE16
-        printf("Padding: {%d, %d, %d, %d}, Val: %d\n", Pad[0], Pad[1], Pad[2], Pad[3], PadVal);
-#endif
-}
-
-static inline void SetNE16_ConfigFMask(v4s FilterMask)
-{
-        NE16_WRITE_REG(NE16_REG_FILTER_MASK, ((FilterMask[0] & NE16_MASK_FILTER_MASK_LEFT) << NE16_SHIFT_FILTER_MASK_LEFT) |       /**< Only if the NE16 is set to 3x3 mode. */
-                                                 ((FilterMask[1] & NE16_MASK_FILTER_MASK_RIGHT) << NE16_SHIFT_FILTER_MASK_RIGHT) | /**< Filter masking forces the value of part of the weights in the spatial direction */
-                                                 ((FilterMask[2] & NE16_MASK_FILTER_MASK_TOP) << NE16_SHIFT_FILTER_MASK_TOP) |     /**< It can be from 0 to 1 in each direction (left/right/top/bottom) */
-                                                 ((FilterMask[3] & NE16_MASK_FILTER_MASK_BOTTOM) << NE16_SHIFT_FILTER_MASK_BOTTOM));
-#ifdef DEBUG_NE16
-        printf("FMask: {%d, %d, %d, %d}\n", FilterMask[0], FilterMask[1], FilterMask[2], FilterMask[3]);
-#endif
-}
-
-static inline void SetNE16_WOffset(int W_Offset)
-{
-        NE16_WRITE_REG(NE16_REG_WEIGHT_OFFSET, W_Offset);
-#ifdef DEBUG_NE16
-        printf("W_Offset: %d\n", W_Offset);
-#endif
-}
-
-static inline void PrintNE16_GenConfig(unsigned int Cfg)
-{
-#ifdef DEBUG_NE16
-        int Qw = ((Cfg >> NE16_SHIFT_WBITS_M1) & NE16_MASK_WBITS_M1) + 1;
-        int Mode16 = ((Cfg >> NE16_SHIFT_MODE16) & NE16_MASK_MODE16);
-        int StreamoutMode = ((Cfg >> NE16_SHIFT_OUTQUANT) & NE16_MASK_OUTQUANT);
-        int FilterMode = ((Cfg >> NE16_SHIFT_FILTER_MODE) & NE16_MASK_FILTER_MODE);
-        int LinearMode = ((Cfg >> NE16_SHIFT_LINEAR_MODE) & NE16_MASK_LINEAR_MODE);
-        int StridedMode = ((Cfg >> NE16_SHIFT_STRIDED_MODE) & NE16_MASK_STRIDED_MODE);
-        int NormBits = ((Cfg >> NE16_SHIFT_NORM_BITS) & NE16_MASK_NORM_BITS);
-        int Streamin = ((Cfg >> NE16_SHIFT_STREAMIN) & NE16_MASK_STREAMIN);
-        int WOffsetCfg = ((Cfg >> NE16_SHIFT_WEIGHT_OFFSET_CFG) & NE16_MASK_WEIGHT_OFFSET_CFG);
-        int QuantRightShift = ((Cfg >> NE16_SHIFT_QUANT_RIGHT_SHIFT) & NE16_MASK_QUANT_RIGHT_SHIFT);
-        int QuantBits = ((Cfg >> NE16_SHIFT_QUANT_BITS) & NE16_MASK_QUANT_BITS);
-        int QuantNoRect = ((Cfg >> NE16_SHIFT_QUANT_NORECT) & NE16_MASK_QUANT_NORECT);
-        int NormShift = ((Cfg >> NE16_SHIFT_NORM_SHIFT) & NE16_MASK_NORM_SHIFT);
-        int NormBias = ((Cfg >> NE16_SHIFT_NORM_BIAS) & NE16_MASK_NORM_BIAS);
-        printf("General config: %d\n\tQw: %d Mode16: %d StreamoutMode: %d FilterMode: %d LinearMode: %d\n\tStridedMode: %d NormBits: %d Streamin: %d WOffsetCfg: %d\n\tQuantRightShift: %d QuantBits: %d QuantNoRect: %d NormShift: %d\n\tNormBias %d\n", Cfg, Qw, Mode16, StreamoutMode, FilterMode, LinearMode, StridedMode, NormBits, Streamin, WOffsetCfg, QuantRightShift, QuantBits, QuantNoRect, NormShift, NormBias);
-#endif
-}
-
-static inline void SetNE16_GenConfig(unsigned int Cfg)
-{
-        NE16_WRITE_REG(NE16_REG_CONFIG, 0);
-        NE16_WRITE_REG(NE16_REG_CONFIG, Cfg);
-#ifdef DEBUG_NE16
-        PrintNE16_GenConfig(Cfg);
-#endif
-}
-
-
-static inline void CalcNumIn(int cfg, int Nin, int *Rem_KI, int *Nb_KI)
-{
-        // int KiTileBig = Nin / 256;
-        // int KiTileBigRem = KiTileBig % 256;
-        // int KiTileSmall = (KiTileBigRem?KiTileBigRem/16 : 0);
-        // if (KiTileSmall % 16) printf("WARNING!!! - Nin must be divisible by 16");
-        // *Rem_KI = KiTileSmall;
-        // *Nb_KI = KiTileBig + (KiTileSmall ? 1 : 0);
-        int divisor = ((cfg >> NE16_SHIFT_MODE16) & NE16_MASK_MODE16 ? 512 : 256);
-        *Rem_KI = ((Nin % divisor) / 16) == 0 ? 16 : (Nin % divisor) / 16;
-        *Nb_KI = Nin / divisor + (Nin % divisor ? 1 : 0);
-}
-
-static inline int GetJobId()
-{
-        volatile int job_id;
-        // printf("cfg: %x\n", cfg);
-        // acquire job
-        NE16_BARRIER_ACQUIRE(job_id);
-        return job_id;
-}
-
-static inline void SetupNE16Job(int Cfg, void *pIn, void *pOut, void *pWeights, void *pBias, int OutBytes, int NumIn, int NumOut, int NumTileOut, int RemOut, int NumWOut, int NumHOut, int Qw, void *pScale, void *pScaleN, int WOff)
-{
-
-        int Rem_KI = 0, Nb_KI = 0;
-        CalcNumIn(Cfg, NumIn, &Rem_KI, &Nb_KI);
-        // printf("Nin %d, Rem_KI %d, Nb_KI %d\n", DimIn, Rem_KI, Nb_KI);
-
-        if (pBias)
-        {
-                Cfg |= (NE16_MASK_NORM_BIAS << NE16_SHIFT_NORM_BIAS);
-        }
-        else
-        {
-                Cfg &= ~(NE16_MASK_NORM_BIAS << NE16_SHIFT_NORM_BIAS);
-        }
-
-        // load configuration for the layer - input only
-        SetNE16_InPointer(pIn);
-        SetNE16_OutPointer(pOut);
-        SetNE16_WeightsPointer(pWeights);
-        SetNE16_BiasPointer(pBias);
-        SetNE16_ScalePointer(pScale);
-        SetNE16_ScaleNPointer(pScaleN);
-        SetNE16_Strides(16, 0, 0,                                           // In_D0, In_D1 - unused, In_D2 - unused
-                        OutBytes * 8, OutBytes * NumOut, OutBytes * NumOut, // Out_D0, Out_D1 - unused, Out_D2 - unused
-                        // OutBytes * 8, 0, 0,                                   // Out_D0, Out_D1 - unused, Out_D2 - unused
-                        NumIn * 2 / 16, Qw * NumIn * 2 / 16, Qw * NumIn * 2); // Weights_D0, Weights_D1, Weights_D2
-        SetNE16_Reminders(0, 0, Rem_KI, RemOut, 1, 1);
-        SetNE16_Dim(Nb_KI, NumTileOut, 1, 1);
-        SetNE16_WOffset(WOff);
-        SetNE16_ConfigPad((v4s){0, 0, 0, 0}, 0);
-        SetNE16_ConfigFMask((v4s){0, 0, 0, 0});
-        SetNE16_GenConfig(Cfg);
-}
-
-static inline void TriggerNE16Job(int Cfg, void *pIn, void *pOut, void *pWeights, void *pBias, int OutBytes, int NumIn, int NumOut, int NumTileOut, int RemOut, int NumWOut, int NumHOut, int Qw, void *pScale, void *pScaleN, int WOff)
-{
-        GetJobId();
-        SetupNE16Job(Cfg, pIn, pOut, pWeights, pBias, OutBytes, NumIn, NumOut, NumTileOut, RemOut, NumWOut, NumHOut, Qw, pScale, pScaleN, WOff);
-        // commit and trigger NE16 computation
-        NE16_WRITE_CMD(NE16_COMMIT_AND_TRIGGER, NE16_TRIGGER_CMD);
-}
 
 void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
 
@@ -464,7 +238,7 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
         unsigned char OutZeroPoint = *((unsigned char *)&Infos[RNN_NE16_OUT_ZERO_POINT]);
 
         unsigned int CoreId = gap_coreid();
-        unsigned int ChunkCell = ChunkSize(Nout, 1);
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 1);
         unsigned int First = CoreId * ChunkCell;
         unsigned int Last = Min(First + ChunkCell, Nout);
 
@@ -484,12 +258,12 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
                                         printf("%d copy state\n", CoreId);
                                 Copy(State, StateInOut, DimState, CoreId);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         Copy(State + DimStateInt, Xin, DimIn, CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
         }
         else
@@ -506,7 +280,6 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
                 char FilterDataSizeBits = Arg->FilterDataSizeBits;
                 int *__restrict__ Bf = Arg->Bf;
                 int *__restrict__ Bfi = &Arg->Bf[Nout];
-                printf("Input weights/bias=%x/%x State weights/bias=%x/%x\n", Wfi, Bfi, Wf, Bf);
 
                 int Nb_KI, Rem_KI;
                 int Nb_KO = Nout / 32 + (Nout % 32 ? 1 : 0);
@@ -524,14 +297,14 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
                                         printf("%d zero state pad %d %d\n", CoreId, DimState, DimStateInt);
                                 ZeroBody(&State[DimState], DimStateInt-DimState);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         if (Trace)
                                 printf("%d zero Xin pad %d %d\n", CoreId, DimIn, DimInInt);
                         ZeroBody(&State[DimStateInt + DimIn], DimInInt-DimIn);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 // bias always on when in 8 bit mode set by generator
@@ -564,7 +337,7 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
                 // set priority to core side
                 NE16_SETPRIORITY_CORE();
         }
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
         for (int o = First; o < Last; o++)
         {
                 // Already in output scale - just max min tahn
@@ -577,7 +350,7 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
         }
         if (Trace)
         {
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (CoreId == 8)
                 {
                         if (StateInOut)
@@ -586,7 +359,7 @@ void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg)
                                 dump_u8("hout_out", Nout, Hout);
                 }
         }
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 }
 
 void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
@@ -619,7 +392,7 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
         int TileOff = Arg->TileOffset;
 
         unsigned int CoreId = gap_coreid();
-        unsigned int ChunkCell = ChunkSize(Nout, 1);
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 1);
         unsigned int First = CoreId * ChunkCell;
         unsigned int Last = Min(First + ChunkCell, Nout);
 
@@ -641,12 +414,12 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
                                         printf("%d copy state\n", CoreId);
                                 Copy(State, StateInOut, DimState, CoreId);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         Copy(State + DimStateInt, Xin, DimIn, CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
         }
         else
@@ -681,14 +454,14 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
                                         printf("%d zero state pad %d %d\n", CoreId, DimState, DimStateInt);
                                 ZeroBody(&State[DimState], DimStateInt-DimState);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         if (Trace)
                                 printf("%d zero Xin pad %d %d\n", CoreId, DimIn, DimInInt);
                         ZeroBody(&State[DimStateInt + DimIn], DimInInt-DimIn);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 // bias always on when in 8 bit mode set by generator
@@ -721,7 +494,7 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
                 // set priority to core side
                 NE16_SETPRIORITY_CORE();
         }
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
         for (int o = First; o < Last; o++)
         {
                 /* Scale to Output scale*/
@@ -734,7 +507,7 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
         }
         if (Trace)
         {
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (CoreId == 8)
                 {
                         if (StateInOut)
@@ -743,105 +516,7 @@ void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg)
                                 dump_u8("hout_out", Nout, Hout);
                 }
         }
-        gap_waitbarrier(0);
-}
-
-inline static void NE16_Manual_SubTile_Linear_Start(unsigned int Cfg, void *InPointer, int NumIn, int Nb_KI, int WOff, int Qw)
-{
-        SetNE16_InPointer(InPointer);
-        SetNE16_Dim(Nb_KI, 1, 1, 1);
-        SetNE16_ConfigPad((v4s){0, 0, 0, 0}, 0);
-        SetNE16_ConfigFMask((v4s){0, 0, 0, 0});
-        SetNE16_GenConfig(Cfg);
-        SetNE16_WOffset(WOff);
-        SetNE16_Strides(16, 0, 0,    // In_D0, In_D1 - unused, In_D2 - unused
-                        4 * 8, 0, 0, // Out_D0, Out_D1 - unused, Out_D2 - unused
-                        // OutBytes * 8, 0, 0,                              // Out_D0, Out_D1 - unused, Out_D2 - unused
-                        NumIn * 2 / 16, Qw * NumIn * 2 / 16,
-                        Qw * NumIn * 2); // Weights_D0, Weights_D1, Weights_D2
-}
-
-inline static void NE16_Manual_SubTile_Linear_iter(void *OutPointer, void *WeightsPointer, int Rem_KI, int Rem_KO)
-{
-        SetNE16_OutPointer(OutPointer);
-        SetNE16_WeightsPointer(WeightsPointer);
-        SetNE16_Reminders(0, 0, Rem_KI, Rem_KO, 0, 0);
-}
-
-inline static void NE16_Manual_SubTile_Linear_Setup(
-    unsigned int Cfg,
-    int NumIn,
-    int Qw,
-    int *Nb_KI,
-    int *Rem_KI,
-    int *FiltSize)
-{
-        CalcNumIn(Cfg, NumIn, Rem_KI, Nb_KI);
-        *FiltSize = Qw * (NumIn >> 3);
-}
-
-inline static void NE16_Manual_SubTile_Linear_Body(
-    unsigned int Cfg,
-    void *InPointer,
-    int *OutPointer,
-    unsigned char *WeightsPointer,
-    int NumIn,
-    int Nb_KI,
-    int Rem_KI,
-    int Nb_KO,
-    int Rem_KO,
-    int WOff,
-    int Qw,
-    int FiltSize,
-    int IsInput,
-    int JobId,
-    pStageDesc_t pStageDesc)
-{
-        int Trace = 0;
-        for (int Ko = 0; Ko < Nb_KO; Ko++)
-        {
-                int Off = Ko * 32;
-                int IsLastKo = (Ko == (Nb_KO - 1));
-                int NumOutC = (IsLastKo ? Rem_KO : 32);
-                if (JobId == -1)
-                        JobId = GetJobId();
-                if (pStageDesc)
-                        StageDescIterJobAquired(pStageDesc);
-                if (Trace)
-                {
-                        printf(
-                                "  State START_JOB\n    input=%d\n    k_out_major=%d\n    off=%d\n    is_last_ko=%d\n    job_id=%d\n",
-                                IsInput, Ko, Off, IsLastKo, JobId);
-                }
-                JobId = -1;
-                // Initialize both shadow register sets
-                if (Ko < 2)
-                {
-                        NE16_Manual_SubTile_Linear_Start(Cfg, InPointer, NumIn, Nb_KI, WOff, Qw);
-                }
-                NE16_Manual_SubTile_Linear_iter(&OutPointer[Off], &WeightsPointer[Off * FiltSize], Rem_KI, NumOutC);
-                NE16_WRITE_CMD(NE16_COMMIT_AND_TRIGGER, NE16_TRIGGER_CMD);
-        }
-}
-
-inline static void NE16_Manual_SubTile_Linear(
-    unsigned int Cfg,
-    void *InPointer,
-    int *OutPointer,
-    unsigned char *WeightsPointer,
-    int NumIn,
-    int Nb_KO,
-    int Rem_KO,
-    int WOff,
-    int Qw,
-    int IsInput)
-{
-        int Nb_KI;
-        int Rem_KI;
-        int FiltSize;
-        NE16_Manual_SubTile_Linear_Setup(Cfg, NumIn, Qw, &Nb_KI, &Rem_KI, &FiltSize);
-        NE16_Manual_SubTile_Linear_Body(Cfg, InPointer, OutPointer, WeightsPointer, NumIn, Nb_KI, Rem_KI,
-                                 Nb_KO, Rem_KO, WOff, Qw, FiltSize, IsInput, -1, 0);
+        gap_waitbarrier_cc();
 }
 
 void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
@@ -894,18 +569,18 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                         {
                                 Copy(State, StateInOut, DimState * 2, CoreId);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         Copy(State + DimStateInt, Xin, DimIn * 2, CoreId);
                         Copy(&OutBuff[Nout], Bfi, Nout * 4, CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 Copy(OutBuff, Bf, Nout * 4, CoreId);
-                gap_waitbarrier(0);
-                ChunkCell = ChunkSize(Nout, 1);
+                gap_waitbarrier_cc();
+                ChunkCell = ChunkSizeCC(Nout, 1);
                 First = CoreId * ChunkCell;
                 Last = Min(First + ChunkCell, Nout);
         }
@@ -935,7 +610,7 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                                         printf("%d zero state pad %d %d\n", CoreId, DimState, DimStateInt);
                                 ZeroBody(&State[DimState], (DimStateInt-DimState)*2);
                         }
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 // Zero input padding
                 if (Xin)
@@ -944,7 +619,7 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                                 printf("%d zero Xin pad %d %d\n", CoreId, DimIn, DimInInt);
 
                         ZeroBody(&State[DimStateInt + DimIn], (DimInInt-DimIn)*2);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 // switch on streamin
@@ -960,11 +635,11 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                                 Nb_KO, Rem_KO, Infos[RNN_NE16_W_ZERO_POINT], FilterDataSizeBits, 1);
                 }
 
-                ChunkCell = ChunkSize(Nout, 1);
+                ChunkCell = ChunkSizeCC(Nout, 1);
                 First = CoreId * ChunkCell;
                 Last = Nout;
 
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
 
                 NE16_Manual_SubTile_Linear(
                         cfg, State, OutBuff, Wf, DimStateInt,
@@ -984,7 +659,7 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                 }
         }
         int NoOutScale = (Infos[RNN_NE16_OUT_SCALE] == 1 && Infos[RNN_NE16_OUT_SCALEN] == 0);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
         if (NoOutScale)
         {
                 for (int o = First; o < Last; o++)
@@ -1019,7 +694,7 @@ void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg)
                                 Hout[o] = Of;
                 }
         }
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 }
 
 static inline void LSTM_Queue_Jobs_UInt8(
@@ -1094,7 +769,7 @@ static inline void LSTM_Queue_Jobs_UInt8(
         id_g = GetJobId();
         if (Trace)
                 printf("Master Done i %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 
         cfg |= (NE16_MASK_STREAMIN << NE16_SHIFT_STREAMIN);
         SetupNE16Job(cfg, &State[DimState], OutBuff2, Wg, Bg, 4, DimStateInt, Nout, Nb_KO, Rem_KO, 1, 1, FilterDataSizeBits, Scale, &Scale[Nout], Infos[LSTM_NE16_W_ZEROPOINT]);
@@ -1116,7 +791,7 @@ static inline void LSTM_Queue_Jobs_UInt8(
         id_f = GetJobId();
         if (Trace)
                 printf("Master Done g %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 
         cfg |= (NE16_MASK_STREAMIN << NE16_SHIFT_STREAMIN);
         SetupNE16Job(cfg, &State[DimState], OutBuff3, Wf, Bf, 4, DimStateInt, Nout, Nb_KO, Rem_KO, 1, 1, FilterDataSizeBits, Scale, &Scale[Nout], Infos[LSTM_NE16_W_ZEROPOINT]);
@@ -1138,7 +813,7 @@ static inline void LSTM_Queue_Jobs_UInt8(
         id_o = GetJobId();
         if (Trace)
                 printf("Master Done f %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 
         cfg |= (NE16_MASK_STREAMIN << NE16_SHIFT_STREAMIN);
         SetupNE16Job(cfg, &State[DimState], OutBuff2, Wo, Bo, 4, DimStateInt, Nout, Nb_KO, Rem_KO, 1, 1, FilterDataSizeBits, Scale, &Scale[Nout], Infos[LSTM_NE16_W_ZEROPOINT]);
@@ -1175,7 +850,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
         int *__restrict__ OutBuff3 = (int *)Arg->OutBuff3;
 
         unsigned int CoreId = gap_coreid();
-        unsigned int ChunkCell = ChunkSize(Nout, 0);
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 0);
         unsigned int First = CoreId * ChunkCell;
         unsigned int Last = Min(First + ChunkCell, Nout);
         if (Trace)
@@ -1196,7 +871,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
                 {
                         if (Arg->FirstCell && Arg->Reset)
                         {
-                                unsigned int StateChunk = ChunkSize(DimState, 0);
+                                unsigned int StateChunk = ChunkSizeCC(DimState, 0);
                                 unsigned int StateFirst = CoreId * StateChunk;
                                 unsigned int StateLast = Min(StateFirst + StateChunk, DimState);
                                 int Iter = Max(0, StateLast - StateFirst);
@@ -1212,7 +887,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
                         }
                         if (Trace)
                                 printf("%d wait copy/zero state\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
@@ -1220,12 +895,12 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
                         Copy(State+DimState+DimStateInt, Xin, DimIn, CoreId);
                         if (Trace)
                                 printf("%d wait copy input\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 if (Trace)
                         printf("%d wait start postprocess\n", CoreId);
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (Trace)
                         printf("Start postprocess i %d\n", CoreId);
                 for (int o = First; o < Last; o++)
@@ -1236,7 +911,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
 
                 // if (Trace)
                 //         printf("Done i %d\n", CoreId);
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (Trace && SingleCore && CoreId == 0) {
                         dump_i32("i_gate_after_act", Nout, OutBuff1);
                 }
@@ -1258,7 +933,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
 
                 // if (Trace)
                 //         printf("Done g %d\n", CoreId);
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (Trace && SingleCore && CoreId == 0) {
                         dump_i32("i_gate_times_g_gate", Nout, OutBuff1);
                 }
@@ -1292,7 +967,7 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
 
                 if (Trace)
                         printf("Done f %d\n", CoreId);
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (Trace)
                         printf("Start postprocess o %d\n", CoreId);
                 if (Trace && SingleCore && CoreId == 0)
@@ -1341,14 +1016,14 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
                         }
                         if (Trace)
                                 printf("%d wait zero state pad\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         ZeroBody(&State[DimStateInt+DimState+DimIn], DimInInt-DimIn);
                         if (Trace)
                                 printf("%d wait zero input pad\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 LSTM_Queue_Jobs_UInt8(
@@ -1364,41 +1039,41 @@ void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg)
 
                 if (Trace)
                         printf("Master Done o %d %d\n", CoreId);
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 // set priority to core side
                 NE16_SETPRIORITY_CORE();
         }
         if (Trace)
                 printf("Final wait %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
 }
 
 static inline void LSTM_Queue_Jobs_UInt16(
-    unsigned int CoreId,
-    unsigned int cfg,
-    volatile int *__restrict__ OutBuff1,
-    volatile int *__restrict__ OutBuff2,
-    volatile int *__restrict__ OutBuff3,
-    unsigned char *__restrict__ Wf,
-    unsigned char *__restrict__ Wi,
-    unsigned char *__restrict__ Wg,
-    unsigned char *__restrict__ Wo,
-    unsigned char *__restrict__ Wfi,
-    unsigned char *__restrict__ Wii,
-    unsigned char *__restrict__ Wgi,
-    unsigned char *__restrict__ Woi,
-    unsigned short *__restrict__ State,
-    signed char *__restrict__ Infos,
-    int FilterDataSizeBits,
-    int Nout,
-    int Nb_KO,
-    int Rem_KO,
-    int DimIn,
-    int DimState,
-    int DimInInt,
-    int DimStateInt,
-    pStageDesc_t pStageDesc,
-    int Trace)
+        unsigned int CoreId,
+        unsigned int cfg,
+        volatile int *__restrict__ OutBuff1,
+        volatile int *__restrict__ OutBuff2,
+        volatile int *__restrict__ OutBuff3,
+        unsigned char *__restrict__ Wf,
+        unsigned char *__restrict__ Wi,
+        unsigned char *__restrict__ Wg,
+        unsigned char *__restrict__ Wo,
+        unsigned char *__restrict__ Wfi,
+        unsigned char *__restrict__ Wii,
+        unsigned char *__restrict__ Wgi,
+        unsigned char *__restrict__ Woi,
+        unsigned short *__restrict__ State,
+        signed char *__restrict__ Infos,
+        int FilterDataSizeBits,
+        int Nout,
+        int Nb_KO,
+        int Rem_KO,
+        int DimIn,
+        int DimState,
+        int DimInInt,
+        int DimStateInt,
+        pJobTriggerDesc_t pJob,
+        int Trace)
 {
         if (Trace)
                 NE16_WRITE_REG(NE16_SPECIAL_TRACE_REG, 3);
@@ -1410,49 +1085,50 @@ static inline void LSTM_Queue_Jobs_UInt16(
         NE16_Manual_SubTile_Linear_Setup(cfg, DimInInt, FilterDataSizeBits, &Inp_Nb_KI, &Inp_Rem_KI, &Inp_Fs);
         NE16_Manual_SubTile_Linear_Setup(cfg, DimStateInt, FilterDataSizeBits, &State_Nb_KI, &State_Rem_KI, &State_Fs);
 
-        gap_waitbarrier(0); // Extra sync for cores to setup OutBuff1
+        gap_waitbarrier_cc(); // Extra sync for cores to setup OutBuff1
         NE16_SETPRIORITY_NE16(); // priority to NE16 w.r.t. cores, DMA
         if (Trace)
                 printf("Master Queue i INPUT %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState+DimStateInt], &OutBuff1[Nout], Wii, DimInInt,
                 Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, Inp_Fs, 1, -1, pStageDesc);
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
         // dump_i32("streamout_accum", Nout, OutBuff1);
 
+        // State copied
+        JobTriggerAwaitBufferCC(pJob);
         // I state
         if (Trace)
                 printf("Master Queue i STATE %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState], OutBuff1, Wi, DimStateInt,
                 State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, State_Fs, 0, -1, pStageDesc);
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
 
+        JobTriggerJobQueued(pJob, Nb_KO);
         // G
         // G input
 
-        // Extra sync for cores to setup OutBuff2 & 3
-        gap_waitbarrier(0); // 2
+        // OutBuff2 ready
+        JobTriggerAwaitBufferCC(pJob); // 2
 
         if (Trace)
                 printf("Master Queue g INPUT %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState+DimStateInt], &OutBuff2[Nout], Wgi, DimInInt,
                 Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, Inp_Fs, 1, -1, pStageDesc);
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
 
-        // G state - I input and state done when passed
-        int JobId = GetJobId();
-        if (Trace)
-                printf("Master Done i %d\n", CoreId);
-        // I DONE
         if (Trace)
                 printf("Master Queue g STATE %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState], OutBuff2, Wg, DimStateInt,
                 State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, State_Fs, 0, JobId, pStageDesc);
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
 
+        JobTriggerJobQueued(pJob, Nb_KO);
+        // OutBuff3 ready
+        JobTriggerAwaitBufferCC(pJob);
 
         // F
         if (Trace)
@@ -1460,41 +1136,41 @@ static inline void LSTM_Queue_Jobs_UInt16(
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState+DimStateInt], &OutBuff3[Nout], Wfi, DimInInt,
                 Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, Inp_Fs, 1, -1, pStageDesc);
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
 
-        JobId = GetJobId();
-        if (Trace)
-                printf("Master Done g %d\n", CoreId);
-        // G DONE
         if (Trace)
                 printf("Master Queue f STATE %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState], OutBuff3, Wf, DimStateInt,
                 State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, State_Fs, 0, JobId, pStageDesc);
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
 
+        JobTriggerJobQueued(pJob, Nb_KO);
+        // OutBuff 2 ready
+        JobTriggerAwaitBufferCC(pJob);
 
         // O
-        // Extra sync for cores to setup OutBuff2
-        gap_waitbarrier(0); // 3
         if (Trace)
                 printf("Master Queue o INPUT %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState+DimStateInt], &OutBuff2[Nout], Woi, DimInInt,
                 Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, Inp_Fs, 1, -1, pStageDesc);
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
 
-        JobId = GetJobId();
-        if (Trace)
-                printf("Master Done f %d\n", CoreId);
-        // F DONE
         if (Trace)
                 printf("Master Queue o STATE %d\n", CoreId);
         NE16_Manual_SubTile_Linear_Body(
                 cfg, &State[DimState], OutBuff2, Wo, DimStateInt,
                 State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
-                FilterDataSizeBits, State_Fs, 0, JobId, pStageDesc);
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
 
+        NE16_BARRIER();
+        if (Trace)
+                printf("Master Done o %d %d\n", CoreId);
+
+        // set priority to core side
+        NE16_SETPRIORITY_CORE();
+        JobTriggerReleaseAll(pJob);
 }
 
 void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
@@ -1530,7 +1206,7 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
         int *__restrict__ OutBuff3 = (int *)Arg->OutBuff3;
 
         unsigned int CoreId = gap_coreid();
-        unsigned int ChunkCell = ChunkSize(Nout, 0);
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 0);
         unsigned int First = CoreId * ChunkCell;
         unsigned int Last = Min(First + ChunkCell, Nout);
         if (Trace) {
@@ -1539,7 +1215,7 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                         dump_16("cstate_in", DimState, StateInOut);
                         dump_u16("hstate_in", DimState, &StateInOut[DimState]);
                 }
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
                 if (SingleCore) {
                         if (CoreId == 0) {
                                 First = 0;
@@ -1557,11 +1233,27 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                 int GatePrenorm = Infos[LSTM_NE16_GATE_PRENORM];
                 if (Trace)
                         printf("core %d FirstOut %d FirstCell %d Reset %d GatePrenorm %d\n", CoreId, Arg->FirstOut, Arg->FirstCell, Arg->Reset, GatePrenorm);
+
+                if (Xin)
+                {
+                        // copy input past c_state and h_state
+                        Copy(State+DimState+DimStateInt, Xin, DimIn * 2, CoreId);
+                        if (Trace)
+                                printf("%d wait copy input\n", CoreId);
+                        gap_waitbarrier_cc();
+                }
+
+                for (int o = First; o < Last; o++) {
+                        OutBuff1[o] = Arg->Bi[o];
+                        OutBuff1[o+Nout] = Arg->Bi[o+Nout];
+                }
+                gap_waitbarrier_cc(); // OutBuff1 Loaded - ready for state calculation
+
                 if (Arg->FirstOut)
                 {
                         if (Arg->FirstCell && Arg->Reset)
                         {
-                                unsigned int StateChunk = ChunkSize(DimState, 0);
+                                unsigned int StateChunk = ChunkSizeCC(DimState, 0);
                                 unsigned int StateFirst = CoreId * StateChunk;
                                 unsigned int StateLast = Min(StateFirst + StateChunk, DimState);
                                 int Iter = Max(0, StateLast - StateFirst);
@@ -1579,34 +1271,24 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                                 if (Trace)
                                         printf("%d wait copy state\n", CoreId);
                         }
-                        gap_waitbarrier(0);
                 }
-                if (Xin)
-                {
-                        // copy input past c_state and h_state
-                        Copy(State+DimState+DimStateInt, Xin, DimIn * 2, CoreId);
-                        if (Trace)
-                                printf("%d wait copy input\n", CoreId);
-                        gap_waitbarrier(0);
-                }
-
-                for (int o = First; o < Last; o++) {
-                        OutBuff1[o] = Arg->Bi[o];
-                        OutBuff1[o+Nout] = Arg->Bi[o+Nout];
-                }
-                gap_waitbarrier(0); // OutBuff1 Loaded
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
 
                 for (int o = First; o < Last; o++) {
                         OutBuff2[o] = Arg->Bg[o];
                         OutBuff2[o+Nout] = Arg->Bg[o+Nout];
+                }
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
+
+                for (int o = First; o < Last; o++) {
                         OutBuff3[o] = Arg->Bf[o];
                         OutBuff3[o+Nout] = Arg->Bf[o+Nout];
                 }
-                gap_waitbarrier(0); // OutBuff2 & 3 Loaded
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
 
                 if (Trace)
                         printf("%d wait start postprocess\n", CoreId);
-                StageDescTestCompleted(Arg->pStageDesc, 1);
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
                 if (Trace)
                         printf("Start postprocess i %d\n", CoreId);
                 for (int o = First; o < Last; o++)
@@ -1619,12 +1301,14 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
 
                 // if (Trace)
                 //         printf("Done i %d\n", CoreId);
-                StageDescTestCompleted(Arg->pStageDesc, 2);
                 Scaler += Nout * 4;
                 Scalei += Nout * 4;
                 if (Trace && SingleCore && CoreId == 0) {
                         dump_i32("i_gate_after_act", Nout, OutBuff1);
                 }
+                if (Trace)
+                        printf("%d wait start postprocess\n", CoreId);
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
                 if (Trace)
                         printf("Start postprocess g %d\n", CoreId);
 
@@ -1645,15 +1329,18 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                         OutBuff2[o+Nout] = Arg->Bo[o+Nout];
                 }
 
-                gap_waitbarrier(0); // OutBuff2 loaded
-                StageDescTestCompleted(Arg->pStageDesc, 3);
-                Scaler += Nout * 4;
-                Scalei += Nout * 4;
                 if (Trace)
                         printf("Done g %d\n", CoreId);
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
+
+                Scaler += Nout * 4;
+                Scalei += Nout * 4;
                 if (Trace && SingleCore && CoreId == 0) {
                         dump_i32("i_gate_times_g_gate", Nout, OutBuff1);
                 }
+                if (Trace)
+                        printf("%d wait start postprocess\n", CoreId);
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
                 if (Trace)
                         printf("Start postprocess f %d\n", CoreId);
 
@@ -1686,9 +1373,12 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
 
                 if (Trace)
                         printf("Done f %d\n", CoreId);
-                gap_waitbarrier(0);
+
                 Scaler += Nout * 4;
                 Scalei += Nout * 4;
+                if (Trace)
+                        printf("%d wait start postprocess\n", CoreId);
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
                 if (Trace)
                         printf("Start postprocess o %d\n", CoreId);
                 if (Trace && SingleCore && CoreId == 0)
@@ -1737,24 +1427,24 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                         if (Arg->FirstCell)
                         {       if (Trace)
                                         printf("First out / First Cell\n");
-                                StageDescAlloc(Arg->pStageDesc, Nb_KO*2);
                                 ZeroBody(&State[DimState*2], (DimStateInt-DimState)*2);
-                        } else {
-                               StageDescReset(Arg->pStageDesc, Nb_KO*2);
+                                if (!(JobTriggerAlloc(&Arg->Jobs)))
+                                {
+                                        if (Trace) printf("JobTrigger allocation failed\n");
+                                        return;
+                                }
                         }
                         if (Trace)
                                 printf("%d wait zero state pad\n", CoreId);
-                        gap_waitbarrier(0);
-                } else {
-                        StageDescReset(Arg->pStageDesc, Nb_KO*2);
                 }
                 if (Xin)
                 {
                         ZeroBody(&State[DimStateInt+DimState+DimIn], (DimInInt-DimIn)*2);
                         if (Trace)
                                 printf("%d wait zero input pad\n", CoreId);
-                        gap_waitbarrier(0);
                 }
+                JobTriggerReset(&Arg->Jobs);
+                gap_waitbarrier_cc();
 
                 LSTM_Queue_Jobs_UInt16(
                         CoreId, cfg, OutBuff1, OutBuff2, OutBuff3,
@@ -1762,27 +1452,21 @@ void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg)
                         Arg->Wfi, Arg->Wii, Arg->Wgi, Arg->Woi,
                         State, Infos, FilterDataSizeBits, Nout,
                         Nb_KO, Rem_KO, DimIn, DimState, DimInInt, DimStateInt,
-                        Arg->pStageDesc, Trace);
+                        &Arg->Jobs, Trace);
 
-                NE16_BARRIER();
-
-                if (Trace)
-                        printf("Master Done o %d %d\n", CoreId);
-                NE16_SETPRIORITY_CORE();
-                // set priority to core side and signal all cores
-                gap_waitbarrier(0);
-                if (Arg->LastCell && Arg->LastOut)
-                        StageDescFree(Arg->pStageDesc);
+                if (Arg->LastCell && Arg->LastOut) {
+                        JobTriggerFree(&Arg->Jobs);
+                }
         }
         if (Trace)
                 printf("Final wait %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
         if (Trace) {
                 if (CoreId == 8) {
                         dump_16("cstate_out", DimState, StateInOut);
                         dump_u16("hstate_out", DimState, &StateInOut[DimState]);
                 }
-                gap_waitbarrier(0);
+                gap_waitbarrier_cc();
         }
 }
 
@@ -1840,7 +1524,7 @@ static inline void GRU_Queue_Jobs_UInt8(
         NE16_BARRIER(); // Trigger haddammard as soon as possible
         if (Trace)
                 printf("Master trigger process R %d\n", CoreId);
-        gap_waitbarrier(0); // Trigger R activation - 1
+        gap_waitbarrier_cc(); // Trigger R activation - 1
 
         // H
         // H state - r input done when passed
@@ -1857,7 +1541,7 @@ static inline void GRU_Queue_Jobs_UInt8(
         NE16_BARRIER(); // Trigger haddammard as soon as possible
         if (Trace)
                 printf("Master trigger process haddamard %d\n", CoreId);
-        gap_waitbarrier(0); // Trigger H haddamard - 2
+        gap_waitbarrier_cc(); // Trigger H haddamard - 2
 
         Scale += 2 * Nout;
         id_h = GetJobId();
@@ -1874,7 +1558,7 @@ static inline void GRU_Queue_Jobs_UInt8(
         NE16_BARRIER(); // Need to wait for haddamard to finish here to free OutBuff2. Could track Job ID to do this better or use semaphores + barriers
         if (Trace)
                 printf("Master trigger h %d\n", CoreId);
-        gap_waitbarrier(0); // Trigger H sum and activation - 3
+        gap_waitbarrier_cc(); // Trigger H sum and activation - 3
 
         // Z
         Scale += 2 * Nout;
@@ -1900,7 +1584,7 @@ static inline void GRU_Queue_Jobs_UInt8(
                 printf("Master Done z %d\n", CoreId);
         // set priority to core side
         NE16_SETPRIORITY_CORE();
-        gap_waitbarrier(0); // - 4
+        gap_waitbarrier_cc(); // - 4
 }
 
 void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
@@ -1930,7 +1614,7 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
         int *__restrict__ OutBuff3 = (int *)Arg->OutBuff3;
 
         unsigned int CoreId = gap_coreid();
-        unsigned int ChunkCell = ChunkSize(Nout, 0);
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 0);
         unsigned int First = CoreId * ChunkCell;
         unsigned int Last = Min(First + ChunkCell, Nout);
         if (Trace)
@@ -1961,7 +1645,7 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
                         }
                         if (Trace)
                                 printf("%d wait copy/zero state\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
@@ -1969,12 +1653,12 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
                         Copy(State+DimStateInt, Xin, DimIn, CoreId);
                         if (Trace)
                                 printf("%d wait copy input\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 if (Trace)
                         printf("%d wait start postprocess\n", CoreId);
-                gap_waitbarrier(0); // - 1
+                gap_waitbarrier_cc(); // - 1
                 if (Trace)
                         printf("Start postprocess r %d\n", CoreId);
                 for (int o = First; o < Last; o++)
@@ -1984,7 +1668,7 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
 
                 if (Trace)
                         printf("Done r %d\n", CoreId);
-                gap_waitbarrier(0); // - 2
+                gap_waitbarrier_cc(); // - 2
                 if (Trace && SingleCore && CoreId == 0) {
                         dump_i32("r_gate_after_act", Nout, OutBuff1);
                 }
@@ -2002,7 +1686,7 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
 
                 if (Trace)
                         printf("Done hr haddamard %d\n", CoreId);
-                gap_waitbarrier(0); // - 3
+                gap_waitbarrier_cc(); // - 3
 
                 if (Trace)
                         printf("Start postprocess h %d\n", CoreId);
@@ -2017,7 +1701,7 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
 
                 if (Trace)
                         printf("Done h %d\n", CoreId);
-                gap_waitbarrier(0); // - 4
+                gap_waitbarrier_cc(); // - 4
                 if (Trace)
                         printf("Start postprocess z %d\n", CoreId);
 
@@ -2066,14 +1750,14 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
                         }
                         if (Trace)
                                 printf("%d wait zero state pad\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
                 if (Xin)
                 {
                         ZeroBody(&State[DimStateInt+DimIn], DimInInt-DimIn);
                         if (Trace)
                                 printf("%d wait zero input pad\n", CoreId);
-                        gap_waitbarrier(0);
+                        gap_waitbarrier_cc();
                 }
 
                 GRU_Queue_Jobs_UInt8(
@@ -2088,5 +1772,368 @@ void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg)
         }
         if (Trace)
                 printf("Final wait %d\n", CoreId);
-        gap_waitbarrier(0);
+        gap_waitbarrier_cc();
+}
+
+
+static inline void GRU_Queue_Jobs_UInt16(
+    unsigned int CoreId,
+    unsigned int cfg,
+    volatile int *__restrict__ OutBuff1,
+    volatile int *__restrict__ OutBuff2,
+    unsigned char *__restrict__ Wh,
+    unsigned char *__restrict__ Wr,
+    unsigned char *__restrict__ Wz,
+    unsigned char *__restrict__ Whi,
+    unsigned char *__restrict__ Wri,
+    unsigned char *__restrict__ Wzi,
+    unsigned short *__restrict__ State,
+    signed char *__restrict__ Infos,
+    int FilterDataSizeBits,
+    int Nout,
+    int Nb_KO,
+    int Rem_KO,
+    int DimIn,
+    int DimState,
+    int DimInInt,
+    int DimStateInt,
+    pJobTriggerDesc_t pJob,
+    int Trace)
+{
+        if (Trace)
+                NE16_WRITE_REG(NE16_SPECIAL_TRACE_REG, 3);
+
+
+        int Inp_Nb_KI, Inp_Rem_KI, Inp_Fs, State_Nb_KI, State_Rem_KI, State_Fs;
+        NE16_Manual_SubTile_Linear_Setup(cfg, DimInInt, FilterDataSizeBits, &Inp_Nb_KI, &Inp_Rem_KI, &Inp_Fs);
+        NE16_Manual_SubTile_Linear_Setup(cfg, DimStateInt, FilterDataSizeBits, &State_Nb_KI, &State_Rem_KI, &State_Fs);
+
+        NE16_SETPRIORITY_NE16(); // priority to NE16 w.r.t. cores, DMA
+        // R
+        // R input
+
+        if (Trace)
+                printf("Master Queue r INPUT %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, &State[DimStateInt], &OutBuff1[Nout], Wri, DimInInt,
+                Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[GRU_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
+        // dump_i32("streamout_accum", Nout, OutBuff1);
+
+        JobTriggerAwaitBufferCC(pJob);
+        // R state
+        if (Trace)
+                printf("Master Queue r STATE %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, State, OutBuff1, Wr, DimStateInt,
+                State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[GRU_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
+
+        JobTriggerJobQueued(pJob, Nb_KO);
+
+        // H
+        // H state
+
+        JobTriggerAwaitBufferCC(pJob);
+        if (Trace)
+                printf("Master Queue h STATE %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, State, OutBuff2, Wh, DimStateInt,
+                State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[GRU_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
+
+        JobTriggerJobQueued(pJob, Nb_KO);
+
+        if (Trace)
+                printf("Master Queue h INPUT %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, &State[DimStateInt], &OutBuff2[Nout], Whi, DimInInt,
+                Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[GRU_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
+
+        JobTriggerJobQueued(pJob, Nb_KO);
+
+        // Z
+        // Z input
+        JobTriggerAwaitBufferCC(pJob);
+        if (Trace)
+                printf("Master Queue z INPUT %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, &State[DimStateInt], &OutBuff1[Nout], Wzi, DimInInt,
+                Inp_Nb_KI, Inp_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, Inp_Fs, 1, -1, pJob);
+
+        // Z state
+        if (Trace)
+                printf("Master Queue z STATE %d\n", CoreId);
+        NE16_Manual_SubTile_Linear_Body(
+                cfg, State, OutBuff1, Wz, DimStateInt,
+                State_Nb_KI, State_Rem_KI, Nb_KO, Rem_KO, Infos[LSTM_NE16_W_ZEROPOINT],
+                FilterDataSizeBits, State_Fs, 0, -1, pJob);
+
+        if (Trace)
+                printf("Master Done z %d\n", CoreId);
+        NE16_BARRIER();
+        // set priority to core side
+        NE16_SETPRIORITY_CORE();
+        JobTriggerReleaseAll(pJob);
+}
+
+void GRU_ParKerB32_NE16fp(KerGRU_NE16fp_T *Arg)
+{
+        /*	Sequences
+	 	In:	DimIn!=0, Hout==0
+		InOut:	DimIn!=0, Hout!=0
+		None:	DimIn==0, Hout==0
+		Out:	DimIn==0, Hout!=0
+	*/
+        int Trace = 0;
+        int SingleCore = 0;
+
+        unsigned short *__restrict__ StateInOut = Arg->StateInOut;
+        unsigned short *__restrict__ State = Arg->State;
+        unsigned short *__restrict__ Xin = Arg->Xin;
+        unsigned short int DimState = Arg->DimState;
+        unsigned short int DimIn = Arg->DimIn;
+        unsigned short int DimStateInt = Arg->DimStateInt;
+        unsigned short int DimInInt = Arg->DimInInt;
+        unsigned short *__restrict__ Hout = Arg->Hout;
+        unsigned short int Nout = Arg->Nout;
+        signed char *__restrict__ Infos = Arg->Infos;
+        int TileOff = Arg->TileOffset;
+        int *__restrict__ OutBuff1 = (int *)Arg->OutBuff1;
+        int *__restrict__ OutBuff2 = (int *)Arg->OutBuff2;
+
+        unsigned int CoreId = gap_coreid();
+        unsigned int ChunkCell = ChunkSizeCC(Nout, 0);
+        unsigned int First = CoreId * ChunkCell;
+        unsigned int Last = Min(First + ChunkCell, Nout);
+        if (Trace) {
+                printf("Entry %d\n", CoreId);
+                if (CoreId == 8) {
+                        dump_u16("hstate_in", DimState, StateInOut);
+                }
+                gap_waitbarrier_cc();
+                if (SingleCore) {
+                        if (CoreId == 0) {
+                                First = 0;
+                                Last = Nout;
+                        } else {
+                                First = Nout;
+                        }
+                }
+        }
+
+        if (CoreId != 8)
+        {
+                unsigned char * Scale0 = Arg->ScaleNorm; // i for r & z, state for h
+                unsigned char * Scale1 = &Arg->ScaleNorm[2*Nout]; // state for r & z, i for h
+                int GatePrenorm = Infos[GRU_NE16_GATE_PRENORM];
+                if (Trace)
+                        printf("core %d FirstOut %d FirstCell %d Reset %d GatePrenorm %d\n", CoreId, Arg->FirstOut, Arg->FirstCell, Arg->Reset, GatePrenorm);
+                if (Xin)
+                {
+                        // copy input past h_state
+                        Copy(State+DimStateInt, Xin, DimIn * 2, CoreId);
+                        if (Trace)
+                                printf("%d wait copy input\n", CoreId);
+                }
+                for (int o = First; o < Last; o++) {
+                        OutBuff1[o] = Arg->Br[o];
+                        OutBuff1[o+Nout] = Arg->Br[o+Nout];
+                }
+                gap_waitbarrier_cc();
+                if (Arg->FirstOut)
+                {
+                        if (Arg->FirstCell && Arg->Reset)
+                        {
+                                ZeroState16(State, DimState, CoreId, 0x8000);
+                                if (0)
+                                        printf("%d wait zero state\n", CoreId);
+                        }
+                        else
+                        {
+                                // h_state 2 bytes
+                                Copy(State, StateInOut, DimState * 2, CoreId);
+                                if (0)
+                                        printf("%d wait copy state\n", CoreId);
+                        }
+                }
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
+                for (int o = First; o < Last; o++) {
+                        OutBuff2[o] = Arg->Brh[o];
+                        OutBuff2[o+Nout] = Arg->Bwh[o];
+                }
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
+                if (Trace) {
+                        if (CoreId==0) {
+                                printf("buf ready\n");
+                                printf("%d wait start postprocess\n", CoreId);
+                        }
+                }
+
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
+
+                if (Trace) {
+                        if (CoreId == 0) {
+                                printf("Start postprocess r %d\n", CoreId);
+                                dump_i32("r_gate_inp_before", Nout, &OutBuff1[Nout]);
+                                dump_i32("r_gate_state_before", Nout, OutBuff1);
+                        }
+                        gap_waitbarrier(0);
+                }
+        
+                for (int o = First; o < Last; o++)
+                {
+                        /* Oi = HSigmoid(Scaled(Oi)) */
+                        OutBuff1[o] = AT_SCALE(gap_roundnorm_reg(OutBuff1[o], GatePrenorm), Scale1[o], Scale1[o+Nout]);
+                        OutBuff1[o] += AT_SCALE(gap_roundnorm_reg(OutBuff1[o+Nout], GatePrenorm), Scale0[o], Scale0[o+Nout]);
+                        OutBuff1[o] = SigmoidTable(gap_clip(OutBuff1[o], 15), (unsigned short *)&Infos[0]);
+                }
+
+                if (Trace)
+                        printf("Done r %d\n", CoreId);
+
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
+
+                if (Trace)
+                        printf("Start postprocess hr haddamard%d\n", CoreId);
+
+                // !!!!!!!!!!!!!!! These are swapped versus 8 bit !!!!!!!!!!!!!
+                Scale0 += Nout * 4;
+                Scale1 += Nout * 4;
+
+                if (Trace) {
+                        if (CoreId == 0) {
+                                dump_i32("h_gate_state_before_scale", Nout, OutBuff2);
+
+                        }
+                        gap_waitbarrier(0);
+                }
+
+                for (int o = First; o < Last; o++)
+                {
+                        OutBuff2[o] = AT_SCALE(gap_roundnorm_reg(OutBuff2[o], GatePrenorm), Scale0[o], Scale0[o+Nout]);
+                        OutBuff2[o] = AT_NORM(gap_clip(OutBuff2[o], 15) * OutBuff1[o], 15);
+                        OutBuff1[o] = Arg->Bz[o];
+                        OutBuff1[o+Nout] = Arg->Bz[o+Nout];
+                }
+
+                JobTriggerIndicateBuffer(&Arg->Jobs, CoreId);
+                if (Trace) {
+                        if (CoreId == 0) {
+                                printf("Done hr haddamard %d\n", CoreId);
+                                dump_i32("hr_haddamard_an", Nout, OutBuff2);
+                        }
+                        gap_waitbarrier(0);
+                }
+
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
+                if (Trace&(CoreId==0))
+                        printf("Start postprocess h %d\n", CoreId);
+
+                for (int o = First; o < Last; o++)
+                {
+                        int Oih = AT_SCALE(gap_roundnorm_reg(OutBuff2[o+Nout], GatePrenorm), Scale1[o], Scale1[o+Nout]);
+                        OutBuff2[o] = TanhTable(Oih + OutBuff2[o], (unsigned short *)&Infos[0]);
+                }
+
+                if (Trace&&(CoreId=0))
+                        printf("Done h %d\n", CoreId);
+
+                JobTriggerAwaitJob(&Arg->Jobs, CoreId);
+                if (Trace) {
+                        if (CoreId == 0) {
+                               dump_i32("hr_gate_tanh", Nout, OutBuff2);
+                                printf("Start postprocess z %d\n", CoreId);
+                        }
+                        gap_waitbarrier(0);
+                }
+
+                Scale0 += Nout * 4;
+                Scale1 += Nout * 4;
+
+                // if (Trace && SingleCore && CoreId == 0) {
+                //         printf("CSTATE -- Scale %d ScaleN %d\n", ((unsigned char *)Infos)[LSTM_NE16_CIN_SCALE], ((unsigned char *)Infos)[LSTM_NE16_CIN_SCALEN]);
+                //         printf("%s[%d] = { ", "cstate_cbar_f_pre_post", Nout);
+                // }
+
+                for (int o = First; o < Last; o++)
+                {
+                        OutBuff1[o] = AT_SCALE(gap_roundnorm_reg(OutBuff1[o], GatePrenorm), Scale1[o], Scale1[o+Nout]);
+                        OutBuff1[o] += AT_SCALE(gap_roundnorm_reg(OutBuff1[o+Nout],GatePrenorm), Scale0[o], Scale0[o+Nout]);
+                        OutBuff1[o] = SigmoidTable(OutBuff1[o], (unsigned short *)&Infos[0]);
+                        OutBuff1[o] = (0x8000 - OutBuff1[o]) * OutBuff2[o] + OutBuff1[o] * (((int)State[o] - 0x8000));
+                        OutBuff1[o] = AT_NORM(OutBuff1[o], (30-15));
+                        // if (Trace && SingleCore && CoreId == 0)
+                        //         printf("%d%s", Out, (o == Last - 1 ? "}\n" : ", "));
+                        unsigned short USOut = gap_clipu(OutBuff1[o] + 0x8000, 16);
+
+                        if (StateInOut)
+                                StateInOut[TileOff + o] = USOut;
+                        if (Hout)
+                                Hout[o] = USOut;
+                }
+
+                if (Trace) {
+                        gap_waitbarrier(0);
+                        if (CoreId == 0) {
+                                printf("Done z %d\n", CoreId);
+                                dump_u16("h_out", Nout, Hout);
+                        }
+                }
+        }
+        else
+        {
+                if (Trace)
+                        printf("Master core %d DimStateInt %d DimInInt %d Nout %d\n", CoreId, DimStateInt, DimInInt, Nout);
+
+                int Nb_KI, Rem_KI;
+                int Nb_KO = Nout / 32 + (Nout % 32 ? 1 : 0);
+                int Rem_KO = Nout % 32 ? Nout % 32 : 32; // Check different wrt simulator
+                char FilterDataSizeBits = Arg->FilterDataSizeBits;
+                signed char *Scale = Arg->ScaleNorm;
+
+                unsigned int cfg = Arg->Default_NE16_Job_Cfg;
+
+
+                if (Arg->FirstOut)
+                {
+                        if (Arg->FirstCell)
+                        {       if (Trace)
+                                        printf("First out / First Cell\n");
+                                ZeroBody(&State[DimState], (DimStateInt-DimState)*2);
+                                if (!(JobTriggerAlloc(&Arg->Jobs)))
+                                {
+                                        if (Trace) printf("JobTrigger allocation failed\n");
+                                        return;
+                                }
+                        }
+                        if (Trace)
+                                printf("%d wait zero state pad\n", CoreId);
+                }
+                if (Xin)
+                {
+                        ZeroBody(&State[DimStateInt+DimIn], (DimInInt-DimIn)*2);
+                        if (Trace)
+                                printf("%d wait zero input pad\n", CoreId);
+                }
+                JobTriggerReset(&Arg->Jobs);
+                gap_waitbarrier_cc();
+
+                GRU_Queue_Jobs_UInt16(
+                        CoreId, cfg, OutBuff1, OutBuff2,
+                        Arg->Wh, Arg->Wr, Arg->Wz,
+                        Arg->Whi, Arg->Wri, Arg->Wzi,
+                        State, Infos, FilterDataSizeBits, Nout,
+                        Nb_KO, Rem_KO, DimIn, DimState, DimInInt, DimStateInt,
+                        &Arg->Jobs,
+                        Trace);
+                if (Arg->LastCell && Arg->LastOut) {
+                        JobTriggerFree(&Arg->Jobs);
+                }
+        }
+        if (Trace)
+                printf("Final wait %d\n", CoreId);
+        gap_waitbarrier_cc();
 }

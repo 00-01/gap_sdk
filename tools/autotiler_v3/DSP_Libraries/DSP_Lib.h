@@ -316,6 +316,14 @@ extern void MFCC_Lifter_f16(Lifter_Arg_T *Args);
 extern void PreEmphasis(PreEmphasis_T *Arg);
 extern void PreEmphasis_f32(PreEmphasis_f32_T *Arg);
 
+extern void ZeroPad_Fix16(Windowing_T *Arg);
+extern void ZeroPad_Fix32(Windowing_T *Arg);
+extern void ZeroPad_f16(Windowing_T *Arg);
+extern void ZeroPad_f32(Windowing_T *Arg);
+extern void ZeroPadCenter_Fix16(Windowing_T *Arg);
+extern void ZeroPadCenter_Fix32(Windowing_T *Arg);
+extern void ZeroPadCenter_f16(Windowing_T *Arg);
+extern void ZeroPadCenter_f32(Windowing_T *Arg);
 extern void WindowingReal2Cmplx_Fix16(Windowing_T *Arg);
 extern void WindowingReal2Cmplx_Fix32(Windowing_T *Arg);
 extern void WindowingReal2Cmplx_f32(Windowing_T *Arg);

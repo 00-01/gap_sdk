@@ -555,9 +555,10 @@ int CNN_MM_ConvolutionPoolAct_fp16(
 		if (Ctrl->ParallelFeatures != -1) ParFeatConv = Ctrl->ParallelFeatures;
                 if (Ctrl->ReluN != -1) UB = Ctrl->ReluN;
 	}
-	if (ParFeatConv == 2) {
-		if (InFeat < 8) ParFeatConv = 0; else ParFeatConv = 1;
-	}
+        if (ParFeatConv == 2 && HWC && Fcy>1 && (InFeat < 8))
+                ParFeatConv = 0;
+        else
+                ParFeatConv = 1;
 	unsigned int Bs = 2;
 	KernelOper_T COper = ConvOper;
 	int OverlapC, OverlapP;
@@ -1165,9 +1166,14 @@ int CNN_ConvolutionPoolAct_fp16(
                         return CNN_Act_fp16(Name, Ctrl, InFeat, Width, Height, ActOper);
                 else GenTilingError("CNN_ConvolutionPoolAct_fp16 Kernel: %s, All requested operations are KOP_NONE", Name);
         } else if (HWC) {
-                return CNN_MM_ConvolutionPoolAct_fp16(Name, Ctrl, InFeat, OutFeat, Width, Height,
-                                                      ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
-                                                      PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
+                if (ConvOper == KOP_CONV_DW)
+                        return CNN_HWC_DWConvolutionPoolAct_fp16(Name, Ctrl, InFeat, OutFeat, Width, Height,
+                                                                 ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
+                                                                 PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
+                else
+                        return CNN_MM_ConvolutionPoolAct_fp16(Name, Ctrl, InFeat, OutFeat, Width, Height,
+                                                              ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
+                                                              PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
         } else if (ConvOper==KOP_CONV && ((Fcx > 1 && Fcy == 1))) {
                 AT_SetKernelCtrl(AT_KERNEL_NOSOLUTION_ERROR, AT_OPT_OFF);
                 int Ok = CNN_MM_ConvolutionPoolAct_fp16(Name, Ctrl, InFeat, OutFeat, Width, Height,
@@ -1176,11 +1182,6 @@ int CNN_ConvolutionPoolAct_fp16(
                 AT_SetKernelCtrl(AT_KERNEL_NOSOLUTION_ERROR, AT_OPT_ON);
                 if (Ok) return Ok;
                 if (Log) printf("Mapping this convolution to imm2col scheme, reverting to standard implementation\n");
-        } else if ((ConvOper==KOP_CONV_DW) && HWC) {
-                int Ok = CNN_HWC_DWConvolutionPoolAct_fp16(Name, Ctrl, InFeat, OutFeat, Width, Height,
-                                                           ConvOper, Fcx, Fcy, Dcx, Dcy, Scx, Scy, ConvPad,
-                                                           PoolOper, Fpx, Fpy, Dpx, Dpy, Spx, Spy, PoolPad, ActOper);
-                return Ok;
         }
 
 

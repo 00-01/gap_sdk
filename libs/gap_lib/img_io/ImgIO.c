@@ -43,7 +43,7 @@ void SkipCommentAndWhiteSpace(unsigned char *pImg, int buf_len, int *i)
 	while (*i < buf_len && (pImg[*i] == '#'||pImg[*i] == ' '||pImg[*i] == '\t'||pImg[*i] == '\r'||pImg[*i] == '\n')) {
 		if (saw_nl && pImg[*i] == '#') {
 			while (*i < buf_len && pImg[*i] != '\n') {
-				printf("%c", pImg[*i]);
+				//printf("%c", pImg[*i]);
 				(*i)++;
 			}
 		}
@@ -113,8 +113,8 @@ static int GetInputImageInfos(char *Name, unsigned int *W, unsigned int *H, unsi
 			Err = 1;
 		} else {
 			PRINTF("Image %s:  [W: %d, H: %d] Bytes per pixel %d, HeaderSize: %d\n", Name, *W, *H, *BytesPerPixel, *HeaderSize);
-			for (i=0; i<*HeaderSize;i++) PRINTF("%c", Header[i]);
-			PRINTF("\n");
+			//for (i=0; i<*HeaderSize;i++) PRINTF("%c", Header[i]);
+			//PRINTF("\n");
 		}
 	} else {
 		printf("Unable to read header %s", Name);

@@ -75,6 +75,8 @@ class Function(Symbol):
     def _eval(self, *args, **kwargs):
         if all(isinstance(arg, Constant) for arg in args):
             val = self._impl(*[arg.value for arg in args])
+            if val.dtype != self.dtype:
+                raise ArithmeticError("Expression evaluated to incorrect dtype")
             return Constant(val,
                             dtype=val.dtype,
                             shape=val.shape,

@@ -99,9 +99,10 @@ export GVSOC_OPTIONS=$(runner_args)
 endif
 
 
-# Configuration
+# Configuration GAP9
 
 CONFIG_FAST_OSC_FREQUENCY    ?= 24576063 # Fast clock freq
+CONFIG_FLL_MAXDCO_FREQ       ?= 900000000
 
 CONFIG_FREQUENCY_PERIPH      ?= 160000000
 CONFIG_FREQUENCY_FC          ?= 50000000
@@ -114,6 +115,27 @@ CONFIG_MAX_FREQUENCY_CLUSTER ?= 0
 CONFIG_MAX_FREQUENCY_SFU     ?= 0
 
 CONFIG_FREQUENCY_FPGA        ?= 50000000
+
+override APP_CFLAGS += -DCONFIG_FLL_MAXDCO_FREQ=$(CONFIG_FLL_MAXDCO_FREQ)
+
+ifdef CONFIG_OPEN_LOOP
+override APP_CFLAGS += -DCONFIG_OPEN_LOOP
+endif				# CONFIG_OPEN_LOOP
+
+ifdef CONFIG_NO_FAST_OSC
+override APP_CFLAGS += -DCONFIG_NO_FAST_OSC
+endif				# CONFIG_NO_FAST_OSC
+
+ifdef CONFIG_I2S_FAST_CLOCK
+override APP_CFLAGS += -DCONFIG_I2S_FAST_CLOCK
+endif				# CONFIG_I2S_FAST_CLOCK
+
+ifdef CONFIG_SLOW_OSC
+override APP_CFLAGS += -DCONFIG_SLOW_OSC
+# In case we need slow ref clock, activate it after wakeup from the rom otherwise it will shut it down
+# which will disturbs the RTC
+override config_args += --config-opt=**/runner/efuses/content/info_2/wake_osc_ctrl=3
+endif				# CONFIG_SLOW_OSC
 
 
 CONFIG_BOOT_DEVICE           ?= hyperflash
@@ -141,7 +163,7 @@ export GVSOC_TESTBENCH=1
 override config_args += --config-opt=testbench/testbench/spislave_boot/enabled=true
 override config_args += --config-opt=**/runner/gvsoc_dpi/enabled=true
 
-APP_CFLAGS           += -DCONFIG_BOOT_MODE_SPISLAVE=1
+override APP_CFLAGS           += -DCONFIG_BOOT_MODE_SPISLAVE=1
 endif				# CONFIG_BOOT_MODE
 endif				# CONFIG_BOOT_MODE
 
@@ -181,7 +203,7 @@ CONFIG_TESTBENCH_UART_BAUDRATE ?= 20000000
 
 APP_SRCS           += $(GAP_LIB_PATH)/testbench/testbench.c $(GAP_LIB_PATH)/testbench/testlib.c
 APP_INC            += $(GAP_LIB_PATH)/testbench
-APP_CFLAGS         += -DCONFIG_TESTBENCH_UART_ID=$(CONFIG_TESTBENCH_UART_ID) \
+override APP_CFLAGS         += -DCONFIG_TESTBENCH_UART_ID=$(CONFIG_TESTBENCH_UART_ID) \
                       -DCONFIG_TESTBENCH_UART_BAUDRATE=$(CONFIG_TESTBENCH_UART_BAUDRATE)
 
 override config_args += --config-opt=**/runner/gvsoc_dpi/enabled=true
@@ -265,6 +287,7 @@ io = host
 endif				# FS_TYPE
 
 APP_SRC                  = $(APP_SRCS)
+APP_ASM_SRC              = $(APP_ASM_SRCS)
 APP_INC_PATH             = $(APP_INC)
 # Compiler options in $(APP_CFLAGS) are passed to compiler in subMakefile.
 # Linker options in $(APP_LDFLAGS) are passed to linker in subMakefile.
@@ -290,9 +313,10 @@ ifeq '$(USE_PULPOS)' '1'
 ifndef PULP_APP
 PULP_APP = $(APP)
 endif
-PULP_APP_SRCS += $(APP_SRCS)
-PULP_CFLAGS  += $(foreach d, $(APP_INC), -I$d) $(APP_CFLAGS) $(COMMON_CFLAGS)
-PULP_LDFLAGS += $(APP_LDFLAGS) $(COMMON_LDFLAGS)
+PULP_APP_SRCS     += $(APP_SRCS)
+PULP_APP_ASM_SRCS += $(APP_ASM_SRCS)
+PULP_CFLAGS       += $(foreach d, $(APP_INC), -I$d) $(APP_CFLAGS) $(COMMON_CFLAGS)
+PULP_LDFLAGS      += $(APP_LDFLAGS) $(COMMON_LDFLAGS)
 
 include $(PULPOS_HOME)/rules/pulpos.mk
 
@@ -303,8 +327,9 @@ else
 USE_OLD_PULPOS = 1
 
 PULP_APP = $(APP)
-PULP_APP_FC_SRCS = $(APP_SRCS)
-PULP_APP_INC_PATH    += $(APP_INC)
+PULP_APP_FC_SRCS   = $(APP_SRCS)
+PULP_APP_ASM_SRCS += $(APP_ASM_SRCS)
+PULP_APP_INC_PATH += $(APP_INC)
 
 PULP_CFLAGS = $(APP_CFLAGS) $(COMMON_CFLAGS)
 LIBS += $(APP_LDFLAGS) $(COMMON_LDFLAGS)
@@ -392,4 +417,4 @@ profiler:
 	cd $(BUILDDIR) && export PULP_CONFIG_FILE=$(BUILDDIR)/gvsoc_config.json && profiler $(BUILDDIR) $(BIN) gvsoc_config.json --signal-tree-file=$(PROFILER_SIGNAL_TREE)
 
 size:
-	$(GAP_SDK_HOME)/utils/bin/binary-size --binary=$(BIN) --depth=10 --groups=$(PMSIS_OS)
+	@$(GAP_SDK_HOME)/utils/bin/binary-size --binary=$(BIN) --depth=10 --groups=$(PMSIS_OS) >> $(BIN).size

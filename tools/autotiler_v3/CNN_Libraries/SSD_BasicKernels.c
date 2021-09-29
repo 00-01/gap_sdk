@@ -167,9 +167,9 @@ void Ker_SSD_Decoder(Ker_SSD_Decoder_ArgT  *KerArg0 )
                 //          (scale_ao * (Aw * exp17.15(scale_h*O<<15-scale_hNorm))>>scale_aoNorm) =
                 //          at_norm(scale_ao*(A*exp17.15(scale_h*O << 15-scale_hNorm)), scale_aoNorm)
                 O = KerArg0->boxes_in[boxes_idx+3];
-                bbox[bbn].w = AT_NORM(scales[6] * (Aw * Exp_fp_17_15((O * scales[5]) << 15-norms[5])), norms[6]);
+                bbox[bbn].w = AT_NORM(scales[6] * (Aw * Exp_fp_17_15((O * scales[5]) << (15-norms[5]))), norms[6]);
                 O = KerArg0->boxes_in[boxes_idx+2];
-                bbox[bbn].h = AT_NORM(scales[6] * (Ah * Exp_fp_17_15((O * scales[4]) << 15-norms[4])), norms[6]);
+                bbox[bbn].h = AT_NORM(scales[6] * (Ah * Exp_fp_17_15((O * scales[4]) << (15-norms[4]))), norms[6]);
 
                 bbox[bbn].x = bbox[bbn].x - (bbox[bbn].w >> 1);
                 bbox[bbn].y = bbox[bbn].y - (bbox[bbn].h >> 1);
@@ -280,7 +280,7 @@ void Ker_SSD_NMS(Ker_SSD_NMS_ArgT  *KerArg0 )
 
     //Applying max output from TFLITE
     int out_idx = 0;
-    for(int i=0; i<bbox_idx_max, out_idx<max_detections; i++){
+    for(int i=0; i<bbox_idx_max&&out_idx<max_detections; i++){
         if (!bbox[i].alive) continue;
         out_bbox[4*out_idx]   = bbox[i].y;
         out_bbox[4*out_idx+1] = bbox[i].x;

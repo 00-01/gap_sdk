@@ -175,6 +175,8 @@ class ActivationMultNe16(MultQuantizionHandler):
             in_q = QType.from_min_max_sq(
                 0, upper, dtype=in_q.dtype, asymmetric=True,
                 ne16=True, dont_copy_attr=['ne16'])
-        qrec = QRec.scaled(in_qs=[in_q], out_qs=[deepcopy(in_q)], ne16=True)
+        o_q = deepcopy(in_q)
+        o_q.set_forced()
+        qrec = QRec.scaled(in_qs=[in_q], out_qs=[o_q], ne16=True)
         compute_in_out_scale(qrec)
         return qrec

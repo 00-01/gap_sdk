@@ -29,6 +29,12 @@ endif
 ifdef MODEL_L3_MEMORY
   MODEL_GEN_EXTRA_FLAGS += --L3 $(MODEL_L3_MEMORY)
 endif
+USE_DISP=1
+ifdef USE_DISP
+  SDL_FLAGS= -lSDL2 -lSDL2_ttf
+else
+  SDL_FLAGS=
+endif
 
 USE_POWER?=0
 
@@ -37,7 +43,7 @@ $(MFCCBUILD_DIR):
 
 # Build the code generator from the model code
 $(MFCC_MODEL_GEN): $(MFCCBUILD_DIR)
-	gcc -g -o $(MFCC_MODEL_GEN) -I. -I$(MFCC_DIR) -I$(TILER_INC) -I$(TILER_EMU_INC) $(CURDIR)/MfccModel.c $(MFCC_SRCG) $(TILER_LIB) $(TABLE_CFLAGS) $(COMPILE_MODEL_EXTRA_FLAGS) -DUSE_POWER=$(USE_POWER)
+	gcc -g -o $(MFCC_MODEL_GEN) -I. -I$(MFCC_DIR) -I$(TILER_INC) -I$(TILER_EMU_INC) $(CURDIR)/MfccModel.c $(MFCC_SRCG) $(TILER_LIB) $(TABLE_CFLAGS) $(COMPILE_MODEL_EXTRA_FLAGS) -DUSE_POWER=$(USE_POWER) $(SDL_FLAGS)
 
 $(MFCC_LUT): $(MFCCBUILD_DIR)
 	python $(AT_HOME)/DSP_Libraries/LUT_Tables/gen_scripts/GenMFCCLUT.py --fft_lut_file $(FFT_LUT) --mfcc_bf_lut_file $(MFCC_LUT) --params_json $(MFCC_PARAMS_JSON) --save_params_header MFCC_params.h

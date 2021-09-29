@@ -19,6 +19,7 @@
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wswitch"
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
 #include "Gap.h"
 #include "CNN_BasicKernels_SQ8.h"
@@ -553,7 +554,6 @@ static void KerReduct_Activation_HWC_SQ8(
                 Out[i*Feat] = gap_clip(Acc0, 7);
         }
 }
-/*
 
 /*
  * Conv/Linear DP scaling followed by an optional activation, variant for ScaleAct=1.0, Out buffer is different from In Buffer
@@ -1161,7 +1161,7 @@ static void _KerReductIO_ActivationScale1_SQ8(
 /*
  * Buffer compaction, scattered by chunk size groups of 8b moved to a contiguous representation through a parallel reduction tree
 */
-void static __attribute__ ((noinline)) KerReductIO_Compact_SQ8(int *__restrict__ In, unsigned int Size, unsigned int CoreId, unsigned int ChunkCell)
+static void __attribute__ ((noinline)) KerReductIO_Compact_SQ8(int *__restrict__ In, unsigned int Size, unsigned int CoreId, unsigned int ChunkCell)
 
 {
 	unsigned int U = gap_ncore()/2, Log2Core = gap_fl1(gap_ncore()), A = 2, B = 1;

@@ -225,6 +225,7 @@ void Udma_tx_channels::handle_pending(void *__this, vp::clock_event *event)
             size = channel->requested_size_queue.front();
         }
         uint32_t addr;
+
         channel->get_addrgen()->get_next_transfer(&addr, &size);
 
         _this->pop_ready_channel(channel);

@@ -279,7 +279,7 @@ class ConvFusionParameters(FusionBase, SingleInputAndOutput, SensitiveToOrder, T
 
 
 @cls_op_name('padded_add_fusion')
-class PaddedAddFusionParameters(FusionBase, SensitiveToOrder):
+class PaddedAddFusionParameters(FusionBase, SensitiveToOrder, Transposable):
     fusion_op_name = "padded_add_fusion"
 
     def _init_at_options(self):

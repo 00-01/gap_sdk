@@ -518,6 +518,8 @@ class GRUSymmetric(RnnSymmetricMixin, KernelBase):
                     qrec):
         if args['h_state'][1].dtype == np.uint8:
             return cls.step_kernelu8_u8(params, args, idx, input_tensor, qrec)
+        if args['h_state'][1].dtype == np.uint16:
+            return cls.step_kernelu16_u8(params, args, idx, input_tensor, qrec)
         if args['h_state'][1].dtype == np.int16:
             return cls.step_kernel16_8(params, args, idx, input_tensor, qrec)
         return cls.step_kernel8_8(params, args, idx, input_tensor, qrec)
@@ -694,6 +696,172 @@ class GRUSymmetric(RnnSymmetricMixin, KernelBase):
         DiagCollector.record('h_state_out', h_state,
                              scale=math.pow(2, -7),
                              zero_point=128,
+                             node=params)
+        args['h_state'][0] = h_state.copy()
+        return h_state
+
+    @classmethod
+    def step_kernelu16_u8(cls, params: GRUParameters,
+                       args: Mapping[str, np.ndarray],
+                       idx: int,
+                       input_tensor: np.ndarray,
+                       qrec):
+
+        input_scratch = {}
+        state_scratch = {}
+
+        scales = qrec.cache['scales']
+
+        # TODO - set zero points
+        DiagCollector.record(
+            'h_state', args['h_state'][0], scale=scales['state'][0], node=params, zero_point=0x8000)
+        DiagCollector.record(
+            'input', input_tensor[idx], scale=scales['in'][0], node=params, zero_point=qrec.in_qs[0].zero_point)
+
+        in_tensor = input_tensor[idx].astype(INT_DTYPE)
+        state_tensor = args['h_state'][0].astype(INT_DTYPE)
+        state_tensor_signed = (args['h_state'][0] + 0x8000).astype(np.int16).astype(np.int32)
+
+        # for gate in ['z', 'h', 'r']:
+        #     DiagCollector.record(f'{gate}_weigths', args[f'r_2_{gate}_w'][0],
+        #                         scale=args[f'r_2_{gate}_w'][1].scale,
+        #                         node=params,
+        #                         zero_point=args[f'r_2_{gate}_w'][1].zero_point)
+        if idx < params.n_input_cells:
+            for gate in ['z', 'r']:
+                # NE16 8 bit
+                input_scratch[gate] = np.sum(in_tensor * -args[f'w_2_{gate}_w'][1].zero_point.astype(INT_DTYPE))
+                input_scratch[gate] += args[f'{gate}_b'][1].attr.interleaved_values[0]
+                input_scratch[gate] += args[f'w_2_{gate}_w'][0].astype(INT_DTYPE).dot(in_tensor)
+                # add zero offset bias + norm rounding in i_2_gate_q
+                # scales to r * r_w of gate
+                DiagCollector.record(f'{gate}_gate_inp_before_scale', input_scratch[gate],
+                                    scale=scales['i'][gate], node=params)
+                input_scratch[gate] = qrec.cache[f'w_2_{gate}_q'].apply_scales(input_scratch[gate], 0)
+                DiagCollector.record(f'{gate}_gate_inp_after_scale', input_scratch[gate],
+                                    scale=scales['i'][gate], node=params)
+        
+        for gate in ['z', 'h', 'r'] if params.linear_before_reset else ['z', 'r']:
+            prefix = 'r_' if gate == 'h' else ''
+            state_scratch[gate] = np.sum(
+                    state_tensor * -args[f'r_2_{gate}_w'][1].zero_point.astype(INT_DTYPE))
+            state_scratch[gate] += args[f'{prefix}{gate}_b'][0]
+            state_scratch[gate] += args[f'r_2_{gate}_w'][0].astype(INT_DTYPE).dot(state_tensor)
+            DiagCollector.record(f'{gate}_gate_state_before_scale', state_scratch[gate],
+                                scale=scales['r'][gate], node=params)
+            state_scratch[gate] = qrec.cache[f'r_2_{gate}_q'].apply_scales(state_scratch[gate], 0)
+            if gate == 'h':
+                DiagCollector.record('h_gate_state', state_scratch[gate],
+                                    scale=scales['act_in'], node=params)
+            else:
+                DiagCollector.record(f'{gate}_gate_state_after_scale', state_scratch[gate],
+                                    scale=scales['act_in'], node=params)
+
+            if gate in ['z', 'r']:
+                state_scratch[gate] += input_scratch[gate]
+                DiagCollector.record(f'{gate}_gate', state_scratch[gate],
+                                    scale=scales['act_in'], node=params)
+                # pipelined on other cores
+                state_scratch[gate] = get_activation(params.activation_zr, params.hard_act)(
+                    state_scratch[gate], internal_qtype(qrec))
+
+                DiagCollector.record(f'{gate}_gate_sigmoid', state_scratch[gate],
+                                    scale=scales['act_out'], node=params)
+
+        if params.linear_before_reset:
+            # haddamard on state after linear
+            # ht = g(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
+            # Q15 * Q3.12 >> 15 -> Q12
+            # r is guaranteed to be in Q15 with no overflow
+            # h (contains recurrent only) needs to be saturated to a Q3.12
+            state_scratch['h'] = clipshort(state_scratch['h']) * state_scratch['r']
+            DiagCollector.record(
+                'hr_haddamard', state_scratch['h'],
+                scale=scales['act_in'] * scales['act_out'],
+                node=params)
+            state_scratch['h'] = at_norm(state_scratch['h'], scales['act_out_q'])
+            DiagCollector.record(
+                'hr_haddamard_an', state_scratch['h'],
+                scale=scales['act_in'],
+                node=params)
+
+        else:
+            # haddamard on state before linear
+            # r_gate_scratch = (rt (.) Ht-1)*(Rh^T) + Rbh + Wbh
+
+            # r is in Q15 signed. state is in Q7
+            # Clip and norm to 8 bit unsigned ready for NE16 input
+            # Could look at doing this in 16 bit on NE16 if accuracy is poor but then scaling will need to be
+            # manual, bias streamed in, etc.
+
+            # Needs r ready so do that first
+            state_scratch['hs'] = np.clip(at_norm(state_tensor_signed * state_scratch['r'], 15) + 0x8000, 0, 0xffff).astype(np.uint16)
+            DiagCollector.record(
+                'hr_haddamard', state_scratch['hs'],
+                scale=math.pow(2, -7),
+                zero_point=0x8000,
+                node=params)
+
+            state_scratch['h'] = np.sum(
+                    state_scratch['hs'] * -args['r_2_r_w'][1].zero_point.astype(INT_DTYPE))
+            state_scratch['h'] += args['r_h_b'][0]
+            state_scratch['h'] += args['r_2_h_w'][0].astype(INT_DTYPE).dot(state_scratch['hs'])
+            state_scratch[gate] = qrec.cache['r_2_h_q'].apply_scales(state_scratch[gate], 0)
+
+            DiagCollector.record(
+                'h_gate_state', state_scratch['h'],
+                scale=scales['act_in'],
+                node=params)
+
+        if idx < params.n_input_cells:
+            input_scratch['h'] = np.sum(in_tensor * -args['w_2_h_w'][1].zero_point.astype(INT_DTYPE))
+            input_scratch['h'] += args['w_h_b'][0]
+            input_scratch['h'] += args['w_2_h_w'][0].astype(INT_DTYPE).dot(in_tensor)
+            DiagCollector.record(f'h_gate_inp_before_scale', input_scratch['h'],
+                                scale=scales['i']['h'], node=params)
+            # scale to Q12
+            input_scratch['h'] = qrec.cache['w_2_h_q'].apply_scales(input_scratch['h'], 0)
+            DiagCollector.record(
+                'h_gate_inp', input_scratch['h'],
+                scale=scales['act_in'],
+                node=params)
+            state_scratch['h'] += input_scratch['h']
+        else:
+            # Is this correct if there is no input (and below)? This is not a mode that
+            # exists in any framework and will not ever be used at present
+            state_scratch['h'] += scale_to(qrec, 'w_2_h_q', args['w_h_b'][0], 0)
+
+        DiagCollector.record(
+            'h_gate', state_scratch['h'],
+            scale=scales['act_in'],
+            node=params)
+
+        state_scratch['h'] = get_activation(params.activation, params.hard_act)(
+            state_scratch['h'], internal_qtype(qrec))
+
+        DiagCollector.record('hr_gate_tanh', state_scratch['h'],
+                             scale=scales['act_out'], node=params)
+
+        # ----------- SCALE Q7 -----------
+
+        # Ht = (1 - zt) (.) ht + zt (.) Ht-1
+        # all parameters in Q15. Result in Q30
+        # >> and clip
+        # state already in Q15
+        h_state = state_tensor_signed.copy()
+        DiagCollector.record('h_pre_ending', h_state,
+                             scale=scales['act_out'],
+                             node=params)
+        h_state = (((0x8000 - state_scratch['z']) * state_scratch['h']) +
+                   (state_scratch['z'] * h_state))
+        DiagCollector.record('h_state_out_prenorm', h_state,
+                             scale=math.pow(2, -30),
+                             node=params)
+        h_state = qrec.out_qs[0].clip(at_norm(h_state, 30-15) + qrec.out_qs[0].zero_point)
+
+        DiagCollector.record('h_state_out', h_state,
+                             scale=math.pow(2, -15),
+                             zero_point=0x8000,
                              node=params)
         args['h_state'][0] = h_state.copy()
         return h_state

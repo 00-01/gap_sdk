@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/* 
+/*
  * Authors: Germain Haugou, ETH (germain.haugou@iis.ee.ethz.ch)
  */
 
@@ -228,7 +228,7 @@ js::config_array::config_array(jsmntok_t *tokens, int *_size)
 {
   jsmntok_t *current = tokens;
   jsmntok_t *top = current++;
-  
+
   for (int i=0; i<top->size; i++)
   {
     int child_size;
@@ -269,6 +269,11 @@ js::config_object::config_object(jsmntok_t *tokens, int *_size)
 js::config *js::import_config_from_file(std::string config_path)
 {
   std::ifstream t(config_path);
+  if(!t.is_open())
+  {
+      throw std::runtime_error(
+              "configuration file does not exist or could not be open");
+  }
   std::string str((std::istreambuf_iterator<char>(t)),
                    std::istreambuf_iterator<char>());
   return import_config_from_string(str);
@@ -279,7 +284,7 @@ js::config *js::import_config_from_string(std::string config_str)
 {
   const char *config_string = strdup(config_str.c_str());
   jsmn_parser parser;
-  
+
   jsmn_init(&parser);
   int nb_tokens = jsmn_parse(&parser, config_string, strlen(config_string), NULL, 0);
 

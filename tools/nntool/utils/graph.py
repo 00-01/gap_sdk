@@ -925,7 +925,7 @@ class GraphView(Mapping):
         return len(self._nodes)
 
     def __getitem__(self, key):
-        return self._nodes[key]
+        return self._nodes[key] # @IgnoreException
 
     def __iter__(self):
         return self._nodes.__iter__()

@@ -160,7 +160,10 @@ class CodeGenerator(NewGenerator, RegisteredGeneratorsMixin):
         return self.name_cache[eparams]['edge']
 
     def get_node_name(self, params, target):
-        return self.name_cache[params][target]
+        try:
+            return self.name_cache[params][target]
+        except:
+            raise ValueError(f"Name Cache: {params.name} {target} not found")
 
     def memory_device_generator(self, indent=0):
         self.opts['memory_devices'].set_l2_ram_ext_managed(

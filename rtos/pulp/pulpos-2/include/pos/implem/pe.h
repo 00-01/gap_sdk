@@ -216,6 +216,49 @@ static inline void pi_cl_team_critical_exit(void)
 }
 
 
+static inline void pi_cl_team_barrier_wait(uint32_t barrier)
+{
+    eu_bar_trig_wait_clr(barrier);
+}
+
+static inline void pi_cl_team_barrier_wait_safe(uint32_t barrier)
+{
+    eu_bar_trig_wait_clr_safe(barrier);
+}
+
+
+static inline uint32_t pi_cl_team_barrier_nb_available(void)
+{
+    return __builtin_popcount(eu_bitfield_value_get(POS_BARRIER_ALLOC_ID));
+}
+
+static inline uint32_t pi_cl_team_barrier_id(uint32_t barrier)
+{
+    return eu_bar_id(barrier);
+}
+
+static inline uint32_t pi_cl_team_barrier_alloc(void)
+{
+    int id = eu_bitfield_alloc_from_id(POS_BARRIER_ALLOC_ID);
+    if (id == 32)
+        return 0;
+    else
+        return eu_bar_addr(id);
+
+}
+
+static inline void pi_cl_team_barrier_free(uint32_t barrier)
+{
+    eu_bitfield_set_from_id(POS_BARRIER_ALLOC_ID, 1 << eu_bar_id(barrier));
+}
+
+static inline void pi_cl_team_barrier_set(uint32_t barrier, uint32_t team_mask)
+{
+    eu_bar_setup_mask(barrier, team_mask, team_mask);
+}
+
+
+
 static inline void pi_cl_team_barrier()
 {
     hal_compiler_barrier();

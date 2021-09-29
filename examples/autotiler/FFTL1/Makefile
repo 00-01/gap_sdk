@@ -17,7 +17,7 @@ $(INDATA_DEF):
 all:: $(INDATA_DEF)
 
 clean::
-	rm $(INDATA_DEF)
-	rm GenInData
+	rm -f $(INDATA_DEF)
+	rm -f GenInData
 
 include $(RULES_DIR)/pmsis_rules.mk

@@ -202,6 +202,32 @@ static inline int pmsis_mutex_deinit(pmsis_mutex_t *mutex)
 #endif
 }
 
+
+static inline int pi_sync_obj_init(void *sync_obj)
+{
+    hal_compiler_barrier();
+    return __os_native_api_sync_obj_init(sync_obj);
+}
+
+static inline int pi_sync_obj_deinit(void *sync_obj)
+{
+    hal_compiler_barrier();
+    return __os_native_api_sync_obj_deinit(sync_obj);
+}
+
+static inline void pi_sync_obj_take(void *sync_obj)
+{
+    hal_compiler_barrier();
+    __os_native_api_sync_obj_take(sync_obj);
+}
+
+static inline void pi_sync_obj_release(void *sync_obj)
+{
+    hal_compiler_barrier();
+    __os_native_api_sync_obj_release(sync_obj);
+}
+
+
 static inline void pmsis_spinlock_init(pmsis_spinlock_t *spinlock)
 {
     hal_compiler_barrier();

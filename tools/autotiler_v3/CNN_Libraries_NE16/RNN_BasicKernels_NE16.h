@@ -17,11 +17,11 @@
 #ifndef __RNN_BASICKERNELS_NE16__
 #define __RNN_BASICKERNELS_NE16__
 #include "Gap.h"
-#include "hal_ne16.h"
+
 #include "../CNN_Libraries/CNN_Defines.h"
 #include "../CNN_Libraries_SQ8/CNN_BasicKernels_SQ8.h"
 #include "./CNN_BasicKernels_NE16.h"
-#include "./stage_desc.h"
+#include "NE16_Job_Trigger.h"
 
 
 /******************************************************************************************************************
@@ -149,7 +149,6 @@ typedef struct {
         int Default_NE16_Job_Cfg;	        /**< NE16 job config */
         char Reset;				/**< If 1 LSTM State is reset */
         int TileOffset;				/**< Buffer Offset related to the current Tile index */
-        pStageDesc_t pStageDesc;
 } KerLSTM_NE16_T;
 
 typedef struct {
@@ -187,22 +186,22 @@ typedef struct {
         int Default_NE16_Job_Cfg;	        /**< NE16 job config */
         char Reset;				/**< If 1 LSTM State is reset */
         int TileOffset;				/**< Buffer Offset related to the current Tile index */
-        pStageDesc_t pStageDesc;
+        JobTriggerDesc_t Jobs;
 } KerLSTM_NE16fp_T;
 
 
 
-#define GRU_NE16_W_INF         1
+#define GRU_NE16_W_INF         2
 #define GRU_NE16_W_OFF         RNN_NE16_SIGMOID_TABLE
 #define GRU_NE16_W_ZEROPOINT   (0 + GRU_NE16_W_OFF)
-
+#define GRU_NE16_GATE_PRENORM  (1 + GRU_NE16_W_OFF)
 
 #define GRU_NE16_CELL_INFOS (GRU_NE16_W_INF+RNN_NE16_SIGMOID_TABLE)
 
 typedef struct {
-        signed char *__restrict__ StateInOut;	/**< Pointer to In/Out state, Dim=DimState   */
-        signed char *__restrict__ Xin;		/**< Pointer to In state, Dim=DimIn */
-        signed char *__restrict__ State;	/**< Pointer to to a copy of state with extra space for in (DimState+DimIn)   */
+        unsigned char *__restrict__ StateInOut;	/**< Pointer to In/Out state, Dim=DimState   */
+        unsigned char *__restrict__ Xin;		/**< Pointer to In state, Dim=DimIn */
+        unsigned char *__restrict__ State;	/**< Pointer to to a copy of state with extra space for in (DimState+DimIn)   */
         unsigned char *__restrict__ ScaleNorm;    /**< Pointer to Scale and Norm - If separate In/State scaling then 2 x State * 6 otherwise State * 6 */
         unsigned short int DimState;		/**< State dimension */
         unsigned short int DimIn;		/**< Input dimension */
@@ -211,27 +210,66 @@ typedef struct {
         int *__restrict__ OutBuff1;             /**< Buffer for Gate Output */
         int *__restrict__ OutBuff2;             /**< Buffer for Gate Output */
         int *__restrict__ OutBuff3;             /**< Buffer for Gate Output */
-        signed char *__restrict__ Wr;		/**< Pointer to R gate weights, Dim=[DimState,DimState] */
-        signed char *__restrict__ Wri;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
-        void * __restrict__ Br;			/**< Pointer to R gate bias */
-        signed char *__restrict__ Wz;		/**< Pointer to Z gate weights, Dim=[DimState,DimState] */
-        signed char *__restrict__ Wzi;		/**< Pointer to Z gate weights, Dim=[DimIn,DimState] */
-        void * __restrict__ Bz;			/**< Pointer to Z gate bias */
-        signed char *__restrict__ Wh;		/**< Pointer to H gate weights, Dim=[DimState+DimIn,DimState] */
-        signed char *__restrict__ Whi;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
-        void * __restrict__ Bwh;		/**< Pointer to H gate bias vs Inputs */
-        void * __restrict__ Brh;		/**< Pointer to H gate bias vs States */
-        signed char *__restrict__ Hout;		/**< Pointer to Hout in case sequence must be exposed, null otherwise */
+        unsigned char *__restrict__ Wr;		/**< Pointer to R gate weights, Dim=[DimState,DimState] */
+        unsigned char *__restrict__ Wri;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Br;			/**< Pointer to R gate bias */
+        unsigned char *__restrict__ Wz;		/**< Pointer to Z gate weights, Dim=[DimState,DimState] */
+        unsigned char *__restrict__ Wzi;		/**< Pointer to Z gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Bz;			/**< Pointer to Z gate bias */
+        unsigned char *__restrict__ Wh;		/**< Pointer to H gate weights, Dim=[DimState+DimIn,DimState] */
+        unsigned char *__restrict__ Whi;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Bwh;		/**< Pointer to H gate bias vs Inputs */
+        int * __restrict__ Brh;		/**< Pointer to H gate bias vs States */
+        unsigned char *__restrict__ Hout;		/**< Pointer to Hout in case sequence must be exposed, null otherwise */
         unsigned short int Nout;		/**< Number of output produced in StateInOut */
         unsigned short int OutBase;		/**< Index of first output produced in StateInOut */
         signed char *__restrict__ Infos;	/**< Infos vector for scaling */
         char FirstOut;				/**< 1 if first out of one cell to eval */
         char FirstCell;				/**< 1 if first cell of a group of cell */
+        char LastOut;				/**< 1 if last out of one cell to eval */
+        char LastCell;				/**< 1 if last cell of a group of cell */
         char FilterDataSizeBits;		/**< Qw */
         int Default_NE16_Job_Cfg;	        /**< NE16 job config */
         char Reset;				/**< If 1 GRU State is reset */
         int TileOffset;				/**< Buffer Offset related to the current Tile index */
 } KerGRU_NE16_T;
+
+typedef struct {
+        unsigned short *__restrict__ StateInOut;	/**< Pointer to In/Out state, Dim=DimState   */
+        unsigned short *__restrict__ Xin;		/**< Pointer to In state, Dim=DimIn */
+        unsigned short *__restrict__ State;	/**< Pointer to to a copy of state with extra space for in (DimState+DimIn)   */
+        unsigned char *__restrict__ ScaleNorm;    /**< Pointer to Scale and Norm - If separate In/State scaling then 2 x State * 6 otherwise State * 6 */
+        unsigned short int DimState;		/**< State dimension */
+        unsigned short int DimIn;		/**< Input dimension */
+        unsigned short int DimStateInt;		/**< State dimension - padded % 16 */
+        unsigned short int DimInInt;		/**< Input dimension - padded % 16 */
+        int *__restrict__ OutBuff1;             /**< Buffer for Gate Output */
+        int *__restrict__ OutBuff2;             /**< Buffer for Gate Output */
+        int *__restrict__ OutBuff3;             /**< Buffer for Gate Output */
+        unsigned char *__restrict__ Wr;		/**< Pointer to R gate weights, Dim=[DimState,DimState] */
+        unsigned char *__restrict__ Wri;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Br;			/**< Pointer to R gate bias */
+        unsigned char *__restrict__ Wz;		/**< Pointer to Z gate weights, Dim=[DimState,DimState] */
+        unsigned char *__restrict__ Wzi;		/**< Pointer to Z gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Bz;			/**< Pointer to Z gate bias */
+        unsigned char *__restrict__ Wh;		/**< Pointer to H gate weights, Dim=[DimState+DimIn,DimState] */
+        unsigned char *__restrict__ Whi;		/**< Pointer to R gate weights, Dim=[DimIn,DimState] */
+        int * __restrict__ Bwh;		/**< Pointer to H gate bias vs Inputs */
+        int * __restrict__ Brh;		/**< Pointer to H gate bias vs States */
+        unsigned short *__restrict__ Hout;		/**< Pointer to Hout in case sequence must be exposed, null otherwise */
+        unsigned short int Nout;		/**< Number of output produced in StateInOut */
+        unsigned short int OutBase;		/**< Index of first output produced in StateInOut */
+        signed char *__restrict__ Infos;	/**< Infos vector for scaling */
+        char FirstOut;				/**< 1 if first out of one cell to eval */
+        char FirstCell;				/**< 1 if first cell of a group of cell */
+        char LastOut;				/**< 1 if last out of one cell to eval */
+        char LastCell;				/**< 1 if last cell of a group of cell */
+        char FilterDataSizeBits;		/**< Qw */
+        int Default_NE16_Job_Cfg;	        /**< NE16 job config */
+        char Reset;				/**< If 1 GRU State is reset */
+        int TileOffset;				/**< Buffer Offset related to the current Tile index */
+        JobTriggerDesc_t Jobs;
+} KerGRU_NE16fp_T;
 
 void RNN_ParKerB32_Hard_SameInStateScale_NE16(KerRNN_NE16_T *Arg);
 void RNN_ParKerB32_Hard_NE16(KerRNN_NE16_T *Arg);
@@ -239,11 +277,10 @@ void RNN_ParKerB32_SameInStateScale_NE16(KerRNN_NE16_T *Arg);
 void RNN_ParKerB32_NE16(KerRNN_NE16_T *Arg);
 void RNN_ParKerB32_NE16fp(KerRNN_NE16fp_T *Arg);
 
-// void LSTM_ParKerB32_Hard_SameInStateScale_NE16(KerLSTM_NE16_T *Arg);
-// void LSTM_ParKerB32_SameInStateScale_NE16(KerLSTM_NE16_T *Arg);
 void LSTM_ParKerB32_NE16(KerLSTM_NE16_T *Arg);
 void LSTM_ParKerB32_NE16fp(KerLSTM_NE16fp_T *Arg);
 
 void GRU_ParKerB32_NE16(KerGRU_NE16_T *Arg);
+void GRU_ParKerB32_NE16fp(KerGRU_NE16fp_T *Arg);
 
 #endif

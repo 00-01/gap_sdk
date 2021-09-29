@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <math.h>
 #include "CNN_BasicKernels_fp16.h"
+#include "FastFloatApprox16.h"
 
 static int CoreCountDynamic = 1;
 static int ActiveCore = gap_ncore();
@@ -77,7 +78,7 @@ void KerParSoftMax_fp16(KerSoftMax_fp16_T *Arg)
 		M = Reduct[0];
 		Sum = 0.0;
 		for (int i=First; i<Last; i++) {
-			F16 Exp = Fast_Exp_fp16(In[i] - M);
+			F16 Exp = FastExpF16(In[i] - M);
 			Out[i] = Exp; Sum += Exp;
 		}
 		Reduct[CoreId] = Sum;

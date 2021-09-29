@@ -279,6 +279,14 @@ void LoadMFCCLibrary()
         LibKernel("WindowingReal2Real_PadCenter_Fix32", CALL_PARALLEL, 0, "Windowing_T", NULL);
         LibKernel("WindowingReal2Real_PadCenter_f16", CALL_PARALLEL, 0, "Windowing_T", NULL);
         LibKernel("WindowingReal2Real_PadCenter_f32", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPad_Fix16", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPad_Fix32", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPad_f16", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPad_f32", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPadCenter_Fix16", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPadCenter_Fix32", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPadCenter_f16", CALL_PARALLEL, 0, "Windowing_T", NULL);
+        LibKernel("ZeroPadCenter_f32", CALL_PARALLEL, 0, "Windowing_T", NULL);
 
         LibKernel("CmplxMagSquared_Fix16", 	CALL_PARALLEL, 0, "CmplxMag_T", NULL);
         LibKernel("CmplxMagSquared_Fix32_scal",	CALL_PARALLEL, 0, "CmplxMag_T", NULL);
@@ -988,7 +996,8 @@ int RFFT_2D_Generator(
 			(OutFFT?
 			KerArg("shift_rfft",	KerArgSpace(1,D0), OBJ_OUT_DB,		1, Nfft,        sizeof(signed char),			   0, 0, 0, "shift_rfft"):
 			KerArg("shift_rfft",	KerArgSpace(1,T0), O_BUFF|O_NTILED,	1, Nfft,        sizeof(signed char),			   0, 0, 0, "")):0),
-			KerArg("WinTable",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, FrameSize,	LUTItemSize,				   0, 0, 0, "WinTable"),
+			!NoWindow?
+			KerArg("WinTable",      KerArgSpace(1,T0), O_IN|O_BUFF|O_CONST, 1, FrameSize,	LUTItemSize,				   0, 0, 0, "WinTable"):AT_NO_C_ARG,
 			UseRadix4?
 			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, 3*(Nfft)/4,  LUTItemSize,				   0, 0, 0, "Twiddles_fft_int"):
 			KerArg("Twiddles_fft_int",KerArgSpace(1,T0),O_IN|O_BUFF|O_CONST,1, Nfft/2,     	LUTItemSize,	 			   0, 0, 0, "Twiddles_fft_int"),

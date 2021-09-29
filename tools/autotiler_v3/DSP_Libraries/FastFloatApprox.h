@@ -41,14 +41,50 @@
 #ifndef __FASTFLOAT_H__
 #define __FASTFLOAT_H__
 
+#include "Gap.h"
+#include "CNN_FloatType.h"
+#include "CNN_Defines_fp16.h"
+
+#define REAL_DIV
+
+static inline float clip_f32(float x, float lower, float upper) {
+  return (float) Minf32(Maxf32(x, lower), upper);
+}
+
+static inline float fastrsqrt(float x)
+{
+  const float threehalfs = 1.5F;
+
+  float x2 = x * 0.5F;
+  float y  = x;
+  int i  = * ( int * ) &y;
+  i  = 0x5f375a86 - ( i >> 1 );
+  y  = * ( float * ) &i;
+  y  = y * ( threehalfs - ( x2 * y * y ) );
+
+  return y;
+}
+
+static inline float fastreciprocal(float x)
+{
+  x = fastrsqrt(x);
+  return x * x;
+}
+
+#ifdef REAL_DIV
+#define DIV_F32(x, y) ((x) / (y))
+#else
+#define DIV_F32(x, y) ((x)*fastreciprocal(y))
+#endif
+
 static inline  float
 fastpow2 (float p)
 {
   float offset = (p < 0) ? 1.0f : 0.0f;
-  float clipp = (p < -126) ? -126.0f : p;
+  float clipp = clip_f32(p, -126.0f, 126.0f);
   int w = clipp;
   float z = clipp - w + offset;
-  union { u_int32_t i; float f; } v = { (u_int32_t) ( (1 << 23) * (clipp + 121.2740575f + 27.7280233f / (4.84252568f - z) - 1.49012907f * z) ) };
+  union { unsigned int i; float f; } v = { (unsigned int) ( (1 << 23) * (clipp + 121.2740575f + DIV_F32(27.7280233f, (4.84252568f - z)) - 1.49012907f * z) ) };
 
   return v.f;
 }
@@ -56,8 +92,8 @@ fastpow2 (float p)
 static inline  float
 fasterpow2 (float p)
 {
-  float clipp = (p < -126) ? -126.0f : p;
-  union { u_int32_t i; float f; } v = { (u_int32_t) ( (1 << 23) * (clipp + 126.94269504f) ) };
+  float clipp = clip_f32(p, -126.0f, 126.0f);
+  union { unsigned int i; float f; } v = { (unsigned int) ( (1 << 23) * (clipp + 126.94269504f) ) };
   return v.f;
 }
 
@@ -77,14 +113,14 @@ fasterexp (float p)
 static inline float
 fastlog2 (float x)
 {
-  union { float f; u_int32_t i; } vx = { x };
-  union { u_int32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
+  union { float f; unsigned int i; } vx = { x };
+  union { unsigned int i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
   float y = vx.i;
   y *= 1.1920928955078125e-7f;
 
   return y - 124.22551499f
            - 1.498030302f * mx.f
-           - 1.72587999f / (0.3520887068f + mx.f);
+           - DIV_F32(1.72587999f, (0.3520887068f + mx.f));
 }
 
 static inline float
@@ -96,7 +132,7 @@ fastlog (float x)
 static inline float
 fasterlog2 (float x)
 {
-  union { float f; u_int32_t i; } vx = { x };
+  union { float f; unsigned int i; } vx = { x };
   float y = vx.i;
   y *= 1.1920928955078125e-7f;
   return y - 126.94269504f;
@@ -107,7 +143,7 @@ fasterlog (float x)
 {
 //  return 0.69314718f * fasterlog2 (x);
 
-  union { float f; u_int32_t i; } vx = { x };
+  union { float f; unsigned int i; } vx = { x };
   float y = vx.i;
   y *= 8.2629582881927490e-8f;
   return y - 87.989971088f;
@@ -154,25 +190,29 @@ fastercosh (float p)
 static inline float
 fasttanh (float p)
 {
-  return -1.0f + 2.0f / (1.0f + fastexp (-2.0f * p));
+  return -1.0f + DIV_F32(2.0f, (1.0f + fastexp (-2.0f * p)));
 }
 
 static inline float
 fastertanh (float p)
 {
-  return -1.0f + 2.0f / (1.0f + fasterexp (-2.0f * p));
+  return -1.0f + DIV_F32(2.0f, (1.0f + fasterexp (-2.0f * p)));
 }
 
 static inline float
 fastsigmoid (float x)
 {
-  return 1.0f / (1.0f + fastexp (-x));
+  return DIV_F32(1.0f, (1.0f + fastexp (-x)));
 }
 
 static inline float
 fastersigmoid (float x)
 {
-  return 1.0f / (1.0f + fasterexp (-x));
+  return DIV_F32(1.0f, (1.0f + fasterexp (-x)));
+}
+
+static inline float fastswish(float x, float beta) {
+	return (x * fastsigmoid(beta * x));
 }
 
 // fasterfc: not actually faster than erfcf(3) on newer machines!
@@ -187,7 +227,7 @@ fasterfc (float x)
   static const float b = 15.418191568719577f;
   static const float c = 5.609846028328545f;
 
-  union { float f; u_int32_t i; } vc = { c * x };
+  union { float f; unsigned int i; } vc = { c * x };
   float xsq = x * x;
   float xquad = xsq * xsq;
 
@@ -264,12 +304,12 @@ fastsin (float x)
   static const float fouroverpi = 1.2732395447351627f;
   static const float fouroverpisq = 0.40528473456935109f;
   static const float q = 0.78444488374548933f;
-  union { float f; u_int32_t i; } p = { 0.20363937680730309f };
-  union { float f; u_int32_t i; } r = { 0.015124940802184233f };
-  union { float f; u_int32_t i; } s = { -0.0032225901625579573f };
+  union { float f; unsigned int i; } p = { 0.20363937680730309f };
+  union { float f; unsigned int i; } r = { 0.015124940802184233f };
+  union { float f; unsigned int i; } s = { -0.0032225901625579573f };
 
-  union { float f; u_int32_t i; } vx = { x };
-  u_int32_t sign = vx.i & 0x80000000;
+  union { float f; unsigned int i; } vx = { x };
+  unsigned int sign = vx.i & 0x80000000;
   vx.i = vx.i & 0x7FFFFFFF;
 
   float qpprox = fouroverpi * x - fouroverpisq * x * vx.f;
@@ -288,10 +328,10 @@ fastersin (float x)
   static const float fouroverpi = 1.2732395447351627f;
   static const float fouroverpisq = 0.40528473456935109f;
   static const float q = 0.77633023248007499f;
-  union { float f; u_int32_t i; } p = { 0.22308510060189463f };
+  union { float f; unsigned int i; } p = { 0.22308510060189463f };
 
-  union { float f; u_int32_t i; } vx = { x };
-  u_int32_t sign = vx.i & 0x80000000;
+  union { float f; unsigned int i; } vx = { x };
+  unsigned int sign = vx.i & 0x80000000;
   vx.i &= 0x7FFFFFFF;
 
   float qpprox = fouroverpi * x - fouroverpisq * x * vx.f;
@@ -338,7 +378,7 @@ fastercos (float x)
   static const float twooverpi = 0.63661977236758134f;
   static const float p = 0.54641335845679634f;
 
-  union { float f; u_int32_t i; } vx = { x };
+  union { float f; unsigned int i; } vx = { x };
   vx.i &= 0x7FFFFFFF;
 
   float qpprox = 1.0f - twooverpi * vx.f;

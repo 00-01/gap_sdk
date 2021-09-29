@@ -18,6 +18,7 @@
 #pragma GCC diagnostic ignored "-Wextra"
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 #pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #include <stdio.h>
 #include "CNN_BasicKernels_SQ8.h"
 
@@ -470,7 +471,7 @@ void KerMatAdd_LeakyReLU_SQ8(KerMat3_SQ8_T *Arg)
 	gap_waitbarrier(0);
 }
 
-void KerMatAdd_USQ8(KerMat3_USQ8_T *Arg)
+void KerMatAdd_USQ8(KerMat3_SQ8_T *Arg)
 
 {
 	unsigned char * __restrict__ In1	= Arg->In1;
@@ -478,43 +479,21 @@ void KerMatAdd_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned char * __restrict__ Out	= Arg->Out;
 	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
 	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
+	short int AddBias = *((short int *)(((unsigned char *)Arg->Infos)+AT_INF_ADD_BIAS));
 	int Size = Arg->Feat;
 	unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
 	int S = Last-First;
 	unsigned char * __restrict__ I1 = In1 + First, *__restrict__ I2 = In2 + First, *__restrict__ O  = Out + First;
-	if (In1Scale && OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
-		}
-		if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
-	} else if (In1Scale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			O[2*i  ] = gap_clipu(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, 8);
-		}
-		if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], 8);
-	} else if (OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			O[2*i  ] = gap_clipu(AT_SCALE(I10 + I20, OutScale, OutScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(I11 + I21, OutScale, OutScaleN), 8);
-		}
-		if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), 8);
-	} else {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			O[2*i  ] = gap_clipu(I10 + I20, 8);
-			O[2*i+1] = gap_clipu(I11 + I21, 8);
-		}
-		if (S&0x1) O[S-1] = gap_clipu(I1[S-1] + I2[S-1], 8);
+	for (int i=0; i<S/2; i++) {
+		int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
+		O[2*i  ] = gap_clipu(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
+		O[2*i+1] = gap_clipu(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
 	}
+	if (S&0x1) O[S-1] = gap_clipu(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
 	gap_waitbarrier(0);
 }
 
-void KerMatAdd_ReLU_USQ8(KerMat3_USQ8_T *Arg)
+void KerMatAdd_ReLU_USQ8(KerMat3_SQ8_T *Arg)
 
 {
 	unsigned char * __restrict__ In1	= Arg->In1;
@@ -523,76 +502,31 @@ void KerMatAdd_ReLU_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
 	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
 	unsigned int ActScale = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALEN];
+	short int AddBias = (short int *) (((unsigned char *)Arg->Infos)[AT_INF_ADD_BIAS]);
 	int Size = Arg->Feat;
 	unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
 	unsigned int F = First, S = Max(0, Last-F);
 	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + First, *__restrict__ O  = Out + F;
 
 	if (ActScale) {
-		if (In1Scale && OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), ActScale, ActScaleN), 8);		
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), ActScale, ActScaleN), 8);
-		} else if (In1Scale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, ActScale, ActScaleN), 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1],ActScale, ActScaleN), 8);
-		} else if (OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I10 + I20, OutScale, OutScaleN),ActScale, ActScaleN), 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I11 + I21, OutScale, OutScaleN),ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN),ActScale, ActScaleN), 8);
-		} else {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(I10 + I20, ActScale, ActScaleN), 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(I11 + I21, ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(I1[S-1] + I2[S-1],ActScale, ActScaleN), 8);
+		for (int i=0; i<S/2; i++) {
+			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
+			O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), ActScale, ActScaleN), 8);		
+			O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), ActScale, ActScaleN), 8);
 		}
+		if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AddBias + AT_SCALE(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), ActScale, ActScaleN), 8);
 	} else {
-		if (In1Scale && OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
-		} else if (In1Scale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], 8);
-		} else if (OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(AT_SCALE(I10 + I20, OutScale, OutScaleN), 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(AT_SCALE(I11 + I21, OutScale, OutScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), 8);
-		} else {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = AT_CLIP_POS_IMM(I10 + I20, 8);
-				O[2*i+1] = AT_CLIP_POS_IMM(I11 + I21, 8);
-			}
-			if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(I1[S-1] + I2[S-1], 8);
+		for (int i=0; i<S/2; i++) {
+			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
+			O[2*i  ] = AT_CLIP_POS_IMM(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
+			O[2*i+1] = AT_CLIP_POS_IMM(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
 		}
+		if (S&0x1) O[S-1] = AT_CLIP_POS_IMM(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
 	}
 	gap_waitbarrier(0);
 }
 
-void KerMatAdd_ReLUN_USQ8(KerMat3_USQ8_T *Arg)
+void KerMatAdd_ReLUN_USQ8(KerMat3_SQ8_T *Arg)
 
 {
 	unsigned char * __restrict__ In1	= Arg->In1;
@@ -601,6 +535,7 @@ void KerMatAdd_ReLUN_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
 	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
 	unsigned int ActScale = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALEN];
+	short int AddBias = (short int *) (((unsigned char *)Arg->Infos)[AT_INF_ADD_BIAS]);
 
 	int A0 = Arg->Infos[AT_INF_A0];
 	int Size = Arg->Feat;
@@ -609,70 +544,24 @@ void KerMatAdd_ReLUN_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned int F = First, S = Max(0, Last-F);
 	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + F, *__restrict__ O  = Out + F;
 	if (ActScale) {
-		if (In1Scale && OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-				O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-		} else if (In1Scale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, A0), ActScale, ActScaleN), 8);
-				O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, A0), ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], A0), ActScale, ActScaleN), 8);
-		} else if (OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I10 + I20, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-				O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I11 + I21, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
-		} else {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(I10 + I20, A0), OutScale, OutScaleN), 8);
-				O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(I11 + I21, A0), OutScale, OutScaleN), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(I1[S-1] + I2[S-1], A0), OutScale, OutScaleN), 8);
+		for (int i=0; i<S/2; i++) {
+			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
+			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
+			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
 		}
+		if (S&0x1) O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), A0), ActScale, ActScaleN), 8);
 	} else {
-		if (In1Scale && OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_CLIP_POS(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), A0), 8);
-				O[2*i+1] = gap_clipu(AT_CLIP_POS(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), A0), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_CLIP_POS(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), A0), 8);
-		} else if (In1Scale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_CLIP_POS(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, A0), 8);
-				O[2*i+1] = gap_clipu(AT_CLIP_POS(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, A0), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_CLIP_POS(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], A0), 8);
-		} else if (OutScale) {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_CLIP_POS(AT_SCALE(I10 + I20, OutScale, OutScaleN), A0), 8);
-				O[2*i+1] = gap_clipu(AT_CLIP_POS(AT_SCALE(I11 + I21, OutScale, OutScaleN), A0), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_CLIP_POS(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), A0), 8);
-		} else {
-			for (int i=0; i<S/2; i++) {
-				int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-				O[2*i  ] = gap_clipu(AT_CLIP_POS(I10 + I20, A0), 8);
-				O[2*i+1] = gap_clipu(AT_CLIP_POS(I11 + I21, A0), 8);
-			}
-			if (S&0x1) O[S-1] = gap_clipu(AT_CLIP_POS(I1[S-1] + I2[S-1], A0), 8);
+		for (int i=0; i<S/2; i++) {
+			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
+			O[2*i  ] = gap_clipu(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), A0), 8);
+			O[2*i+1] = gap_clipu(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), A0), 8);
 		}
+		if (S&0x1) O[S-1] = gap_clipu(AT_CLIP_POS(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), A0), 8);
 	}
 	gap_waitbarrier(0);
 }
 
-void KerMatAdd_HSigmoid_USQ8(KerMat3_USQ8_T *Arg)
+void KerMatAdd_ReLUM_USQ8(KerMat3_SQ8_T *Arg)
 
 {
 	unsigned char * __restrict__ In1	= Arg->In1;
@@ -681,65 +570,33 @@ void KerMatAdd_HSigmoid_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
 	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
 	unsigned int ActScale = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALEN];
-	int A0 = Arg->Infos[AT_INF_A0], B0 = Arg->Infos[AT_INF_B0], C0 = Arg->Infos[AT_INF_C0];
+	short int AddBias = (short int *) (((unsigned char *)Arg->Infos)[AT_INF_ADD_BIAS]);
 	int Size = Arg->Feat;
 	unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
-
 	unsigned int F = First, S = Max(0, Last-F);
-	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + F, *__restrict__ O  = Out + F;
-	if (In1Scale && OutScale) {
+	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + First, *__restrict__ O  = Out + F;
+
+	int A0 = Arg->Infos[AT_INF_A0];
+	int B0 = Arg->Infos[AT_INF_B0];
+	if (ActScale) {
 		for (int i=0; i<S/2; i++) {
 			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0, ActScale, ActScaleN), 8);
+			O[2*i  ] = gap_clipu(Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), ActScale, ActScaleN)), 8);
+			O[2*i+1] = gap_clipu(Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), ActScale, ActScaleN)), 8);
 		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
-	} else if (In1Scale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
-	} else if (OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10 + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11 + I21, OutScale, OutScaleN), 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
+		if (S&0x1) O[S-1] = gap_clipu(Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), ActScale, ActScaleN)), 8);
 	} else {
 		for (int i=0; i<S/2; i++) {
 			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(I10 + I20, 8);
-			int Acc1 = gap_clipu(I11 + I21, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0, ActScale, ActScaleN), 8);
+			O[2*i  ] = gap_clipu(Max(A0, AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN)), 8);
+			O[2*i+1] = gap_clipu(Max(A0, AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN)), 8);
 		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(I1[S-1] + I2[S-1], 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0, ActScale, ActScaleN), 8);
-		}
+		if (S&0x1) O[S-1] = gap_clipu(Max(A0, AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN)), 8);
 	}
 	gap_waitbarrier(0);
 }
 
-void KerMatAdd_HSwish_USQ8(KerMat3_USQ8_T *Arg)
+void KerMatAdd_ReLUMN_USQ8(KerMat3_SQ8_T *Arg)
 
 {
 	unsigned char * __restrict__ In1	= Arg->In1;
@@ -748,151 +605,28 @@ void KerMatAdd_HSwish_USQ8(KerMat3_USQ8_T *Arg)
 	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
 	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
 	unsigned int ActScale = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALEN];
-	int A0 = Arg->Infos[AT_INF_A0], B0 = Arg->Infos[AT_INF_B0], C0 = Arg->Infos[AT_INF_C0];
-	int Size = Arg->Feat;
-	unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
-
-	unsigned int F = First, S = Max(0, Last-F);
-	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + F, *__restrict__ O  = Out + F;
-	if (In1Scale && OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0 * Acc1, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-		}
-	} else if (In1Scale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0 * Acc1, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-		}
-	} else if (OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10 + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11 + I21, OutScale, OutScaleN), 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0 * Acc1, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-		}
-	} else {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(I10 + I20, 8);
-			int Acc1 = gap_clipu(I11 + I21, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-			O[2*i+1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc1 + B0, A0) * C0 * Acc1, ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(I1[S-1] + I2[S-1], 8);
-			O[S-1] = gap_clipu(AT_SCALE(AT_CLIP_POS(Acc0 + B0, A0) * C0 * Acc0, ActScale, ActScaleN), 8);
-		}
-	}
-	gap_waitbarrier(0);
-}
-
-void KerMatAdd_LeakyReLU_USQ8(KerMat3_USQ8_T *Arg)
-
-{
-	unsigned char * __restrict__ In1	= Arg->In1;
-	unsigned char * __restrict__ In2	= Arg->In2;
-	unsigned char * __restrict__ Out	= Arg->Out;
-	unsigned int In1Scale = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALE], In1ScaleN = ((unsigned char *)Arg->Infos)[AT_INF_IN1SCALEN];
-	unsigned int OutScale = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALE], OutScaleN = ((unsigned char *)Arg->Infos)[AT_INF_OUTSCALEN];
-	unsigned int ActScale = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Arg->Infos)[AT_INF_ACTSCALEN];
-	int A0 = Arg->Infos[AT_INF_A0], B0 = Arg->Infos[AT_INF_B0], C0 = Arg->Infos[AT_INF_C0];
-
+	short int AddBias = (short int *) (((unsigned char *)Arg->Infos)[AT_INF_ADD_BIAS]);
 	int Size = Arg->Feat;
 	unsigned int CoreId = gap_coreid(), Chunk = ChunkSize(Size), First = Chunk*CoreId, Last = Min(First+Chunk, Size);
 	unsigned int F = First, S = Max(0, Last-F);
-	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + F, *__restrict__ O  = Out + F;
-	if (In1Scale && OutScale) {
+	unsigned char * __restrict__ I1 = In1 + F, *__restrict__ I2 = In2 + First, *__restrict__ O  = Out + F;
+
+	int A0 = Arg->Infos[AT_INF_A0];
+	int B0 = Arg->Infos[AT_INF_B0];
+	if (ActScale) {
 		for (int i=0; i<S/2; i++) {
 			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-	       		int Neg1 = gap_bitextractu(Acc1, 1, 31), Pos1 = !Neg1;
-			int Acc1N = AT_NORM(Acc1 * A0, 8);
-			O[2*i+1] = gap_clipu(AT_SCALE((Neg1*Acc1N+Pos1*Acc1), ActScale, ActScaleN), 8);
+			O[2*i  ] = gap_clipu(Min(B0, Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN), ActScale, ActScaleN))), 8);
+			O[2*i+1] = gap_clipu(Min(B0, Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN), ActScale, ActScaleN))), 8);
 		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[S-1] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-		}
-	} else if (In1Scale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-	       		int Neg1 = gap_bitextractu(Acc1, 1, 31), Pos1 = !Neg1;
-			int Acc1N = AT_NORM(Acc1 * A0, 8);
-			O[2*i+1] = gap_clipu(AT_SCALE((Neg1*Acc1N+Pos1*Acc1), ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[S-1] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-		}
-	} else if (OutScale) {
-		for (int i=0; i<S/2; i++) {
-			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(AT_SCALE(I10 + I20, OutScale, OutScaleN), 8);
-			int Acc1 = gap_clipu(AT_SCALE(I11 + I21, OutScale, OutScaleN), 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-	       		int Neg1 = gap_bitextractu(Acc1, 1, 31), Pos1 = !Neg1;
-			int Acc1N = AT_NORM(Acc1 * A0, 8);
-			O[2*i+1] = gap_clipu(AT_SCALE((Neg1*Acc1N+Pos1*Acc1), ActScale, ActScaleN), 8);
-		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(AT_SCALE(I1[S-1] + I2[S-1], OutScale, OutScaleN), 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[S-1] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-		}
+		if (S&0x1) O[S-1] = gap_clipu(Min(B0, Max(A0, AT_SCALE(AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN), ActScale, ActScaleN))), 8);
 	} else {
 		for (int i=0; i<S/2; i++) {
 			int I10=I1[2*i], I20=I2[2*i], I11=I1[2*i+1], I21=I2[2*i+1];
-			int Acc0 = gap_clipu(I10 + I20, 8);
-			int Acc1 = gap_clipu(I11 + I21, 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[2*i  ] = gap_clipu(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-	       		int Neg1 = gap_bitextractu(Acc1, 1, 31), Pos1 = !Neg1;
-			int Acc1N = AT_NORM(Acc1 * A0, 8);
-			O[2*i+1] = gap_clipu(AT_SCALE((Neg1*Acc1N+Pos1*Acc1), ActScale, ActScaleN), 8);
+			O[2*i  ] = gap_clipu(Min(B0, Max(A0, AddBias + AT_SCALE(AT_SCALE(I10, In1Scale, In1ScaleN) + I20, OutScale, OutScaleN))), 8);
+			O[2*i+1] = gap_clipu(Min(B0, Max(A0, AddBias + AT_SCALE(AT_SCALE(I11, In1Scale, In1ScaleN) + I21, OutScale, OutScaleN))), 8);
 		}
-		if (S&0x1) {
-			int Acc0 = gap_clipu(I1[S-1] + I2[S-1], 8);
-			int Neg0 = gap_bitextractu(Acc0, 1, 31), Pos0 = !Neg0;
-	       		int Acc0N = AT_NORM(Acc0 * A0, 8);
-			O[S-1] = gap_clip(AT_SCALE((Neg0*Acc0N+Pos0*Acc0), ActScale, ActScaleN), 8);
-		}
+		if (S&0x1) O[S-1] = gap_clipu(Min(B0, Max(A0, AddBias + AT_SCALE(AT_SCALE(I1[S-1], In1Scale, In1ScaleN) + I2[S-1], OutScale, OutScaleN))), 8);
 	}
 	gap_waitbarrier(0);
 }

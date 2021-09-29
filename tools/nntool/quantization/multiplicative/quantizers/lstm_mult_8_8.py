@@ -47,7 +47,7 @@ LOG = logging.getLogger('nntool.' + __name__)
     },
     {
         'name': 'force_external_size',
-        'type': str,
+        'type': int,
         'help': 'bits to use for features and state',
         'choices': [8, 16],
         'default': 8
@@ -95,9 +95,11 @@ class LSTMMultMult8x8(RescaleConstantMixin, MultQuantizionHandler):
             LSTMParameters.INPUT_NAMES)}
         cell_range = stats.get('range_cell')
         if cell_range is None:
-            ValueError(f'cell range not present in stats for {params.name}')
-        cell_stat = max(abs(cell_range[var])
-                        for var in ['min', 'max'])
+            LOG.warning(f'cell range not present in stats for {params.name} - using cell clip {params.cell_clip}')
+            cell_stat = params.cell_clip
+        else:
+            cell_stat = max(abs(cell_range[var])
+                            for var in ['min', 'max'])
         if params.cell_clip and not params.quant_c_state_with_stat:
             cell_max = params.cell_clip
             ratio_c = cell_max / cell_stat

@@ -512,14 +512,14 @@ int32_t __pi_i2s_open(struct pi_i2s_conf *conf, struct i2s_itf_data_s **device_d
             I2S_TRACE("I2S(%d) : disable CG for udma_id=%ld %p %lx\n",
                       itf_data->device_id, UDMA_I2S_ID(itf_data->device_id),
                       &(udma_ctrl->cg), udma_ctrl_cg_get());
+        }
 
-            int32_t status = __pi_i2s_conf_set(itf_data, conf);
-            if (status)
-            {
-                I2S_TRACE_ERR("Error applying conf : %ld\n", status);
-                __restore_irq(irq);
-                return status;
-            }
+        int32_t status = __pi_i2s_conf_set(itf_data, conf);
+        if (status)
+        {
+            I2S_TRACE_ERR("Error applying conf : %ld\n", status);
+            __restore_irq(irq);
+            return status;
         }
     }
     *device_data = g_i2s_itf_data[conf->itf];

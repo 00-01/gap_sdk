@@ -72,8 +72,6 @@ bool Udma_rx_channel::is_ready()
 
 void Udma_rx_channel::set_active(bool active)
 {
-        this->top->get_trace()->msg(vp::trace::LEVEL_INFO, "%s %d\n", __FILE__, __LINE__);
-
     bool active_done = !this->is_active() && active;
     this->active = active;
 
@@ -268,7 +266,7 @@ void Udma_rx_channels::check_waiting_channels()
 
 bool Udma_rx_channel::is_active()
 {
-    return this->active && this->is_ready();
+    return this->active && this->is_ready() && (!this->addrgen || this->addrgen->get_remaining_size() > 0);
 }
 
 
@@ -303,6 +301,10 @@ void Udma_rx_channels::push_data(uint8_t *data, int size, Udma_addrgen *addrgen,
     req->addrgen = addrgen;
     req->addrgen_id = addrgen_id;
     this->fifo_ready->push(req);
+    if (addrgen)
+    {
+        addrgen->dec_size(size);
+    }
 
     this->check_state();
 }

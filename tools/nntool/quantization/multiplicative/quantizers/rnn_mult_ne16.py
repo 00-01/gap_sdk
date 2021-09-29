@@ -88,7 +88,7 @@ def calculatate_weight_q(in_qs,
             'KiReal': real_dim[1],
             'Ki': padded_dim[1],
             'Qw': qw
-    },
+        },
         **extra_attrs)
     w_q = in_qs[w_idx]
 
@@ -119,7 +119,7 @@ def calculatate_weight_q(in_qs,
     },
     {
         'name': 'force_external_size',
-        'type': str,
+        'type': int,
         'help': 'bits to use for features and state',
         'choices': [8, 16],
         'default': 8

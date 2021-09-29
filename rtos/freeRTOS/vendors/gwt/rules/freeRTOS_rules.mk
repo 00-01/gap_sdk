@@ -229,6 +229,8 @@ LDFLAGS             = -T$(LINK_SCRIPT) -nostartfiles -nostdlib $(STRIP) $(LIBS)
 
 # App sources
 APP_SRC            +=
+# App ASM sources
+APP_ASM_SRC        +=
 # App includes
 APP_INCLUDES       += $(foreach f, $(APP_INC_PATH), -I$f)
 # App compiler options
@@ -298,6 +300,7 @@ INCLUDES           += $(FEAT_INCLUDES)
 CRT0_OBJ            = $(patsubst %.S, $(BUILDDIR)/%.o, $(CRT0_SRC))
 PMSIS_ASM_OBJ       = $(patsubst %.S, $(BUILDDIR)/%.o, $(PMSIS_ASM_SRC))
 PORT_ASM_OBJ        = $(patsubst %.S, $(BUILDDIR)/%.o, $(PORT_ASM_SRC))
+APP_ASM_OBJ         = $(patsubst %.S, $(BUILDDIR)/%.o, $(APP_ASM_SRC))
 
 APP_OBJ             = $(patsubst %.c, $(BUILDDIR)/%.o, $(APP_SRC))
 APP_OBJ_CXX         = $(patsubst %.cpp, $(BUILDDIR)/%.o, $(APP_SRCS_CXX))
@@ -318,7 +321,7 @@ C_OBJS              = $(API_OBJ) $(DEVICE_OBJ) $(DRIVER_OBJ) $(GAP_LIB_OBJ) \
                       $(PMSIS_BACKEND_OBJ) $(PORT_OBJ) $(PRINTF_OBJ) $(RTOS_OBJ)
 
 # Objects to build.
-BUILDING_OBJS       = $(APP_OBJ) $(APP_OBJ_CXX) $(ASM_OBJS) $(C_OBJS)
+BUILDING_OBJS       = $(APP_ASM_OBJ) $(APP_OBJ) $(APP_OBJ_CXX) $(ASM_OBJS) $(C_OBJS)
 
 #$(info ## FreeRTOS app sources : $(BUILDING_OBJS))
 #$(info ## FreeRTOS CXX app sources : $(APP_SRCS_CXX))
@@ -358,6 +361,11 @@ $(C_OBJS): $(BUILDDIR)/%.o: %.c
 	@echo "    CC  $(shell basename $<)"
 	@mkdir -p $(dir $@)
 	$(TRC_MAKE)$(CC) $(CFLAGS) $(APP_CFLAGS) $(INCLUDES) -MD -MF $(basename $@).d -o $@ $<
+
+$(APP_ASM_OBJ): $(BUILDDIR)/%.o: %.S
+	@echo "    ASM  $(shell basename $<)"
+	@mkdir -p $(dir $@)
+	$(TRC_MAKE)$(CC) $(ASMFLAGS) $(APP_CFLAGS) $(INCLUDES) $(APP_INCLUDES) -MD -MF $(basename $@).d -o $@ $<
 
 $(APP_OBJ): $(BUILDDIR)/%.o: %.c
 	@echo "    CC $(shell basename $<)"

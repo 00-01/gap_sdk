@@ -108,6 +108,10 @@ class InputParameters(InputBaseParameters, InsensitiveToQuantization):
         super().__init__(*args, **kwargs)
         self.at_options.valid_options['EXTERN_INPUT_POINTER'] = int
 
+    @property
+    def graph_label(self):
+        return [self.name, f'{self.out_dims[0].shape}']
+
     def verify(self, G):
         problems = []
         for edge in G.in_edges(self.name):
@@ -161,10 +165,6 @@ class ConstantInputParameters(InputBaseParameters):
         if self.value is None:
             problems.append(f'constant node {self.name} has no value')
         return problems
-
-    @property
-    def generator_options(self):
-        return self._generator_options
 
     @property
     def graph_anon_label(self):

@@ -14,22 +14,26 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Tuple
-from utils.sigmoid_tanh_lut import sigmoid_lut_float, tanh_lut_float
-from utils.fast_float import np_fastexp, np_fastpow2, np_fastlog2, np_fastlog, np_fastpow, np_fastsigmoid, np_fasttanh
 
 import numpy as np
 from bfloat16 import bfloat16
 from expressions.symbolic.float_quantization.float_qrec import FloatQRec
 from expressions.symbolic.q15_quantization.q15_scale_q_rec import Q15ScaleQRec
+from utils.fast_float import (np_fastexp, np_fastlog, np_fastlog2, np_fastpow,
+                              np_fastpow2, np_fastrsqrt, np_fastsigmoid,
+                              np_fasttanh)
 
-from ..basic import (ATan, Abs, Add, Cast, Cos, Div, Exp, HSigmoid, HTanh, Log, Max, Min, Mul, Pow, Sigmoid,
-                     Sin, Sqrt, Sub, TanH)
+from ..basic import (Abs, Add, ATan, Cast, Cos, Div, Exp, HSigmoid, HTanh, Log,
+                     Max, Min, Mul, Pow, RSqrt, Sigmoid, Sin, Sqrt, Sub, TanH)
 from ..function import Function
 from ..quantization_base import qhandler
 from ..symbol import (Constant, Rational, Symbol, SymbolStats, Variable,
                       c_headers, environment, nargs)
 from .float_qrec import FloatQRec
 from .float_quantization import FloatQuantization
+
+# from utils.sigmoid_tanh_lut import sigmoid_lut_float, tanh_lut_float
+
 
 
 @qhandler("Float", Constant, Rational)
@@ -136,6 +140,7 @@ class BasicFloatFuncQuant(BasicFunctionQuant):
 
         return (Cast(sym_cls(*in_syms), dtype=np.float32), out_qrec)
 
+
 @nargs(1)
 @c_headers('CNN_Defines_fp16.h')
 class AbsF(Function):
@@ -149,6 +154,8 @@ class AbsF(Function):
     def _c_expr(self, *args, **kwargs):
         return "AbsF(%s)" % (args[0])
 
+# TODO - Need numpy equivalents of sin and cos
+# TODO - All of these should return correct function based on output type (i.e. bfloat16/ieee16 version)
 
 @nargs(1)
 @environment({
@@ -192,7 +199,7 @@ class FastFloatSin(Function):
 class FastFloatSigmoid(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastsigmoid(np.array(args[0]))
+        return np_fastsigmoid(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastsigmoid(np.array({args[0]}))"
@@ -209,13 +216,14 @@ class FastFloatSigmoid(Function):
 class FastFloatTanH(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fasttanh(np.array(args[0]))
+        return np_fasttanh(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fasttanh(np.array({args[0]}))"
 
     def _c_expr(self, *args, **kwargs):
         return f"fasttanh({args[0]})"
+
 
 @nargs(2)
 @environment({
@@ -225,13 +233,14 @@ class FastFloatTanH(Function):
 class FastFloatPow(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastpow(np.array(args[0]), np.array(args[1]))
+        return np_fastpow(np.array(args[0]), np.array(args[1]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastpow(np.array({args[0]}), np.array({args[1]}))"
 
     def _c_expr(self, *args, **kwargs):
         return f"fastpow({args[0]}, {args[1]})"
+
 
 @nargs(1)
 @environment({
@@ -241,13 +250,14 @@ class FastFloatPow(Function):
 class FastFloatPow2(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastpow2(np.array(args[0]))
+        return np_fastpow2(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastpow2(np.array({args[0]}))"
 
     def _c_expr(self, *args, **kwargs):
         return f"fastpow2({args[0]})"
+
 
 @nargs(1)
 @environment({
@@ -257,13 +267,14 @@ class FastFloatPow2(Function):
 class FastFloatLog(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastlog(np.array(args[0]))
+        return np_fastlog(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastlog(np.array({args[0]}))"
 
     def _c_expr(self, *args, **kwargs):
         return f"fastlog({args[0]})"
+
 
 @nargs(1)
 @environment({
@@ -273,13 +284,14 @@ class FastFloatLog(Function):
 class FastFloatLog2(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastlog2(np.array(args[0]))
+        return np_fastlog2(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastlog2(np.array({args[0]}))"
 
     def _c_expr(self, *args, **kwargs):
         return f"fastlog2({args[0]})"
+
 
 @nargs(1)
 @environment({
@@ -289,7 +301,7 @@ class FastFloatLog2(Function):
 class FastFloatExp(Function):
 
     def _impl(self, *args, **kwargs):
-        return np_fastexp(np.array(args[0]))
+        return np_fastexp(np.array(args[0]), dtype=self.dtype)
 
     def _py_expr(self, *args, **kwargs):
         return f"np_fastexp(np.array({args[0]}))"
@@ -298,7 +310,24 @@ class FastFloatExp(Function):
         return f"fastexp({args[0]})"
 
 
-@qhandler("Float", Cos, Sin, Sigmoid, TanH, Abs, Pow, Exp, Log)
+@nargs(1)
+@environment({
+    'np_fastrsqrt': np_fastrsqrt,
+})
+@c_headers('"FastFloatApprox.h"')
+class FastFloatRSqrt(Function):
+
+    def _impl(self, *args, **kwargs):
+        return np_fastrsqrt(np.array(args[0]), dtype=self.dtype)
+
+    def _py_expr(self, *args, **kwargs):
+        return f"np_fastrsqrt(np.array({args[0]}))"
+
+    def _c_expr(self, *args, **kwargs):
+        return f"fastrsqrt({args[0]})"
+
+
+@qhandler("Float", Cos, Sin, Sigmoid, TanH, Abs, Pow, Exp, Log, RSqrt)
 class FastFloatExprFunQuant(BasicFunctionQuant):
 
     @classmethod
@@ -318,9 +347,10 @@ class FastFloatExprFunQuant(BasicFunctionQuant):
         min_val = None if max_val is None else -max_val
         out_qrec = FloatQRec(dtype=np.float32,
                              min_val=min_val, max_val=max_val)
-
         if isinstance(sym, Cos):
             qsym = FastFloatCos
+        elif isinstance(sym, RSqrt):
+            qsym = FastFloatRSqrt
         elif isinstance(sym, Sin):
             qsym = FastFloatSin
         elif isinstance(sym, Sigmoid):
@@ -328,13 +358,18 @@ class FastFloatExprFunQuant(BasicFunctionQuant):
         elif isinstance(sym, TanH):
             qsym = FastFloatTanH
         elif isinstance(sym, Pow):
-            qsym = FastFloatPow
+            base_val = in_syms[0].resolve()
+            if isinstance(base_val, Constant) and base_val.value == 2:
+                in_syms = [in_syms[1]]
+                qsym = FastFloatPow2
+            else:
+                qsym = FastFloatPow
         elif isinstance(sym, Log):
             qsym = FastFloatLog
         elif isinstance(sym, Exp):
             qsym = FastFloatExp
         elif isinstance(sym, Abs):
-            if sym.dtype==np.float32:
+            if sym.dtype == np.float32:
                 qsym = Abs
             else:
                 qsym = AbsF

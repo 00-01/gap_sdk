@@ -16,6 +16,9 @@
 import logging
 import os
 import re
+from reports.quantization_reporter import QuantizationReporter
+from utils.tabular import TextTableRenderer
+from reports.graph_reporter import GraphReporter
 from typing import Generator, Sequence, Union
 
 import numpy as np
@@ -362,3 +365,15 @@ class NNGraph(Graph):
             for idx, out in enumerate(outputs):
                 print_step(self.graph_state.steps[idx], out, idx)
         print()
+
+    def qshow(self):
+        tab = QuantizationReporter().report(self, self.quantization)
+        renderer = TextTableRenderer(150)
+        tab.render(renderer)
+        return renderer.get_output()
+
+    def __repr__(self):
+        tab = GraphReporter().report(self)
+        renderer = TextTableRenderer(150)
+        tab.render(renderer)
+        return renderer.get_output()

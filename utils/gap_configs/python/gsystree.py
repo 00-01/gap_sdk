@@ -55,13 +55,12 @@ class Component(object):
             for option in options:
                 name, value = option.split('=', 1)
                 name_list = name.split('/')
-                name_list[-1] = '%s=%s' % (name_list[-1], value)
+                name_list.append(value)
 
                 self.options.append(name_list)
 
         if parent is not None:
             parent.add_component(name, self)
-
 
     def gen_stimuli(self, work_dir):
         """Generate stimuli.
@@ -170,6 +169,8 @@ class Component(object):
         self.components[name] = component
         component.name = name
 
+        # Determine the set of options which should be propagated to the sub-component
+        # based on the path
         comp_options = []
         for option in self.options:
             option_name = None
@@ -189,7 +190,7 @@ class Component(object):
 
         if len(comp_options) != 0:
             component.__set_options(comp_options)
-            
+
         return component
 
 
@@ -350,7 +351,6 @@ class Component(object):
             component_config = { component_name: component.get_config() }
             config = self.__merge_properties(config, component_config)
 
-
         #config = self.merge_options(config, self.comp_options, self.properties)
 
         config = self.__merge_properties(config, self.properties, self.comp_options)
@@ -442,7 +442,7 @@ class Component(object):
             if True:
                 comp_options = self.comp_options
 
-                for item in option[:-1]:
+                for item in option[:-2]:
 
                     if item in ['*', '**']:
                         continue
@@ -452,7 +452,12 @@ class Component(object):
 
                     comp_options = comp_options.get(item)
 
-                name, value = option[-1].split('=', 1)
+                name = option[-2]
+                value = option[-1]
+
+                if type(value) == dict or type(value) == collections.OrderedDict():
+                    value = value.copy()
+
                 if comp_options.get(name) is None:
                     comp_options[name] = value
                 elif type(comp_options.get(name)) == list:
@@ -463,11 +468,11 @@ class Component(object):
             else:
 
                 if len(option) == 1:
-                    name, value = option[0].split('=', 1)
+                    name = option[-2]
+                    value = option[-1]
                     self.comp_options[name] = value
 
         self.options = options
-
 
     def __add_master_port(self, name):
         self.master_ports.append(name)
@@ -489,9 +494,22 @@ class Component(object):
         self.build_done = True
         
 
-    def __merge_properties(self, dst, src, options=None):
+    def __merge_properties(self, dst, src, options=None, is_root=True):
+
         if type(src) == dict or type(src) == collections.OrderedDict:
-            for name, value in src.items():
+
+            # Copy the source dictionary so that we can append the options
+            # which do not appears in src
+            src_merged = src.copy()
+
+            # Copy all the options which do not appear in src
+            if options is not None:
+                for name, value in options.items():
+                    if src_merged.get(name) is None and not is_root:
+                        src_merged[name] = value
+
+            # And merge dst, src and options
+            for name, value in src_merged.items():
                 if dst.get(name) is None:
                     new_dst = {}
                 else:
@@ -502,7 +520,7 @@ class Component(object):
                 else:
                     new_options = None
 
-                dst[name] = self.__merge_properties(new_dst, value, new_options)
+                dst[name] = self.__merge_properties(new_dst, value, new_options, is_root=False)
 
             return dst
 
@@ -513,6 +531,7 @@ class Component(object):
                     result += options
                 else:
                     result.append(options)
+
             return result
 
         else:

@@ -173,13 +173,13 @@ class BackendHandler(Handler):
 
                 const_param.value = np.reshape(tensor.value, tensor.shape)
 
-                # if opts.get('load_quantization'):
-                #     G.quantization[NodeId(const_param)] = MultConstantQuantizationRecord(
-                #         in_qs=[tensor.qtype],
-                #         out_qs=[tensor.qtype])
+                if opts.get('load_quantization'):
+                    G.quantization[NodeId(const_param)] = QRec.scaled(
+                        in_qs=[tensor.qtype],
+                        out_qs=[tensor.qtype])
 
-            # if load_quantization_if_present and tensor.qtype:
-            #     const_param.value_quantization = tensor.qtype
+            if load_quantization_if_present and tensor.qtype:
+                const_param.value_quantization = tensor.qtype
 
             const_params.append(const_param)
             G.add_edge(NNEdge(const_param, params, to_idx=idx))
@@ -213,13 +213,13 @@ class BackendHandler(Handler):
         if qrec_class is None:
             qrec = QRec.scaled(
                 in_qs=cls.convert_to_symmetric(
-                    in_qs if in_qs is not None else [tensor.qtype for tensor in input_tensors]),
+                    in_qs if in_qs is not None else [tensor.qtype if tensor is not None else None for tensor in input_tensors]),
                 out_qs=cls.convert_to_symmetric(
                     out_qs if out_qs is not None else [tensor.qtype for tensor in output_tensors]))
         else:
             qrec = qrec_class(
                 in_qs=cls.convert_to_symmetric(
-                    in_qs if in_qs is not None else [tensor.qtype for tensor in input_tensors]),
+                    in_qs if in_qs is not None else [tensor.qtype if tensor is not None else None for tensor in input_tensors]),
                 out_qs=cls.convert_to_symmetric(
                     out_qs if out_qs is not None else [tensor.qtype for tensor in output_tensors]))
         return qrec

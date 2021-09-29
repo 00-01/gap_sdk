@@ -303,6 +303,8 @@ class NNToolShellBase(NNToolShellSettings, Cmd):
                 [None] * (self._graph_idx + 1 - len(self._history_stats)))
 
     def _record_history(self, data: plugin.PostcommandData) -> plugin.PostcommandData:
+        if not self.cmd_func(data.statement.command):
+            return data
         if self._replaying_history:
             return data
         if data.statement.command == 'set':

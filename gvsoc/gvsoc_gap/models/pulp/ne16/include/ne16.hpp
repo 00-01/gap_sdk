@@ -263,7 +263,8 @@ private:
     int  job_pending;
     int  job_state;
     unsigned char job_id;
-    unsigned char cxt_job_id[2];
+    int cxt_job_id[2];
+    char running_job_id;
     int  job_running;
 
     // REGISTER FILE configuration parameters

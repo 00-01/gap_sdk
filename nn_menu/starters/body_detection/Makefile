@@ -55,7 +55,7 @@ include model_decl.mk
 # REMEMBER THAT THE L1 MEMORY ALLOCATION MUST INCLUDE SPACE
 # FOR ALLOCATED STACKS!
 # FC stack size:
-MAIN_STACK_SIZE=1024
+MAIN_STACK_SIZE=4096
 # Cluster PE0 stack size:
 CLUSTER_STACK_SIZE=4096
 # Cluster PE1-PE7 stack size:
@@ -92,7 +92,7 @@ APP = body_detection
 APP_SRCS += main.c ImgIO.c ImageDraw.c SSDKernels.c SSDBasicKernels.c SSDParams.c $(MODEL_GEN_C) $(CNN_LIB) 
 
 APP_CFLAGS += -g -w #-DNORM_ROUND
-APP_CFLAGS += -O3 -s -mno-memcpy -fno-tree-loop-distribute-patterns
+APP_CFLAGS += -O2 -s -mno-memcpy -fno-tree-loop-distribute-patterns
 APP_CFLAGS += -I. -I./helpers -I$(TILER_EMU_INC) -I$(TILER_INC) -I$(GEN_PATH) -I$(MODEL_BUILD) $(CNN_LIB_INCLUDE)
 APP_CFLAGS += -DCLUSTER_STACK_SIZE=$(CLUSTER_STACK_SIZE) -DCLUSTER_SLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE)
 APP_CFLAGS += -DFREQ_CL=$(FREQ_CL) -DFREQ_FC=$(FREQ_FC)

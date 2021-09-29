@@ -22,8 +22,11 @@
 
 extern struct cluster_driver_data *__per_cluster_data[];
 
-PI_L2 pi_task_t delegate_task[16] = {0};
-volatile uint32_t delegate_task_mask = 0xFFFF;
+#define NB_L1_TASKS 8
+
+PI_FC_L1 pi_task_t delegate_task[NB_L1_TASKS] = {0};
+PI_FC_L1 uint32_t delegate_task_mask = 0xFFFFFFFF;
+PI_L2 pi_task_t delegate_task_l2[32-NB_L1_TASKS] = {0};
 
 void cl_notify_fc_event_handler(void)
 {
@@ -35,16 +38,31 @@ void cl_notify_fc_event_handler(void)
     {
         hal_compiler_barrier();
         task = (pi_task_t *) ((uint32_t) task & ~0x1);
+        callback_func = (pi_callback_func_t) task->arg[0];
+        callback_func((void*) task->arg[1]);
+    }
+    else if (task->id == PI_TASK_IRQ_ID)
+    {
+        /* irq callback (full pi task, transfered to driver,
+         * but executed in place
+         */
         uint32_t delegate_task_id = __FF1(delegate_task_mask);
         delegate_task_mask &= ~(1<<delegate_task_id);
-        task->arg[3] = (uintptr_t)&(delegate_task[delegate_task_id]);
+        if(delegate_task_id >= NB_L1_TASKS )
+        {
+            task->arg[3] = (uintptr_t)&(delegate_task_l2[delegate_task_id-NB_L1_TASKS]);
+        }
+        else
+        {
+            task->arg[3] = (uintptr_t)&(delegate_task[delegate_task_id]);
+        }
         task->arg[2] = delegate_task_id;
         hal_compiler_barrier();
         callback_func = (pi_callback_func_t) task->arg[0];
         callback_func((void*) task->arg[1]);
     }
-    /* Push pi_task callback to event kernel. */
     else
+    /* Push pi_task callback to event kernel. */
     {
         pi_task_push(task);
     }

@@ -130,19 +130,22 @@ class Gtkwave_tree(object):
     def get_full_vcd_name(self, comp, vcd_name):
         return (comp.get_path(gv_path=True) + '/' + vcd_name).replace('/', '.')
 
-    def add_trace(self, comp, name, vcd_signal, ext='', map_file=None, tag=None):
-        vcd_signal = self.get_full_vcd_name(comp, vcd_signal)
-        full_vcd_signal = vcd_signal + ext
+    def add_trace(self, comp, name, vcd_signal=None, ext='', map_file=None, map_file_path=None, tag=None, full_vcd_signal=None):
+        if full_vcd_signal is None:
+            full_vcd_signal = self.get_full_vcd_name(comp, vcd_signal)
+        full_vcd_signal = full_vcd_signal + ext
 
         translate_filter_file = None
         if map_file is not None:
             translate_filter_file = map_file.get_path()
+        if map_file_path is not None:
+            translate_filter_file = map_file_path
 
         trace = Gtkwave_trace(name, full_vcd_signal, translate_filter_file)
         self.current_groups[-1].add_child(trace)
 
         if tag is not None and tag in self.tags:
-            self.activate_traces.append('/' + vcd_signal.replace('.', '/'))
+            self.activate_traces.append('/' + full_vcd_signal.replace('.', '/'))
 
     def set_view(self, view):
         self.view = view

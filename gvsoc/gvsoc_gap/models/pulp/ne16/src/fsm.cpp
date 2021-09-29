@@ -50,7 +50,7 @@ void Ne16::fsm_start_handler(void *__this, vp::clock_event *event) {
   assert(!(_this->streamin && _this->quantization_bits!=32));
 
   // padding is not compatible with FS=1. sorry!
-  assert((_this->padding_top==0 && _this->padding_right==0 && _this->padding_bottom==0 && _this->padding_left==0) || _this->fs==3);
+  // assert((_this->padding_top==0 && _this->padding_right==0 && _this->padding_bottom==0 && _this->padding_left==0) || _this->fs==3);
 
   // filter masking is not compatible with FS=1. sorry!
   assert((_this->filter_mask_top==0 && _this->filter_mask_right==0 && _this->filter_mask_bottom==0 && _this->filter_mask_left==0) || _this->fs==3);
@@ -89,7 +89,7 @@ void Ne16::fsm_end_handler(void *__this, vp::clock_event *event) {
   Ne16 *_this = (Ne16 *)__this;
   int job_id = _this->cxt_job_id[_this->cxt_use_ptr];
   _this->job_running = 0;
-  _this->cxt_job_id[_this->cxt_use_ptr] = 0;
+  _this->cxt_job_id[_this->cxt_use_ptr] = -1;
   _this->cxt_use_ptr = 1-_this->cxt_use_ptr;
   _this->job_pending--;
   _this->irq.sync(true);

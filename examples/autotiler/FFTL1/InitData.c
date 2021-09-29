@@ -64,8 +64,8 @@ int main(int argc, char *argv[])
 	FILE *Fi;
 	Fi = fopen("In_Data.h", "w");
 
-	short int *InDataQ16  = (short int *)  AT_L2_ALLOC(0, 2*MAXDIM*sizeof(short int));
-	float *InDataf32  = (float *)      AT_L2_ALLOC(0, 2*MAXDIM*sizeof(float));
+	short int *InDataQ16  = (short int *)  malloc(2*MAXDIM*sizeof(short int));
+	float *InDataf32  = (float *)      malloc(2*MAXDIM*sizeof(float));
 	InitData4      (InDataQ16, MAXDIM, 37, 15, 23, 73, 0.1, 0.5, 0.6, 0.8);
 	InitData4_float(InDataf32, MAXDIM, 37, 15, 23, 73, 0.1, 0.5, 0.6, 0.8);
 	fprintf(Fi, "signed short InDataQ16[] = {\n\t");

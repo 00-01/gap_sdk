@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from copy import deepcopy
 import csv
 import json
 import logging
@@ -72,9 +73,15 @@ class GenProjectCommand(NNToolShellBase):
     parser_gen_proj.add_argument('--atproject',
                                  action='store_true',
                                  help='generate a native autotiler project with the model already generated')
+    parser_gen_proj.add_argument('--dump_tensors',
+                                 action='store_true',
+                                 help='print generated tensors')
     parser_gen_proj.add_argument('--input_file',
                                  completer_method=Cmd.path_complete, default=None,
                                  help='if test_results, use this file to run inference')
+    parser_gen_proj.add_argument('--input_tensors',
+                                type=str,
+                                help='produce input tensors from tensor store with supplied name')
     parser_gen_proj.add_argument('--save_inputs',
                                  action='store_true',
                                  help='if test_results, save the inputs in files also')
@@ -90,6 +97,19 @@ added."""
         self._check_graph()
         self._check_quantized()
         self._check_adjusted()
+
+        if args.input_tensors:
+            if args.input_tensors not in self.tensor_store:
+                self.perror(
+                    f'input tensor {args.input_tensors} not found in store')
+                return
+            store = self.tensor_store[args.input_tensors]
+            input_tensors = []
+            for params in self.G.nodes(node_classes=InputParameters):
+                input_tensors.append(store[params.step_idx][0])
+        else:
+            input_tensors = None
+
         gen_project(self.G,
                     self.settings,
                     args.project_folder,
@@ -98,7 +118,9 @@ added."""
                     quantized=self.settings['load_quantization'],
                     test_results=args.test_results,
                     save_inputs=args.save_inputs,
+                    dump_tensors=args.dump_tensors,
                     input_file=args.input_file,
+                    input_tensors=input_tensors,
                     input_args=self._get_input_args(args),
                     gen_atproject=args.atproject)
         self.pfeedback(f'project generated in {args.project_folder}')
@@ -155,6 +177,10 @@ This command can take a few minutes to complete."""
                 'you must run "source sourceme.sh" in the GAP SDK before using this command')
             return
         if args.input_tensors:
+            if args.input_tensors not in self.tensor_store:
+                self.perror(
+                    f'input tensor {args.input_tensors} not found in store')
+                return
             store = self.tensor_store[args.input_tensors]
             input_tensors = []
             for params in self.G.nodes(node_classes=InputParameters):
@@ -285,6 +311,11 @@ def process_script(script):
 def gen_project(G, settings, project_folder, script_commands, overwrite=False, performance=False,
                 quantized=False, test_results=False, save_inputs=False, input_file=None, input_args=None,
                 gen_atproject=False, dump_tensors=False, input_tensors=None):
+    settings = deepcopy(settings)
+    settings['graph_monitor_cycles'] = True
+    settings['graph_produce_node_names'] = True
+    settings['graph_produce_operinfos'] = True
+
     code_gen = CodeGenerator(
         G, DefaultNamingConvension(G), settings)
 
@@ -346,11 +377,11 @@ def gen_project(G, settings, project_folder, script_commands, overwrite=False, p
             # NOTE - gen_template_project is excluded so that tests work. Normally it will not be in the
             # history.
             fp.writelines(process_script(script_commands))
-            if performance:
-                for setting in ['set graph_produce_node_names true',
-                                'set graph_produce_operinfos true',
-                                'set graph_monitor_cycles true']:
-                    fp.write(f'{setting}\n')
+            # always add performance since the main template uses it
+            for setting in ['set graph_produce_node_names true',
+                            'set graph_produce_operinfos true',
+                            'set graph_monitor_cycles true']:
+                fp.write(f'{setting}\n')
             if dump_tensors:
                 fp.write('set graph_dump_tensor 7\n')
 

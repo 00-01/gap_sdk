@@ -84,12 +84,14 @@ class GRUNE16Generator(GeneratorBase):
                 sigmoid_table,
                 np.array([
                     -weight_zero.astype(np.int8),
+                    0
                 ], dtype=np.int8)))
         else:
             contents = np.concatenate((
                 sigmoid_table,
                 np.array([
                     -weight_zero.astype(np.int8),
+                    qrec.cache['gate_prenorm']
                 ], dtype=np.int8)))
 
         comment = (f"WZP: {weight_zero}")
@@ -165,6 +167,8 @@ class GRUNE16Generator(GeneratorBase):
     @classmethod
     def kernel_generator(cls, gen, node, qrec, in_eparams, out_eparams, cname) -> bool:
         del in_eparams, out_eparams
+        if not node.linear_before_reset:
+            raise NotImplementedError("Linear before reset = False NE16 GRU kernel is not implemented")
         gen.kernels.append(
             GRUNE16Kernel(
                 node.name, cname, node, qrec)

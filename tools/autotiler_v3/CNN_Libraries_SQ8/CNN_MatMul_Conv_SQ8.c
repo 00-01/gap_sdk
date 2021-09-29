@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
 #include <stdio.h>
 #include "CNN_BasicKernels_SQ8.h"
 
@@ -2885,3 +2888,4 @@ void KerPar_MM_ConvDW2D_HWC_SQ8(
 	}
 	gap_waitbarrier(0);
 }
+#pragma GCC diagnostic pop

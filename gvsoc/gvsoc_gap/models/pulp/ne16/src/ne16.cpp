@@ -55,8 +55,10 @@ void Ne16::reset(bool active)
     this->x_array         = xt::zeros<uint8_t>({this->NR_COLUMN, this->COLUMN_SIZE, this->TP_IN}); 
     this->weight          = xt::zeros<uint8_t>({this->FILTER_SIZE*this->FILTER_SIZE, 2});
     this->nqs             = xt::zeros<uint8_t>({this->TP_OUT});
-    this->job_id = this->cxt_job_id[0] = this->cxt_job_id[1] = 0;
-    this->job_running = 0;
+    this->job_id          = 0;
+    this->cxt_job_id[0] = this->cxt_job_id[1] = -1;
+    this->running_job_id  = 0;
+    this->job_running     = 0;
 }
 
 // The `hwpe_slave` member function models an access to the NE16 SLAVE interface
@@ -111,13 +113,14 @@ vp::io_req_status_e Ne16::hwpe_slave(void *__this, vp::io_req *req)
             }
         }
         else if((req->get_addr() & 0x17f) == 0xc) {
-            *(uint32_t *) data = _this->status() ? 1 : 0;
+            *(uint32_t *) data = ((_this->cxt_job_id[0]>=0?0x1:0)|(_this->cxt_job_id[1]>=0?0x100:0));
             if (_this->trace_level == L1_ACTIV_INOUT || _this->trace_level == L2_DEBUG || _this->trace_level == L3_ALL) {
                 _this->trace.msg("Returning %x\n", *(uint32_t *) data);
             }
         }
         else if((req->get_addr() & 0x17f) == 0x10) {
-            *(uint32_t *) data = _this->cxt_job_id[_this->cxt_use_ptr];
+            // Returns the active running job or the last jobid that was run
+            *(uint32_t *) data = _this->running_job_id;
             if (_this->trace_level == L1_ACTIV_INOUT || _this->trace_level == L2_DEBUG || _this->trace_level == L3_ALL) {
                 _this->trace.msg("Returning %x\n", *(uint32_t *) data);
             }

@@ -78,8 +78,12 @@ SECTIONS
 
      .fcTcdm_g :
      {
+        . = ALIGN(8);
+       __fc_tcdm_g_start = .;
        *(.fcTcdm_g)
        *(.fcTcdm_g.*)
+        . = ALIGN(8);
+       __fc_tcdm_g_end = .;
      } > FC_tcdm
 
     /* This section contains stack used by IRQ handler. */

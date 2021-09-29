@@ -19,6 +19,7 @@
 #pragma GCC diagnostic ignored "-Wpointer-sign"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wswitch"
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
 
 #include "CNN_BasicKernels_SQ8.h"
 
@@ -317,8 +318,6 @@ void KerParReduct_CC_NoScale_LeakyReLU_HWC_SQ8(KerConvLinReduct_SQ8_T *Arg)
 	int H = Arg->H;
 	unsigned int CoreId = gap_coreid(), ChunkCell = ChunkSize(H*W), First = CoreId*ChunkCell, Last  = Min(First+ChunkCell, H*W);
 	int * __restrict__ In = (int *__restrict__) Arg->In;
-	unsigned char * __restrict__ Scale = (unsigned char *__restrict__) Arg->Scale;
-	unsigned char * __restrict__ ScaleN = (unsigned char *__restrict__) Arg->ScaleN;
 	signed char * __restrict__ Out = (signed char *__restrict__) Arg->Out;
 	signed char * __restrict__ Infos = (signed char *__restrict__) Arg->Infos;
 	unsigned int ActScale = ((unsigned char *)Infos)[AT_INF_ACTSCALE], ActScaleN = ((unsigned char *)Infos)[AT_INF_ACTSCALEN];

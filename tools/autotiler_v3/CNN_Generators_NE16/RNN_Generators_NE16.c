@@ -20,7 +20,6 @@
 #include "Gap.h"
 #include "RNN_Generators_NE16.h"
 #include "CNN_Generators_NE16.h"
-#include "../CNN_Libraries_NE16/stage_desc.h"
 
 #define D0      KER_ITER_D0
 #define D1      KER_ITER_D1
@@ -129,7 +128,7 @@ void Load_RNN_NE16_Library()
                         CNN_Match(CNN_OperList(1, KOP_RNN), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-2,0,0,0,-2), 0,0,0,0,1,1));
 
         LibKernelTemplate("KerLSTM_NE16_T",
-                  CArgs(35,
+                  CArgs(34,
                         TCArg("unsigned char *__restrict__", "StateInOut"),
                         TCArg("unsigned char *__restrict__", "State"),
                         TCArg("unsigned char *__restrict__", "Xin"),
@@ -163,13 +162,12 @@ void Load_RNN_NE16_Library()
                         TCArg("char", "FilterDataSizeBits"),
                         TCArg("int", "Default_NE16_Job_Cfg"),
                         TCArg("char", "Reset"),
-                        TCArg("int", "TileOffset"),
-                        TCArg("pStageDesc_t", "pStageDesc")
+                        TCArg("int", "TileOffset")
                        )
         );
 
         LibKernelTemplate("KerLSTM_NE16fp_T",
-                  CArgs(35,
+                  CArgs(34,
                         TCArg("unsigned short *__restrict__", "StateInOut"),
                         TCArg("unsigned short *__restrict__", "State"),
                         TCArg("unsigned short *__restrict__", "Xin"),
@@ -203,8 +201,7 @@ void Load_RNN_NE16_Library()
                         TCArg("char", "FilterDataSizeBits"),
                         TCArg("int", "Default_NE16_Job_Cfg"),
                         TCArg("char", "Reset"),
-                        TCArg("int", "TileOffset"),
-                        TCArg("pStageDesc_t", "pStageDesc")
+                        TCArg("int", "TileOffset")
                        )
         );
 
@@ -214,7 +211,7 @@ void Load_RNN_NE16_Library()
                         CNN_Match(CNN_OperList(1, KOP_LSTM), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-2,0,0,0,-2), 0,0,0,0,1,1));
 
         LibKernelTemplate("KerGRU_NE16_T",
-                  CArgs(30,
+                  CArgs(32,
                         TCArg("unsigned char *__restrict__", "StateInOut"),
                         TCArg("unsigned char *__restrict__", "State"),
                         TCArg("unsigned char *__restrict__", "Xin"),
@@ -241,6 +238,45 @@ void Load_RNN_NE16_Library()
                         TCArg("signed char *__restrict__", "Infos"),
                         TCArg("char", "FirstCell"),
                         TCArg("char", "FirstOut"),
+                        TCArg("char", "LastCell"),
+                        TCArg("char", "LastOut"),
+                        TCArg("char", "FilterDataSizeBits"),
+                        TCArg("int", "Default_NE16_Job_Cfg"),
+                        TCArg("char", "Reset"),
+                        TCArg("int", "TileOffset")
+                       )
+        );
+
+        LibKernelTemplate("KerGRU_NE16fp_T",
+                  CArgs(32,
+                        TCArg("unsigned short *__restrict__", "StateInOut"),
+                        TCArg("unsigned short *__restrict__", "State"),
+                        TCArg("unsigned short *__restrict__", "Xin"),
+                        TCArg("unsigned char *__restrict__", "ScaleNorm"),
+                        TCArg("int *__restrict__", "OutBuff1"),
+                        TCArg("int *__restrict__", "OutBuff2"),
+                        TCArg("int *__restrict__", "OutBuff3"),
+                        TCArg("unsigned short int", "DimState"),
+                        TCArg("unsigned short int", "DimIn"),
+                        TCArg("unsigned short int", "DimStateInt"),
+                        TCArg("unsigned short int", "DimInInt"),
+                        TCArg("unsigned char *__restrict__", "Wr"),
+                        TCArg("unsigned char *__restrict__", "Wri"),
+                        TCArg("int * __restrict__", "Br"),
+                        TCArg("unsigned char *__restrict__", "Wz"),
+                        TCArg("unsigned char *__restrict__", "Wzi"),
+                        TCArg("int * __restrict__", "Bz"),
+                        TCArg("unsigned char *__restrict__", "Wh"),
+                        TCArg("unsigned char *__restrict__", "Whi"),
+                        TCArg("int * __restrict__", "Bwh"),
+                        TCArg("int * __restrict__", "Brh"),
+                        TCArg("unsigned short *__restrict__", "Hout"),
+                        TCArg("unsigned short int", "Nout"),
+                        TCArg("signed char *__restrict__", "Infos"),
+                        TCArg("char", "FirstCell"),
+                        TCArg("char", "FirstOut"),
+                        TCArg("char", "LastCell"),
+                        TCArg("char", "LastOut"),
                         TCArg("char", "FilterDataSizeBits"),
                         TCArg("int", "Default_NE16_Job_Cfg"),
                         TCArg("char", "Reset"),
@@ -250,6 +286,8 @@ void Load_RNN_NE16_Library()
 
         LibKernel("GRU_ParKerB32_NE16", CALL_PARALLEL_CC, 0, "KerGRU_NE16_T",
                         CNN_Match(CNN_OperList(1, KOP_GRU), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-1,0,0,0,-1), 0,0,0,0,1,1));
+        LibKernel("GRU_ParKerB32_NE16fp", CALL_PARALLEL_CC, 0, "KerGRU_NE16fp_T",
+                        CNN_Match(CNN_OperList(1, KOP_GRU), CNN_OperList(1, KOP_SIGMOID), CALL_PARALLEL, CNN_Type(-2,0,0,0,-2), 0,0,0,0,1,1));
 
 }
 
@@ -879,7 +917,7 @@ static Kernel_T *LSTM_Stack_Seq_NE16(
                         FirstSeq?Call("NE16_Enable", LOC_D0_PROLOG, Bindings(0)):AT_NO_CALL,
                         Call("NE16_SoftReset", LOC_LOOP, Bindings(0)),
                         Call(LSTMKerName, LOC_LOOP,
-                                Bindings(35,
+                                Bindings(34,
                                         (!(FirstSeq&&AlwaysReset))?K_Arg("SCin",  KER_ARG_TILE):((!(LastSeq&&AlwaysReset))?K_Arg("SCout",  KER_ARG_TILE):Imm(0)),
                                         K_Arg("State",  KER_ARG_TILE),
                                         UseIn?K_Arg("Xin", KER_ARG_TILE):Imm(0),
@@ -913,16 +951,13 @@ static Kernel_T *LSTM_Stack_Seq_NE16(
                                         Imm(FilterDataSizeBits),
                                         Imm(DEFAULT_NE16_JOB_CFG), 
                                         AlwaysReset?(FirstSeq?Imm(1):Imm(0)):C_Arg("Reset"),
-                                        BindKExpr("KArg(Bf, TileBase, D1)"),
-                                        K_Arg("StageDesc",  KER_ARG_TILE)
+                                        BindKExpr("KArg(Bf, TileBase, D1)")
                                         )
                         ),
                         LastSeq?Call("NE16_Disable", LOC_D0_EPILOG, Bindings(0)):AT_NO_CALL
 
                 ),
-                KerArgs(25,
-                        KerArg("StageDesc",KerArgSpace(1,T0),   O_BUFF|O_NTILED,      	                sizeof(StageDesc_t),
-                                                                                                                          1, 1, 0, 0, 0, ""),
+                KerArgs(24,
                         KerArg("Wf",      KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimStateInt,      1, Ws,           0, 0, 0, "Wf"),
                         (UseIn)?
                         KerArg("Wfi",     KerArgSpace(1,D1),    O_IN|O_DB|O_CONST|Buffer|Wa,            DimInInt,         1, Ws,           0, 0, 0, "Wfi"):AT_NO_KER_ARG,
@@ -1434,14 +1469,14 @@ static Kernel_T *GRU_Stack_Seq_NE16(
                         FirstSeq?Call("NE16_Enable", LOC_D0_PROLOG, Bindings(0)):AT_NO_CALL,
                         Call("NE16_SoftReset", LOC_LOOP, Bindings(0)),
                         Call(GRUKerName, LOC_LOOP,
-                                Bindings(30,
+                                Bindings(32,
                                         (!(FirstSeq&&AlwaysReset))?K_Arg("SHin",  KER_ARG_TILE):((!(LastSeq&&AlwaysReset))?K_Arg("SHout",  KER_ARG_TILE):Imm(0)),
                                         K_Arg("State",  KER_ARG_TILE),
                                         UseIn?K_Arg("Xin", KER_ARG_TILE):Imm(0),
                                         K_Arg("ScaleNorm",  KER_ARG_TILE),
                                         K_Arg("OutBuff1",  KER_ARG_TILE),
                                         K_Arg("OutBuff2",  KER_ARG_TILE),
-                                        K_Arg("OutBuff3",  KER_ARG_TILE),
+                                        (!Mode16)?K_Arg("OutBuff3",  KER_ARG_TILE):AT_IGNORE_ARG_BINDING,
                                         Imm(DimState),
                                         Imm(DimIn),
                                         Imm(DimStateInt),
@@ -1461,6 +1496,8 @@ static Kernel_T *GRU_Stack_Seq_NE16(
                                         K_Arg("Infos", KER_ARG_TILE),
                                         K_ArgPred("Wr", KER_ARG_TILEFIRST, D0),
                                         K_ArgPred("Wr", KER_ARG_TILEFIRST, D1),
+                                        K_ArgPred("Wr", KER_ARG_TILELAST, D0),
+                                        K_ArgPred("Wr", KER_ARG_TILELAST, D1),
                                         Imm(FilterDataSizeBits),
                                         Imm(DEFAULT_NE16_JOB_CFG), 
                                         AlwaysReset?(FirstSeq?Imm(1):Imm(0)):C_Arg("Reset"),
@@ -1500,7 +1537,8 @@ static Kernel_T *GRU_Stack_Seq_NE16(
                         KerArg("Xin",     KerArgSpace(1,RD0),   O_IN|O_DB,                              DimIn,            1, FeatDataSize, 0, 0, 0, "Xin"):AT_NO_KER_ARG,
                         KerArg("OutBuff1", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
                         KerArg("OutBuff2", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
-                        KerArg("OutBuff3", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       (Mode16?2:1),     1, 4,            0, 0, 0, ""),
+                        (!Mode16)?
+                        KerArg("OutBuff3", KerArgSpace(1,D1),   O_BUFF|O_ONETILE,                       1,                1, 4,            0, 0, 0, ""):AT_NO_KER_ARG,
                         (ExposeSequence)?
                         KerArg("Hout",    KerArgSpace(2,RD0,D1),O_OUT|O_DB,                             1,                1, FeatDataSize, 0, 0, 0, "Hout"):AT_NO_KER_ARG,
                         KerArg("Infos",   KerArgSpace(1,T0),    O_IN|O_BUFF|O_NTILED|O_CONST,           GRU_NE16_CELL_INFOS,1, 1,        0, 0, 0, "Infos")

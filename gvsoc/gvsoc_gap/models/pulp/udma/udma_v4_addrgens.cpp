@@ -68,8 +68,8 @@ void Udma_addrgen_linear::reset(bool active)
     this->nb_pending_transfers = 0;
     this->channel = NULL;
     this->set_active_transfer(false);
+    this->remaining_size = 0;
 }
-
 
 void Udma_addrgen_linear::check_pending_transfer()
 {
@@ -101,8 +101,15 @@ void Udma_addrgen_linear::cfg_ctrl_req(uint64_t reg_offset, int size, uint8_t *v
         }
         else if (this->regmap.cfg_ctrl.en_get())
         {
+
+            if (this->nb_pending_transfers > 0)
+            {
+                this->remaining_size -= this->pending_size;
+            }
+
             this->pending_addr = this->regmap.cfg_sa_buf0.get();
             this->pending_size = this->regmap.cfg_size.get();
+            this->remaining_size += this->pending_size;
 
             this->nb_pending_transfers++;
 
@@ -182,6 +189,7 @@ void Udma_addrgen_2d::reset(bool active)
 {
     this->nb_pending_transfers = 0;
     this->set_active_transfer(false);
+    this->remaining_size = 0;
 }
 
 
@@ -218,10 +226,16 @@ void Udma_addrgen_2d::cfg_ctrl_req(uint64_t reg_offset, int size, uint8_t *value
         }
         else if (this->regmap.cfg_ctrl.en_get())
         {
+            if (this->nb_pending_transfers > 0)
+            {
+                this->remaining_size -= this->pending_size;
+            }
+
             this->pending_addr = this->regmap.cfg_sa_buf0.get();
             this->pending_size = this->regmap.cfg_size.get();
             this->pending_stride = this->regmap.cfg_stride.get();
             this->pending_length = this->regmap.cfg_row_len.get();
+            this->remaining_size += this->pending_size;
 
             trace.msg(vp::trace::LEVEL_TRACE, "Configuring (addr: 0x%x, size: 0x%x, stride: 0x%x, length: 0x%x)\n",
                 this->pending_addr, this->pending_size, this->pending_stride, this->pending_length);

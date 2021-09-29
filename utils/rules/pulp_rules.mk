@@ -6,7 +6,20 @@ OBJDUMP       = riscv32-unknown-elf-objdump
 NM          = riscv32-unknown-elf-nm
 SIZE        = riscv32-unknown-elf-size
 
-platform     ?= board
+ifndef platform
+ifdef PMSIS_PLATFORM
+platform = $(PMSIS_PLATFORM)
+else
+platform = board
+endif				# platform
+endif				# PMSIS_PLATFORM
+
+ifdef PLPTEST_PLATFORM
+platform=$(PLPTEST_PLATFORM)
+ifneq ($(platform), gvsoc)
+use_pulprun=1
+endif
+endif
 
 # The linker options.
 ifeq ($(CUSTOM_BSP),)
@@ -213,13 +226,6 @@ $(BUILDDIR)/pulp-os/conf.o: $(GAP_SDK_HOME)/rtos/pulp/pulp-os/kernel/conf.c
 $(BIN): $(OBJECTS)
 	$(CC) $(PULP_ARCH_LDFLAGS) -MMD -MP $(WRAP_FLAGS) $(PULP_LDFLAGS) $(INC_PATH) -o $(BIN) $(OBJECTS) $(LIBS) $(LDFLAGS) $(LIBSFLAGS) $(INC_DEFINE)
 
-ifdef PLPTEST_PLATFORM
-platform=$(PLPTEST_PLATFORM)
-ifneq ($(platform), gvsoc)
-use_pulprun=1
-endif
-endif
-
 override config_args += $(foreach file, $(READFS_FILES), --config-opt=flash/content/partitions/readfs/files=$(file))
 override config_args += $(foreach file, $(HOSTFS_FILES), --config-opt=flash/content/partitions/hostfs/files=$(file))
 
@@ -245,11 +251,6 @@ run.exec:
 run:
 	gapy --target=$(GAPY_TARGET) --platform=$(platform) --work-dir=$(BUILDDIR) $(config_args) $(gapy_args) run --exec-prepare --exec --binary=$(BIN) $(runner_args)
 
-
-profiler:
-	gapy --target=$(GAPY_TARGET) --platform=$(platform) --work-dir=$(BUILDDIR) $(config_args) $(gapy_args) --config-opt="gvsoc/events/gen_gtkw=false" run --image --flash --exec-prepare --binary=$(BIN) --event=.*@all.bin --event-format=raw $(runner_args)
-	cd $(BUILDDIR) && if [ -e all.bin ]; then rm all.bin; fi; mkfifo all.bin
-	cd $(BUILDDIR) && export PULP_CONFIG_FILE=$(BUILDDIR)/gvsoc_config.json && profiler $(BUILDDIR) $(BIN) gvsoc_config.json
 
 #$(INSTALL_DIR)/runner/run_gapuino.sh $(BUILDDIR) $(BIN) $(RAW_IMAGE_PLPBRIDGE_FLAGS)  $(PLPBRIDGE_FLAGS) $(PLPBRIDGE_EXTRA_FLAGS)
 

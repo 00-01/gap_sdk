@@ -169,7 +169,7 @@ class Abs(Function):
         return "np.abs(%s)" % args[0]
 
     def _c_expr(self, *args, **kwargs):
-        return "AbsF32(%s)" % (args[0])
+        return "Absf32(%s)" % (args[0])
 
 
 @c_headers('"Gap.h"')
@@ -206,7 +206,7 @@ class Ceil(Function):
 
 
 @nargs(2)
-@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
+@c_headers('"FloatDefines.h"')
 class Max(Function):
 
     def _impl(self, *args, **kwargs):
@@ -216,7 +216,7 @@ class Max(Function):
         return "np.maximum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"MaxF32(({args[0]}),({args[1]}))"
+        return f"Maxf32(({args[0]}),({args[1]}))"
 
 
 @c_headers('"Gap.h"')
@@ -226,7 +226,7 @@ class GapMax(Max):
 
 
 @nargs(2)
-@c_headers('"CNN_FloatType.h"', '"CNN_Defines_fp16.h"')
+@c_headers('"FloatDefines.h"')
 class Min(Function):
 
     def _impl(self, *args, **kwargs):
@@ -236,7 +236,7 @@ class Min(Function):
         return "np.minimum(%s, %s)" % (args[0], args[1])
 
     def _c_expr(self, *args, **kwargs):
-        return f"MinF32(({args[0]}),({args[1]}))"
+        return f"Minf32(({args[0]}),({args[1]}))"
 
 
 @c_headers('"Gap.h"')
@@ -258,6 +258,18 @@ class Sqrt(Function):
     def _c_expr(self, *args, **kwargs):
         return "sqrtf(%s)" % (args[0],)
 
+@nargs(1)
+@c_headers('<math.h>')
+class RSqrt(Function):
+
+    def _impl(self, *args, **kwargs):
+        return 1 / np.sqrt(args[0], dtype=self.dtype)
+
+    def _py_expr(self, *args, **kwargs):
+        return "(1/np.sqrt(%s))" % (args[0],)
+
+    def _c_expr(self, *args, **kwargs):
+        return "1.0f/sqrtf(%s)" % (args[0],)
 
 @nargs(1)
 @c_headers('<math.h>')
@@ -315,6 +327,19 @@ class ATan(Function):
         return "atan(%s)" % (args[0],)
 
 
+@nargs(1)
+@c_headers('<math.h>')
+class Square(Function):
+
+    def _impl(self, *args, **kwargs):
+        return np.power(args[0], 2, dtype=self.dtype)
+
+    def _py_expr(self, *args, **kwargs):
+        return f"np.power({args[0]}, 2)"
+
+    def _c_expr(self, *args, **kwargs):
+        return f"square({args[0]}))"
+
 @nargs(2)
 @c_headers('<math.h>')
 class Pow(Function):
@@ -368,10 +393,10 @@ class TanH(Function):
 class Sigmoid(Function):
 
     def _impl(self, *args, **kwargs):
-        return expit(args[0])
+        return expit(args[0]).astype(np.float32)
 
     def _py_expr(self, *args, **kwargs):
-        return "np.expit(%s)" % (args[0],)
+        return f"np.expit({args[0]}).astype(np.float32)"
 
     def _c_expr(self, *args, **kwargs):
         return f"fsigmoid({args[0]})"
@@ -501,3 +526,8 @@ class ConvertFloatScaled(CompoundFunction):
         if self._from_qrec.dtype == np.int16 or self._from_qrec.dtype == bfloat16:
             return self._eval_float_to_quant(*args, **kwargs)
         return self._eval_quant_to_float(*args, **kwargs)
+
+@nargs(2)
+class SquaredDifference(CompoundFunction):
+    def _eval(self, *args, **kwargs):
+        return Square(Sub(args[0], args[1], dtype=args[0].dtype))

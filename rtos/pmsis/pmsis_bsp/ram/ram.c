@@ -66,7 +66,7 @@ static void __pi_ram_cluster_req(void *_req)
     else
   	pi_ram_copy_async(req->device, req->pi_ram_addr, req->addr, req->size, req->ext2loc, pi_task_callback(&req->event, __pi_ram_cluster_req_done, (void *)req));
 }
-#endif
+#endif  /* PMSIS_DRIVERS && __GAP8__ */
 
 void pi_cl_ram_copy(struct pi_device *device,
                  uint32_t pi_ram_addr, void *addr, uint32_t size, int ext2loc, pi_cl_ram_req_t *req)
@@ -79,16 +79,12 @@ void pi_cl_ram_copy(struct pi_device *device,
     req->done = 0;
     req->ext2loc = ext2loc;
     req->is_2d = 0;
-#if defined(PMSIS_DRIVERS) && CHIP==GAP8
-    req->event.arg[0] = (uintptr_t)__pi_ram_cluster_req;
-    req->event.arg[1] = (uintptr_t)req;
-    pi_task_t *task = (pi_task_t*)(((uintptr_t)&(req->event)) | 0x1);
-    //printf("task pointer is %p\n",task);
-    pi_cl_send_task_to_fc(task);
-#else
+    #if defined(PMSIS_DRIVERS) && defined(__GAP8__)
+    pi_task_irq_callback(&(req->event),__pi_ram_cluster_req, req);
+    #else
     pi_task_callback(&req->event, __pi_ram_cluster_req, (void *) req);
+    #endif  /* PMSIS_DRIVERS && __GAP8__ */
     pi_cl_send_task_to_fc(&req->event);
-#endif
 }
 
 
@@ -106,16 +102,12 @@ void pi_cl_ram_copy_2d(struct pi_device *device,
     req->done = 0;
     req->ext2loc = ext2loc;
     req->is_2d = 1;
-#if defined(PMSIS_DRIVERS) && CHIP==GAP8
-    req->event.arg[0] = (uintptr_t)__pi_ram_cluster_req;
-    req->event.arg[1] = (uintptr_t)req;
-    pi_task_t *task = (pi_task_t*)(((uintptr_t)&(req->event)) | 0x1);
-    //printf("task pointer is %p\n",task);
-    pi_cl_send_task_to_fc(task);
-#else
+    #if defined(PMSIS_DRIVERS) && defined(__GAP8__)
+    pi_task_irq_callback(&(req->event),__pi_ram_cluster_req, req);
+    #else
     pi_task_callback(&req->event, __pi_ram_cluster_req, (void *) req);
+    #endif  /* PMSIS_DRIVERS && __GAP8__ */
     pi_cl_send_task_to_fc(&req->event);
-#endif
 }
 
 

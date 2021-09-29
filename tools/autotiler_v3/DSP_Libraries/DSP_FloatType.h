@@ -21,7 +21,7 @@
 	#ifdef __FLOAT_EMUL__
 		typedef float F16_DSP;
 		typedef float F16V_DSP __attribute__((vector_size (8)));
-		typedef V2S __attribute__((vector_size (8)));
+		typedef int   V2S __attribute__((vector_size (8)));
 	#else
 		typedef short int F16_DSP;
 		typedef short int F16V_DSP __attribute__((vector_size (4)));

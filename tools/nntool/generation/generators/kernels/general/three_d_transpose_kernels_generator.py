@@ -55,11 +55,6 @@ def three_d_transpose_kernels_generator(gen, node, qrec, in_eparams, out_eparams
 def gen_at_2d_transpose(code_block, name, datasize,
                         in_shape, gen_ctrl=None,
                         at_ver=3):
-    if gen_ctrl is None:
-        gen_ctrl = "0"
-    else:
-        raise NotImplementedError("genctrl is not yet implemented")
-
     code_block.write('CNN_MatTranspose("{}", {}, {}, 1, {}, {}, KOP_MATTRANSP);',
                      name, gen_ctrl, datasize, in_shape[1], in_shape[0])
 
@@ -71,6 +66,9 @@ class TwoDTransposeKernel(AutotilerKernel):
         else:
             gen_ctrl.cname = cname
             self.gen_ctrl = gen_ctrl
+
+        if qrec.out_qs[0].is_floating:
+            self.gen_ctrl.float_dump = 1
 
         self.in_q = qrec.in_qs[0]
         self.out_q = qrec.out_qs[0]
@@ -92,9 +90,12 @@ class TwoDTransposeKernel(AutotilerKernel):
 
         if not self.gen_ctrl.is_unmodified:
             self.gen_ctrl.gen_ctrl_decl(code_block)
+            gen_ctrl = self.gen_ctrl.ctrl_name
+        else:
+            gen_ctrl = "0"
 
         gen_at_2d_transpose(code_block, self.cname,
-                            abs(at_bits(self.in_q)), self.in_shape)
+                            abs(at_bits(self.in_q)), self.in_shape, gen_ctrl=gen_ctrl)
         return code_block
 
 
@@ -111,10 +112,6 @@ class TwoDTransposeKernel(AutotilerKernel):
 def gen_at_3d_transpose(code_block, name, datasize,
                         in_shape, permop, gen_ctrl=None,
                         at_ver=3):
-    if gen_ctrl is None:
-        gen_ctrl = "0"
-    else:
-        raise NotImplementedError("genctrl is not yet implemented")
 
     code_block.write('CNN_3DTensorPermute("{}", {}, {}, {}, {}, {}, {});',
                      name, gen_ctrl, datasize, in_shape[0], in_shape[2], in_shape[1],
@@ -128,6 +125,9 @@ class ThreeDTransposeKernel(AutotilerKernel):
         else:
             gen_ctrl.cname = cname
             self.gen_ctrl = gen_ctrl
+
+        if qrec.out_qs[0].is_floating:
+            self.gen_ctrl.float_dump = 1
 
         self.in_shape = real_in_shape
         dim_names = ['C', 'H', 'W']
@@ -147,13 +147,17 @@ class ThreeDTransposeKernel(AutotilerKernel):
         if code_block is None:
             code_block = CodeBlock()
 
+
         code_block.comment("generator for {}", self.node_name)
         code_block.comment("transpose from {} to {} ({})", self.in_dim,
                            self.out_dim, self.real_transpose)
 
         if not self.gen_ctrl.is_unmodified:
             self.gen_ctrl.gen_ctrl_decl(code_block)
+            gen_ctrl = self.gen_ctrl.ctrl_name
+        else:
+            gen_ctrl = "0"
 
         gen_at_3d_transpose(code_block, self.cname, abs(at_bits(self.in_q)),
-                            self.in_shape, self.permop)
+                            self.in_shape, self.permop, gen_ctrl=gen_ctrl)
         return code_block

@@ -90,7 +90,7 @@ class QuantizationSet(MutableMapping, JsonSerializable):
 
     def __getitem__(self, key):
         if key not in self.qset:
-            raise KeyError()
+            raise KeyError() # @IgnoreException
         item = self.qset[key]
         return item
 

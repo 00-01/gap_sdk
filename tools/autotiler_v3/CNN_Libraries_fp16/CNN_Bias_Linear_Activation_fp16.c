@@ -16,6 +16,7 @@
 
 #include "Gap.h"
 #include "CNN_BasicKernels_fp16.h"
+#include "CNN_Defines_fp16.h"
 
 static int CoreCountDynamic = 1;
 static int ActiveCore = gap_ncore();
@@ -124,7 +125,7 @@ void KerParReLU_fp16(KerActivation_fp16_T *Arg)
 		F16V Y = MaxF2(VectIn[2*i+1], LB);
 		VectOut[2*i] = X; VectOut[2*i+1] = Y;
 	}
-	for (unsigned int i=4*(Iter/4); i<Iter; i++) Out[i] = MaxF(In[i], (F16)0.0);
+	for (unsigned int i=4*(Iter/4); i<Iter; i++) Out[First+i] = MaxF(In[First+i], (F16)0.0);
 	gap_waitbarrier(0);
 }
 
@@ -150,7 +151,7 @@ void KerParReLUN_fp16(KerActivation_fp16_T *Arg)
 		F16V Y = MinF2(MaxF2(VectIn[2*i+1], LBv), UBv);
 		VectOut[2*i] = X; VectOut[2*i+1] = Y;
 	}
-	for (unsigned int i=4*(Iter/4); i<Iter; i++) Out[i] = MinF(MaxF(In[i], (F16)0.0), UB);
+	for (unsigned int i=4*(Iter/4); i<Iter; i++) Out[First+i] = MinF(MaxF(In[First+i], (F16)0.0), UB);
 
 	gap_waitbarrier(0);
 }
@@ -158,65 +159,54 @@ void KerParReLUN_fp16(KerActivation_fp16_T *Arg)
 void KerParSwish_fp16(KerActivation_fp16_T *Arg)
 
 {
-	F16 * __restrict__ In = Arg->In;
 	unsigned int W = Arg->W;
 	unsigned int H = Arg->H;
 	unsigned int OutFeatures = Arg->Feat;
-	F16 * __restrict__ Out = Arg->Out;
-
 	unsigned int S = OutFeatures*W*H, CoreId = gap_coreid(), Chunk = ChunkSize(S), First = Chunk*CoreId, Last = Min(First+Chunk, S), Iter = Last-First;
 
-	In  = (In+First); Out = (Out+First);
+	F16V *vIn  = (F16V*)(Arg->In+First), *vOut = (F16V*)(Arg->Out+First);
 	for (unsigned int i=0; i<Iter/2; i++) {
-		F16 Acc0 = In[2*i], Acc1 = In[2*i+1];
-		Out[2*i]   = Fast_Swish_fp16(Acc0);
-		Out[2*i+1] = Fast_Swish_fp16(Acc1);
+		*vOut++ = FastSwishF16V(*vIn);
+		vIn++;
 	}
-	if (Iter&0x1) Out[Iter-1] = Fast_Swish_fp16(In[Iter-1]);
+	if (Iter&0x1) *((F16 *)vOut) = FastSwishF16(*((F16 *)vIn));
 	gap_waitbarrier(0);
 }
 
 void KerParSigmoid_fp16(KerActivation_fp16_T *Arg)
 
 {
-	F16 * __restrict__ In = Arg->In;
 	unsigned int W = Arg->W;
 	unsigned int H = Arg->H;
 	unsigned int OutFeatures = Arg->Feat;
-	F16 * __restrict__ Out = Arg->Out;
-
 	unsigned int S = OutFeatures*W*H, CoreId = gap_coreid(), Chunk = ChunkSize(S), First = Chunk*CoreId, Last = Min(First+Chunk, S), Iter = Last-First;
 
-	In  = (In+First); Out = (Out+First);
+	F16V *vIn  = (F16V*)(Arg->In+First), *vOut = (F16V*)(Arg->Out+First);
 	for (unsigned int i=0; i<Iter/2; i++) {
-		F16 Acc0 = In[2*i], Acc1 = In[2*i+1];
-		Out[2*i]   = Fast_Sigmoid_fp16(Acc0);
-		Out[2*i+1] = Fast_Sigmoid_fp16(Acc1);
+		*vOut++ = FastSigmoidF16V(*vIn);
+		vIn++;
 	}
-	if (Iter&0x1) Out[Iter-1] = Fast_Sigmoid_fp16(In[Iter-1]);
+	if (Iter&0x1) *((F16 *)vOut) = FastSigmoidF16(*((F16 *)vIn));
 	gap_waitbarrier(0);
 }
 
 void KerParTanh_fp16(KerActivation_fp16_T *Arg)
 
 {
-	F16 * __restrict__ In = Arg->In;
 	unsigned int W = Arg->W;
 	unsigned int H = Arg->H;
 	unsigned int OutFeatures = Arg->Feat;
-	F16 * __restrict__ Out = Arg->Out;
-
 	unsigned int S = OutFeatures*W*H, CoreId = gap_coreid(), Chunk = ChunkSize(S), First = Chunk*CoreId, Last = Min(First+Chunk, S), Iter = Last-First;
 
-	In  = (In+First); Out = (Out+First);
+	F16V *vIn  = (F16V*)(Arg->In+First), *vOut = (F16V*)(Arg->Out+First);
 	for (unsigned int i=0; i<Iter/2; i++) {
-		F16 Acc0 = In[2*i], Acc1 = In[2*i+1];
-		Out[2*i]   = Fast_Tanh_fp16(Acc0);
-		Out[2*i+1] = Fast_Tanh_fp16(Acc1);
+		*vOut++ = FastTanhF16V(*vIn);
+		vIn++;
 	}
-	if (Iter&0x1) Out[Iter-1] = Fast_Tanh_fp16(In[Iter-1]);
+	if (Iter&0x1) *((F16 *)vOut) = FastTanhF16(*((F16 *)vIn));
 	gap_waitbarrier(0);
 }
+
 
 void KerParLeakyReLU_fp16(KerActivation_fp16_T *Arg)
 
@@ -386,7 +376,7 @@ void KerParLinearLayerSwish_fp16(KerLinear_fp16_T *Arg)
 		F16 A = Acc[0]+Acc[1];
 		if (InDim&0x1) A += In[InDim-1]*Filter[i*InDim+InDim-1];
 		if (Init) A += Bias[i]; else A += Out[i];
-		Out[i] = Fast_Swish_fp16(A);
+		Out[i] = FastSwishF16(A);
 	}
 	gap_waitbarrier(0);
 }
@@ -422,7 +412,7 @@ void KerParLinearLayerSigmoid_fp16(KerLinear_fp16_T *Arg)
 		F16 A = Acc[0]+Acc[1];
 		if (InDim&0x1) A += In[InDim-1]*Filter[i*InDim+InDim-1];
 		if (Init) A += Bias[i]; else A += Out[i];
-		Out[i] = Fast_Sigmoid_fp16(A);
+		Out[i] = FastSigmoidF16(A);
 	}
 	gap_waitbarrier(0);
 }
@@ -458,7 +448,7 @@ void KerParLinearLayerTanh_fp16(KerLinear_fp16_T *Arg)
 		F16 A = Acc[0]+Acc[1];
 		if (InDim&0x1) A += In[InDim-1]*Filter[i*InDim+InDim-1];
 		if (Init) A += Bias[i]; else A += Out[i];
-		Out[i] = Fast_Tanh_fp16(A);
+		Out[i] = FastTanhF16(A);
 	}
 	gap_waitbarrier(0);
 }

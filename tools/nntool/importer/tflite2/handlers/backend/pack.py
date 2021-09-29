@@ -77,6 +77,11 @@ class Pack(ConstantMixin, BackendHandler):
             LOG.info("reducing %s to a constant", node.name)
             value = np.stack([cls.get_constant(inp) for inp in inputs], axis=axis)
             params = ConstantInputParameters(node.name, value=value, constant_store=G.constant_store)
+        elif len(inputs) == 1:
+            params = ReshapeParameters(node.name,
+                                        old_shape=reshape_in_shape,
+                                        shape=concat_in_shape)
+            G.add_edge(NNEdge(from_node=inputs[0][0], to_node=params, from_idx=inputs[0][1]))
         else:
             axis -= sum(1 if dim is None else 0 for dim in pconcat_out_shape[:axis:])
             params = ConcatParameters(node.name, axis=axis, axis_hint=None)

@@ -195,7 +195,7 @@ static void pi_testbench_uart_setup_pads(int uart_id)
 }
 
 
-int pi_testbench_prepare_pads(struct pi_testbench_conf *conf)
+void pi_testbench_prepare_pads(struct pi_testbench_conf *conf)
 {
     if (conf == NULL)
         pi_testbench_uart_setup_pads(CONFIG_TESTBENCH_UART_ID);

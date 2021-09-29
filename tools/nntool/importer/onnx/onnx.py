@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import re
+
 from graph.constant_store import ConstantStore
 from graph.dim import Dim
 from graph.matches.matchers.duplicate_constants import MatchDuplicateConstants
@@ -70,8 +72,7 @@ class OnnxImporter(ImporterBase):
 
     @staticmethod
     def _validate_name(name):
-        return name
-        # return name.replace(":", "_nntool_") + "_" + get_unique_suffix() if ":" in name else name
+        return re.sub('\W|^(?=\d)','_', name)
 
     @staticmethod
     def _get_dim_from_shape(onnx_shape):
@@ -152,6 +153,36 @@ class OnnxImporter(ImporterBase):
             self._name_cache[node.op_type] = count
             return "%s_%s" % (node.op_type, count)
         return "%s_%s" % (node.op_type, self._validate_name(node.output[0]))
+
+    # Non functional node sorting to work around networks with bad node order
+    # Shouldn't be necessary
+    # def _walk_nodes(self, in_name, nodes_by_input, seen):
+    #     seen.add(in_name)
+    #     nodes = []
+    #     if in_name not in nodes_by_input:
+    #         return nodes
+    #     for node in nodes_by_input[in_name]:
+    #         if not all(inp in seen for inp in node.input):
+    #             continue
+    #         nodes.append(node)
+    #         for out_name in node.output:
+    #             nodes.extend(self._walk_nodes(out_name, nodes_by_input, seen))
+    #     return nodes
+
+    # def _sort_nodes(self, nodes, used_tensors):
+    #     nodes_by_output = {output: node for node in nodes for output in node.output}
+    #     nodes_by_input = {}
+    #     for node in nodes:
+    #         for inpname in node.input:
+    #             in_nodes = nodes_by_input.setdefault(inpname, [])
+    #             in_nodes.append(node)
+    #     out_names = set(nodes_by_output.keys())
+    #     start_names = (used_tensors|set(nodes_by_input.keys())) - out_names
+    #     nodes = []
+    #     seen = set()
+    #     for in_name in start_names:
+    #         nodes.extend(self._walk_nodes(in_name, nodes_by_input, seen))
+    #     return nodes
 
     def _import_nodes(self, G, graph, handlers, all_nodes, outputs, opts):
         used_tensors = set(all_nodes.keys()) | set(outputs.keys()) | set.union(*(set(node.input)

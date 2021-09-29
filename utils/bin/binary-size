@@ -135,10 +135,31 @@ groups = {
     "freertos": [
         Group('FreeRTOS', ['pi_.*'], [
             Group('FreeRTOS:kernel', [
-                'xTask.*', 'xQueue.*', 'xYield.*', 'xTick.*', 'vTask.*', 'xSuspended.*',
+                'xTask.*', 'vQueue.*', 'xQueue.*', 'xYield.*', 'xTick.*', 'vTask.*', 'xSuspended.*',
                 'xIdle.*', 'xDelayed.*', 'xScheduler.*', 'xPending.*', 'xPended.*',
-                'xNextTaskUnblockTime', 'xNumOfOverflows'
+                'xNextTaskUnblockTime', 'xNumOfOverflows', 'pxCurrentTCB', 'ulCriticalNesting',
+                'uPortSet_Interrupt_Mask_F', 'ulCriticalNesting', 'uxCurrentNumberOfTasks',
+                'uxDeletedTasksWaitingClea', 'uxIdleTaskStack', 'uxListRemove',
+                'uxSchedulerSuspended', 'uxTaskNumber', 'uxTopReadyPriority', 'uxTopUsedPriority',
+                'vApplicationGetIdleTaskMe', 'vApplicationIdleHook', 'vListInitialise',
+                'vListInitialiseItem', 'vListInsert', 'vListInsertEnd', 'vPortClear_Interrupt_Mask',
+                'vPortEnter_Critical', 'vPortExit_Critical', 'vPrvAssertFailed', 'vQueueDelete',
+                'vSetPendSV', 'prvAddNewTaskToReadyList', 'prvIdleTask', 'prvSetupTimerInterrupt',
+                'pvTaskIncrementMutexHeldC', 'pxDelayedTaskList', 'pxOverflowDelayedTaskList',
+                'pxPortInitialiseStack', 'pxReadyTasksLists'
             ]),
+            Group('FreeRTOS:cluster', ['__pi_cluster_.*', 'pi_cluster_.*']),
+            Group('FreeRTOS:cpi', ['__pi_cpi.*', 'pi_cpi_.*']),
+            Group('FreeRTOS:fll', ['pi_fll.*', '__pi_freq_.*', 'pi_freq_.*']),
+            Group('FreeRTOS:hyper', ['__pi_hyper_.*', 'pi_hyper_.*']),
+            Group('FreeRTOS:mram', ['pos_mram.*']),
+            Group('FreeRTOS:octospi', ['__pi_octospi.*', 'pi_octospi_.*']),
+            Group('FreeRTOS:pmu', ['__pi_pmu.*', 'pi_pmu.*']),
+            Group('FreeRTOS:rtc', ['__pi_rtc.*', 'pi_rtc.*']),
+            Group('FreeRTOS:spim', ['pos_spim.*', 'pi_spi_.*']),
+            Group('FreeRTOS:uart', ['__pi_uart.*', 'pi_uart_.*']),
+            Group('FreeRTOS:malloc', ['pi_malloc_.*', 'pi_l2_*', 'pi_l1_*', 'pi_cl_l1_*']),
+            Group('FreeRTOS:libc', ['fprintf', 'vfprintf', 'printf', 'vprintf', 'sprintf', 'snprintf', 'vsnprintf', 'vsprintf', 'memmove', 'memcpy', 'puts','exit', 'strchr']),
         ]),
         Group('app', ['.*'])
     ],

@@ -67,7 +67,8 @@ CTRL_FEATURES = {
     "HWC": int,
     "INPUT_DATASIZE": int,
     "OUTPUT_DATASIZE": int,
-    "GATE_PRENORM": int
+    "GATE_PRENORM": int,
+    "FLOAT_DUMP": int
 }
 
 
